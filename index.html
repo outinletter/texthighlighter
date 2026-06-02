@@ -1035,7 +1035,7 @@ async function runHL(){
 
     const BOOKMARK_PATTERNS=[
       {label:'CFP PLAN',pattern:/CFP\s+PLAN/i},
-      {label:'COPY OF ATS',pattern:/\(\s*FPL-[A-Z]{3}\d+[\s\S]*?-PBN\/[\s\S]*?\bDOF\/\d{6}\b[\s\S]*?COPY\s+OF\s+ATS\s+FPL,\s*SUBMITTED\s+AT/i},
+      {label:'COPY OF ATS', pattern:/COPY\s+OF\s+ATS\s+FPL[,\s]*SUBMITTED\s+AT/i},
       {label:'DISPATCH RELEASE INFORMATION',pattern:/DISPATCH\s+RELEASE\s+INFORMATION|DISPATCH\s+RELEASE\s+INFO/i},
       {label:'EQUAL TIME POINT DATA',pattern:/EQUAL\s+TIME\s+POINT\s+DATA/i},
       {label:'WEATHER BRIEFING',pattern:/WEATHER\s+BRIEFING/i},
