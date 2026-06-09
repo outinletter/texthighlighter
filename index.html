@@ -416,37 +416,37 @@ body{
   <div class="app">
     
     <div class="card">
-      <div class="card-title">NOTAM HIGHLIGHTER 주요 기능 안내</div>
+      <div class="card-title">Key Features of NOTAM HIGHLIGHTER</div>
       <div class="offline-instruction" style="margin-bottom: 0; text-align: left;">
         <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; font-size: 11px;">
           <li>
-            <b>✓ 100% 로컬 보안 환경:</b>
+            <b>✓ 100% Local Security Environment:</b>
             <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              인터넷 연결 없이 브라우저 메모리 내에서 독립적으로 구동되어 기밀 데이터가 외부로 유출되지 않습니다.
+              Runs independently in browser memory without an internet connection, ensuring confidential data is never uploaded externally.
             </div>
           </li>
           <li>
-            <b>✓ 스마트 자동 하이라이팅:</b>
+            <b>✓ Smart Auto-Highlighting:</b>
             <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              비행계획서(PDF) 내의 중요 NOTAM 키워드, 항로 제한사항 등을 스캔하여 지정된 색상으로 자동 강조합니다.
+              Scans critical NOTAM keywords and route restrictions within your flight package (PDF) and highlights them in designated colors.
             </div>
           </li>
           <li>
-            <b>✓ 지능형 북마크(목차) 생성:</b>
+            <b>✓ Intelligent Bookmark Generation:</b>
             <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              'CFP PLAN', 'COPY OF ATS FPL', 'WEATHER BRIEFING' 등 핵심 페이지를 추적하여 PDF 북마크를 자동 삽입합니다.
+              Automatically inserts PDF bookmarks for key sections such as 'CFP PLAN', 'COPY OF ATS FPL', and 'WEATHER BRIEFING'.
             </div>
           </li>
           <li>
-            <b>✓ 맞춤형 단어 추가 기능:</b>
+            <b>✓ Custom Word Tags:</b>
             <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              기본 내장된 항공 키워드 외에도 사용자가 원하는 커스텀 단어를 추가하여 하이라이팅할 수 있습니다.
+              Add your own custom keywords to the highlighter in addition to the built-in aviation terminology database.
             </div>
           </li>
           <li>
-            <b>✓ PDF 텍스트 복호화 엔진:</b>
+            <b>✓ PDF Text Decoding Engine:</b>
             <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              암호화되거나 인코딩이 어긋난 PDF 문서의 텍스트 오프셋을 자동 감지하여 정확하게 문자를 추출합니다.
+              Automatically detects and resolves text encoding offsets in encrypted or legacy PDF documents for accurate extraction.
             </div>
           </li>
         </ul>
@@ -910,7 +910,7 @@ function cleanAndDecodeItem(str, offset) {
     }
   }
   
-  // 강제로 영문, 숫자, 기본 기호만 남기고 모두 공백으로 치환
+  // Force only English, numbers, and basic symbols, replace others with spaces
   return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
 }
 
@@ -927,7 +927,7 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
       
       const isDispatchReleasePage = /DISPATCH\s+RELEASE\s+INFORMATION/i.test(decodedRawText) || /I\s+HEREBY\s+RELEASE/i.test(decodedRawText);
 
-      // ICAO 코드 추출
+      // Extract ICAO codes
       if (airports.length === 0) {
         const m1 = /\bFLIGHT\s+RELEASE\s+[A-Z0-9]+\s+([A-Z]{4})[\/-]([A-Z]{4})\b/i.exec(decodedRawText);
         if (m1) {
@@ -945,7 +945,7 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
         }
       }
 
-      // IATA 코드 추출 (오직 Dispatch Release 페이지에서만 가장 먼저 나오는 3/3 패턴 탐색)
+      // Extract IATA codes (Searching for 3/3 pattern on Dispatch Release page)
       if (iataAirports.length === 0 && isDispatchReleasePage) {
         const mIata = /\b([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/g;
         let match;
@@ -960,7 +960,7 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
         }
       }
 
-      // 혹시라도 위에서 못 찾았을 경우, 패키지 헤더(KE0497 / ICN / DEL)를 통한 백업 추출
+      // Backup extraction via package header (e.g., KE0497 / ICN / DEL)
       if (iataAirports.length === 0) {
          const mHeader = /\b(?:KAL|KE)\s*\d+\s*\/\s*([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
          if (mHeader) {
