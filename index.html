@@ -976,6 +976,24 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
   return airports;
 }
 
+// cleanAndDecodeItem은 [ ] % 등의 문자를 공백으로 치환해버려 [DEP]/[ERA]/[FIR] 같은
+// 태그 검출에 쓸 수 없다. 동일한 offset 판별 로직을 쓰되, 인쇄 가능한 ASCII 문자는
+// (대괄호, %, 콜론 등 포함) 그대로 보존하는 전용 디코더.
+function decodeForTagScan(str, offset) {
+  if (!str) return '';
+  let finalStr = str;
+  if (offset) {
+    const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
+    const decrypted = decodeStr(str, offset);
+    const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
+    if (decStandardCount > origStandardCount) {
+      finalStr = decrypted;
+    }
+  }
+  // 제어문자 등 비인쇄 ASCII만 공백으로 치환하고, [ ] % 등은 그대로 유지
+  return finalStr.replace(/[^\x20-\x7E]/g, ' ');
+}
+
 // NOTAM 1 구간: [DEP], [DEST], [ALTN] 태그 뒤에 나오는 공항코드를 그 고정 순서대로 1개씩 추출
 async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
   const found = {};
@@ -989,7 +1007,7 @@ async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusi
     const tc = await jsPage.getTextContent();
     const rawText = tc.items.map(it => it.str).join(' ');
     const offset = detectPageOffset(rawText);
-    const pageText = tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
+    const pageText = tc.items.map(it => decodeForTagScan(it.str, offset)).join(' ');
 
     for (const tag of tags) {
       if (found[tag] !== undefined) continue;
@@ -1022,7 +1040,7 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
     const tc = await jsPage.getTextContent();
     const rawText = tc.items.map(it => it.str).join(' ');
     const offset = detectPageOffset(rawText);
-    const pageText = tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
+    const pageText = tc.items.map(it => decodeForTagScan(it.str, offset)).join(' ');
 
     re.lastIndex = 0;
     let m;
