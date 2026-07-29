@@ -976,6 +976,66 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
   return airports;
 }
 
+// NOTAM 1 구간: [DEP], [DEST], [ALTN] 태그 뒤에 나오는 공항코드를 그 고정 순서대로 1개씩 추출
+async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
+  const found = {};
+  if (startPageIdx === undefined || startPageIdx === -1) return [];
+  const from = Math.max(0, startPageIdx);
+  const to = Math.min(pdfJsDoc.numPages, endPageIdxExclusive);
+
+  for (let pi = from; pi < to; pi++) {
+    if (Object.keys(found).length === tags.length) break;
+    const jsPage = await pdfJsDoc.getPage(pi + 1);
+    const tc = await jsPage.getTextContent();
+    const rawText = tc.items.map(it => it.str).join(' ');
+    const offset = detectPageOffset(rawText);
+    const pageText = tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
+
+    for (const tag of tags) {
+      if (found[tag] !== undefined) continue;
+      const re = new RegExp('\\[\\s*' + tag + '\\s*\\]\\s*([A-Z]{3,4})\\b', 'i');
+      const m = re.exec(pageText);
+      if (m) {
+        found[tag] = { code: m[1].toUpperCase(), pageIdx: pi };
+      }
+    }
+  }
+
+  const ordered = [];
+  for (const tag of tags) {
+    if (found[tag]) ordered.push({ tag, code: found[tag].code, pageIdx: found[tag].pageIdx });
+  }
+  return ordered;
+}
+
+// NOTAM 2 / NOTAM 3 구간: 지정한 태그 패턴([ERA], [3% ERA], [EDTO], [FIR] 등)으로 나열된
+// 모든 공항코드를 문서에 등장하는 순서 그대로 추출하는 범용 함수
+async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tagPattern) {
+  const results = [];
+  if (startPageIdx === undefined || startPageIdx === -1) return results;
+  const from = Math.max(0, startPageIdx);
+  const to = Math.min(pdfJsDoc.numPages, endPageIdxExclusive);
+  const re = new RegExp('\\[\\s*(' + tagPattern + ')\\s*\\]\\s*([A-Z]{3,4})\\b', 'gi');
+
+  for (let pi = from; pi < to; pi++) {
+    const jsPage = await pdfJsDoc.getPage(pi + 1);
+    const tc = await jsPage.getTextContent();
+    const rawText = tc.items.map(it => it.str).join(' ');
+    const offset = detectPageOffset(rawText);
+    const pageText = tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
+
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(pageText)) !== null) {
+      const tagLabel = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
+      const code = m[2].toUpperCase();
+      results.push({ tag: tagLabel, code, pageIdx: pi });
+    }
+
+  }
+  return results;
+}
+
 async function extractMetadata(pdfJsDoc) {
   try {
     const firstPage = await pdfJsDoc.getPage(1);
@@ -1032,7 +1092,7 @@ async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
 
-  const SENTENCE_KW = ['CLSD', 'CLOSED', 'RESTRICT', 'NOT AVBL'];
+  const SENTENCE_KW = ['CLSD', 'CLOSED', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4'];
 
   const runBtn=document.getElementById('runBtn');
   runBtn.className='action-btn run-btn';
@@ -1100,6 +1160,28 @@ async function runHL(){
     if (weatherBriefingIdx !== -1) dispatchEndIdx = weatherBriefingIdx;
     else if (pkg1PageIdx !== -1) dispatchEndIdx = pkg1PageIdx;
     else if (pkg3StartIdx !== -1) dispatchEndIdx = pkg3StartIdx;
+
+    const notam1PageIdx = bmPages['NOTAM 1'];
+    const notam2PageIdx = bmPages['NOTAM 2'];
+    const notam3PageIdx = bmPages['NOTAM 3'];
+
+    let notam1SubAirports = [];
+    let notam2SubAirports = [];
+    let notam3SubAirports = [];
+    if (notam1PageIdx !== undefined) {
+      const notam1EndIdx = notam2PageIdx !== undefined ? notam2PageIdx : (notam3PageIdx !== undefined ? notam3PageIdx : numPages);
+      notam1SubAirports = await extractFirstTagAirports(pdfJsDoc, notam1PageIdx, notam1EndIdx, ['DEP', 'DEST', 'ALTN']);
+    }
+    if (notam2PageIdx !== undefined) {
+      const notam2EndIdx = notam3PageIdx !== undefined ? notam3PageIdx : numPages;
+      // ERA(및 3% ERA)와 EDTO 지정 공항을 모두 포함
+      notam2SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam2PageIdx, notam2EndIdx, '(?:\\d+\\s*%\\s*)?ERA|EDTO');
+    }
+    if (notam3PageIdx !== undefined) {
+      const notam3EndIdx = numPages;
+      // FIR(비행정보구역) 공역 북마크
+      notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR');
+    }
 
     let edtoPointDataPageIdx = -1;
     for(let pi=0;pi<numPages;pi++){
@@ -1516,13 +1598,42 @@ async function runHL(){
 
     const ctx=pdfLibDoc.context;
     const outlineItems=[];
+    const bmLabelToRef={};
     for(const bm of BOOKMARK_PATTERNS){
       const pi=bmPages[bm.label];if(pi===undefined)continue;
       const pageRef=pdfLibDoc.getPage(pi).ref;
       const dest=ctx.obj([pageRef,PDFLib.PDFName.of('Fit')]);
       const itemDict=ctx.obj({Title:PDFLib.PDFString.of(bm.label),Dest:dest});
-      outlineItems.push(ctx.register(itemDict));
+      const itemRef=ctx.register(itemDict);
+      outlineItems.push(itemRef);
+      bmLabelToRef[bm.label]=itemRef;
     }
+
+    function attachSubBookmarks(parentLabel, subAirports){
+      const parentRef=bmLabelToRef[parentLabel];
+      if(!parentRef||!subAirports||subAirports.length===0)return;
+      const parentDict=ctx.lookup(parentRef);
+      const childRefs=subAirports.map(item=>{
+        const childPageRef=pdfLibDoc.getPage(item.pageIdx).ref;
+        const childDest=ctx.obj([childPageRef,PDFLib.PDFName.of('Fit')]);
+        const childTitle=`${item.tag} ${item.code}`;
+        const childDict=ctx.obj({Title:PDFLib.PDFString.of(childTitle),Dest:childDest,Parent:parentRef});
+        return ctx.register(childDict);
+      });
+      for(let i=0;i<childRefs.length;i++){
+        const d=ctx.lookup(childRefs[i]);
+        if(i>0)d.set(PDFLib.PDFName.of('Prev'),childRefs[i-1]);
+        if(i<childRefs.length-1)d.set(PDFLib.PDFName.of('Next'),childRefs[i+1]);
+      }
+      parentDict.set(PDFLib.PDFName.of('First'),childRefs[0]);
+      parentDict.set(PDFLib.PDFName.of('Last'),childRefs[childRefs.length-1]);
+      parentDict.set(PDFLib.PDFName.of('Count'),PDFLib.PDFNumber.of(childRefs.length));
+    }
+
+    attachSubBookmarks('NOTAM 1', notam1SubAirports);
+    attachSubBookmarks('NOTAM 2', notam2SubAirports);
+    attachSubBookmarks('NOTAM 3', notam3SubAirports);
+
     if(outlineItems.length>0){
       for(let i=0;i<outlineItems.length;i++){
         const d=ctx.lookup(outlineItems[i]);
