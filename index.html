@@ -994,7 +994,39 @@ function decodeForTagScan(str, offset) {
   return finalStr.replace(/[^\x20-\x7E]/g, ' ');
 }
 
-// NOTAM 1 구간: [DEP], [DEST], [ALTN] 태그 뒤에 나오는 공항코드를 그 고정 순서대로 1개씩 추출
+// 같은 y좌표(같은 줄)에 속한 텍스트 아이템들을 하나의 줄로 묶고, 원래 배치 순서(x좌표)대로
+// 이어붙인 텍스트와 그 줄의 y좌표를 함께 돌려준다. 북마크 목적지를 "줄 단위"로 정확히
+// 잡기 위한 용도 (태그와 공항코드가 서로 다른 텍스트 아이템으로 쪼개져 있어도 한 줄로 인식).
+function groupItemsIntoLines(items, offset) {
+  const decorated = items
+    .map(it => ({ item: it, text: decodeForTagScan(it.str, offset) }))
+    .filter(d => d.text && d.text.length > 0);
+
+  decorated.sort((a, b) => b.item.transform[5] - a.item.transform[5]);
+
+  const lines = [];
+  for (const d of decorated) {
+    const y = d.item.transform[5];
+    let joined = false;
+    for (const line of lines) {
+      if (Math.abs(line.y - y) < 4.0) {
+        line.parts.push(d);
+        joined = true;
+        break;
+      }
+    }
+    if (!joined) lines.push({ y, parts: [d] });
+  }
+
+  for (const line of lines) {
+    line.parts.sort((a, b) => a.item.transform[4] - b.item.transform[4]);
+    line.text = line.parts.map(p => p.text).join('');
+  }
+  return lines;
+}
+
+// NOTAM 1 구간: [DEP], [DEST], [ALTN] 태그 뒤에 나오는 공항코드를 그 고정 순서대로 1개씩 추출.
+// 태그가 있는 "줄"의 y좌표까지 함께 반환하여, 북마크가 해당 줄을 화면 상단에 정확히 위치시키도록 한다.
 async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
   const found = {};
   if (startPageIdx === undefined || startPageIdx === -1) return [];
@@ -1007,27 +1039,31 @@ async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusi
     const tc = await jsPage.getTextContent();
     const rawText = tc.items.map(it => it.str).join(' ');
     const offset = detectPageOffset(rawText);
-    const pageText = tc.items.map(it => decodeForTagScan(it.str, offset)).join(' ');
+    const lines = groupItemsIntoLines(tc.items, offset);
 
-    for (const tag of tags) {
-      if (found[tag] !== undefined) continue;
-      const re = new RegExp('\\[\\s*' + tag + '\\s*\\]\\s*([A-Z]{3,4})\\b', 'i');
-      const m = re.exec(pageText);
-      if (m) {
-        found[tag] = { code: m[1].toUpperCase(), pageIdx: pi };
+    for (const line of lines) {
+      if (Object.keys(found).length === tags.length) break;
+      for (const tag of tags) {
+        if (found[tag] !== undefined) continue;
+        const re = new RegExp('\\[\\s*' + tag + '\\s*\\]\\s*([A-Z]{3,4})\\b', 'i');
+        const m = re.exec(line.text);
+        if (m) {
+          found[tag] = { code: m[1].toUpperCase(), pageIdx: pi, y: line.y };
+        }
       }
     }
   }
 
   const ordered = [];
   for (const tag of tags) {
-    if (found[tag]) ordered.push({ tag, code: found[tag].code, pageIdx: found[tag].pageIdx });
+    if (found[tag]) ordered.push({ tag, code: found[tag].code, pageIdx: found[tag].pageIdx, y: found[tag].y });
   }
   return ordered;
 }
 
 // NOTAM 2 / NOTAM 3 구간: 지정한 태그 패턴([ERA], [3% ERA], [EDTO], [FIR] 등)으로 나열된
-// 모든 공항코드를 문서에 등장하는 순서 그대로 추출하는 범용 함수
+// 모든 공항코드를 문서에 등장하는 순서 그대로 추출하는 범용 함수. 마찬가지로 각 태그가
+// 위치한 "줄"의 y좌표를 함께 반환한다.
 async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tagPattern) {
   const results = [];
   if (startPageIdx === undefined || startPageIdx === -1) return results;
@@ -1040,16 +1076,17 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
     const tc = await jsPage.getTextContent();
     const rawText = tc.items.map(it => it.str).join(' ');
     const offset = detectPageOffset(rawText);
-    const pageText = tc.items.map(it => decodeForTagScan(it.str, offset)).join(' ');
+    const lines = groupItemsIntoLines(tc.items, offset);
 
-    re.lastIndex = 0;
-    let m;
-    while ((m = re.exec(pageText)) !== null) {
-      const tagLabel = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
-      const code = m[2].toUpperCase();
-      results.push({ tag: tagLabel, code, pageIdx: pi });
+    for (const line of lines) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(line.text)) !== null) {
+        const tagLabel = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
+        const code = m[2].toUpperCase();
+        results.push({ tag: tagLabel, code, pageIdx: pi, y: line.y });
+      }
     }
-
   }
   return results;
 }
@@ -1632,8 +1669,17 @@ async function runHL(){
       if(!parentRef||!subAirports||subAirports.length===0)return;
       const parentDict=ctx.lookup(parentRef);
       const childRefs=subAirports.map(item=>{
-        const childPageRef=pdfLibDoc.getPage(item.pageIdx).ref;
-        const childDest=ctx.obj([childPageRef,PDFLib.PDFName.of('Fit')]);
+        const childPage=pdfLibDoc.getPage(item.pageIdx);
+        const childPageRef=childPage.ref;
+        // 해당 줄(y)이 화면 상단 근처에 오도록 XYZ 목적지 사용. 위쪽 여백을 조금 남겨
+        // 텍스트가 화면 최상단에 딱 붙지 않게 하고, 페이지 높이를 넘지 않도록 clamp.
+        const pageHeight = childPage.getHeight();
+        const topMargin = 30;
+        let topY = (typeof item.y === 'number') ? (item.y + topMargin) : pageHeight;
+        topY = Math.max(0, Math.min(pageHeight, topY));
+        const childDest = (typeof item.y === 'number')
+          ? ctx.obj([childPageRef, PDFLib.PDFName.of('XYZ'), PDFLib.PDFNumber.of(0), PDFLib.PDFNumber.of(topY), PDFLib.PDFNumber.of(0)])
+          : ctx.obj([childPageRef, PDFLib.PDFName.of('Fit')]);
         const childTitle=`${item.tag} ${item.code}`;
         const childDict=ctx.obj({Title:PDFLib.PDFString.of(childTitle),Dest:childDest,Parent:parentRef});
         return ctx.register(childDict);
