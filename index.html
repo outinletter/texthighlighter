@@ -2030,9 +2030,9 @@ async function runHL(){
 
       if (extractedRoute && sortedCoaItems.length > 0) {
         let headerY = null;
-        const sortedCoaItemsByOriginalOrder = sortedCoaItems.slice().reverse();
+        let headerPageHeight = coaH;
 
-        for (const item of sortedCoaItemsByOriginalOrder) {
+        for (const item of sortedCoaItems) {
           const itemStr = cleanAndDecodeItem(item.str, foundCoaPageOffset);
           if (itemStr.toUpperCase().includes('COPY OF ATS FPL') || itemStr.toUpperCase().includes('ATS FPL')) {
             headerY = item.transform[5];
@@ -2042,9 +2042,9 @@ async function runHL(){
 
         if (headerY !== null) {
           const boxX = 50;
-          const boxY = (headerY * coaSy) - 60;
+          const boxY = (headerY * coaSy) - 65;
           const boxWidth = coaW - 100;
-          const boxHeight = 50;
+          const boxHeight = 55;
           const padding = 8;
 
           coaLibPage.drawRectangle({
@@ -2053,7 +2053,7 @@ async function runHL(){
             width: boxWidth,
             height: boxHeight,
             color: PDFLib.rgb(0.9, 0.9, 0.95),
-            opacity: 0.3
+            opacity: 0.25
           });
 
           coaLibPage.drawRectangle({
@@ -2061,17 +2061,27 @@ async function runHL(){
             y: boxY,
             width: boxWidth,
             height: boxHeight,
-            borderColor: PDFLib.rgb(0.5, 0.5, 0.7),
-            borderWidth: 1.5
+            borderColor: PDFLib.rgb(0.4, 0.4, 0.6),
+            borderWidth: 1.2
           });
 
-          const routeText = extractedRoute.substring(0, 85);
-          coaLibPage.drawText('ROUTE: ' + routeText, {
+          const routeText = extractedRoute.substring(0, 100);
+          coaLibPage.drawText('ROUTE:', {
             x: boxX + padding,
-            y: boxY + boxHeight - 18,
-            size: 8,
+            y: boxY + boxHeight - 15,
+            size: 7.5,
             font: stdFont,
-            color: PDFLib.rgb(0, 0, 0)
+            color: PDFLib.rgb(0.2, 0.2, 0.2),
+            opacity: 0.8
+          });
+
+          coaLibPage.drawText(routeText, {
+            x: boxX + padding + 40,
+            y: boxY + boxHeight - 15,
+            size: 7.5,
+            font: stdFont,
+            color: PDFLib.rgb(0.1, 0.1, 0.1),
+            opacity: 0.9
           });
         }
       }
