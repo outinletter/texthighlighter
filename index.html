@@ -190,6 +190,10 @@ body{
 .toggle input:checked+.slider{background:#3b82f6}
 .toggle input:checked+.slider:before{transform:translateX(20px);background:#fff}
 
+.toggle-small{width:35px;height:19px}
+.toggle-small .slider:before{width:14px;height:14px;left:2px;top:2px}
+.toggle-small input:checked+.slider:before{transform:translateX(16px)}
+
 .dropdown-wrap{position:relative}
 .dropdown-btn{
   padding:8px 12px;
@@ -222,13 +226,15 @@ body{
   border:1px solid #334155;
   border-radius:12px;
   padding:8px 0;
-  width:240px;
+  max-width:240px;
+  width:90%;
   z-index:1000;
   box-shadow:0 10px 15px -3px rgba(0,0,0,.5);
   max-height:220px;
   overflow-y:auto;
   text-align:left;
-  right:0;
+  left:50%;
+  transform:translateX(-50%);
   top:calc(100% + 6px);
 }
 .menu-section{padding:4px 12px;font-size:9px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase}
@@ -420,12 +426,6 @@ body{
       <div class="offline-instruction" style="margin-bottom: 0; text-align: left;">
         <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; font-size: 11px;">
           <li>
-            <b>✓ 100% Local Security Environment:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Runs independently in browser memory without an internet connection, ensuring confidential data is never uploaded externally.
-            </div>
-          </li>
-          <li>
             <b>✓ Smart Auto-Highlighting:</b>
             <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
               Scans critical NOTAM keywords and route restrictions within your flight package (PDF) and highlights them in designated colors.
@@ -471,7 +471,15 @@ body{
       <div class="hl-row" style="justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <label class="toggle"><input type="checkbox" id="hlEnabled"><span class="slider"></span></label>
-          <span class="hl-label" style="font-size: 13px; font-weight: 700;">Select All NOTAM Keywords</span>
+          <span class="hl-label" style="font-size: 13px; font-weight: 700;">
+            Select All NOTAM Keywords
+            <span style="font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 8px;">
+              (
+              <label class="toggle toggle-small" style="display: inline-flex; margin: 0 6px; vertical-align: middle;"><input type="checkbox" id="bmEnabled"><span class="slider"></span></label>
+              <span style="vertical-align: middle;">Generate Bookmarks Only</span>
+              )
+            </span>
+          </span>
         </div>
         <div class="dropdown-wrap">
           <button class="dropdown-btn" id="dropBtn" onclick="toggleDD()">
@@ -481,13 +489,6 @@ body{
             <div class="menu-section">NOTAM KEYWORDS</div>
             <div id="presetList"></div>
           </div>
-        </div>
-      </div>
-
-      <div class="hl-row" style="justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid #1e293b;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <label class="toggle"><input type="checkbox" id="bmEnabled"><span class="slider"></span></label>
-          <span class="hl-label" style="font-size: 13px; font-weight: 700;">Generate Bookmarks Only</span>
         </div>
       </div>
 
