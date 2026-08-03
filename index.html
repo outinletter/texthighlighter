@@ -1939,14 +1939,14 @@ async function runHL(){
 
                   const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
                   const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
-                  const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.5);
+                  const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
 
                   coaLibPage.drawLine({
                       start: { x: underlineX1, y: underlineY },
                       end: { x: underlineX2, y: underlineY },
                       color: PDFLib.rgb(1, 0, 0),
                       thickness: 2.0,
-                      opacity: 0.7
+                      opacity: 0.5
                   });
                   totalHits++;
               }
@@ -2011,14 +2011,14 @@ async function runHL(){
 
                       const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
                       const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
-                      const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.5);
+                      const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
 
                       coaLibPage.drawLine({
                           start: { x: underlineX1, y: underlineY },
                           end: { x: underlineX2, y: underlineY },
                           color: PDFLib.rgb(1, 0, 0),
                           thickness: 2.0,
-                          opacity: 0.7
+                          opacity: 0.5
                       });
                       totalHits++;
                   }
@@ -2028,49 +2028,51 @@ async function runHL(){
       }
 
       if (extractedRoute && sortedCoaItems.length > 0) {
-        const lastItem = sortedCoaItems[sortedCoaItems.length - 1];
-        const lastY = lastItem.transform[5];
-        const itemH = Math.abs(lastItem.transform[3]) || 10;
-        const boxX = 50;
-        const boxY = (lastY * coaSy) - (itemH * coaSy * 3);
-        const boxWidth = coaW - 100;
-        const boxHeight = itemH * coaSy * 2.5;
-        const padding = 10;
+        let headerY = null;
+        const sortedCoaItemsByOriginalOrder = sortedCoaItems.slice().reverse();
 
-        coaLibPage.drawRectangle({
-          x: boxX,
-          y: boxY,
-          width: boxWidth,
-          height: boxHeight,
-          color: PDFLib.rgb(0.9, 0.9, 0.95),
-          opacity: 0.3
-        });
+        for (const item of sortedCoaItemsByOriginalOrder) {
+          const itemStr = cleanAndDecodeItem(item.str, foundCoaPageOffset);
+          if (itemStr.toUpperCase().includes('COPY OF ATS FPL') || itemStr.toUpperCase().includes('ATS FPL')) {
+            headerY = item.transform[5];
+            break;
+          }
+        }
 
-        coaLibPage.drawRectangle({
-          x: boxX,
-          y: boxY,
-          width: boxWidth,
-          height: boxHeight,
-          borderColor: PDFLib.rgb(0.5, 0.5, 0.7),
-          borderWidth: 1.5
-        });
+        if (headerY !== null) {
+          const boxX = 50;
+          const boxY = (headerY * coaSy) - 60;
+          const boxWidth = coaW - 100;
+          const boxHeight = 50;
+          const padding = 8;
 
-        const routeText = extractedRoute.substring(0, 100);
-        coaLibPage.drawText('EXTRACTED ROUTE:', {
-          x: boxX + padding,
-          y: boxY + boxHeight - itemH * coaSy - 5,
-          size: 9,
-          font: stdFont,
-          color: PDFLib.rgb(0, 0, 0)
-        });
+          coaLibPage.drawRectangle({
+            x: boxX,
+            y: boxY,
+            width: boxWidth,
+            height: boxHeight,
+            color: PDFLib.rgb(0.9, 0.9, 0.95),
+            opacity: 0.3
+          });
 
-        coaLibPage.drawText(routeText, {
-          x: boxX + padding,
-          y: boxY + padding,
-          size: 8,
-          font: stdFont,
-          color: PDFLib.rgb(0, 0, 0)
-        });
+          coaLibPage.drawRectangle({
+            x: boxX,
+            y: boxY,
+            width: boxWidth,
+            height: boxHeight,
+            borderColor: PDFLib.rgb(0.5, 0.5, 0.7),
+            borderWidth: 1.5
+          });
+
+          const routeText = extractedRoute.substring(0, 85);
+          coaLibPage.drawText('ROUTE: ' + routeText, {
+            x: boxX + padding,
+            y: boxY + boxHeight - 18,
+            size: 8,
+            font: stdFont,
+            color: PDFLib.rgb(0, 0, 0)
+          });
+        }
       }
     }
 
