@@ -483,7 +483,14 @@ body{
           </div>
         </div>
       </div>
-      
+
+      <div class="hl-row" style="justify-content: space-between; margin-top: 12px; padding-top: 12px; border-top: 1px solid #1e293b;">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <label class="toggle"><input type="checkbox" id="bmEnabled"><span class="slider"></span></label>
+          <span class="hl-label" style="font-size: 13px; font-weight: 700;">Generate Bookmarks Only</span>
+        </div>
+      </div>
+
       <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between;">
         <span style="font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.5px;">Highlight Marker Color</span>
         <div style="display: flex; gap: 8px;">
@@ -694,12 +701,13 @@ function selectColor(name, rgbArray) {
 }
 
 let sel=new Set(), custom=[], pdfBytes=null, fname='document', done=false, outBytes=null;
-let detectedAirports = []; 
-let iataAirports = []; 
+let detectedAirports = [];
+let iataAirports = [];
+let bmEnabled = false; 
 let extractedFileDate = ''; 
 let extractedFlightNum = ''; 
 
-function canRun(){return sel.size>0 && pdfBytes!==null;}
+function canRun(){return (sel.size>0 || bmEnabled) && pdfBytes!==null;}
 function updRun(){document.getElementById('runBtn').className='action-btn run-btn'+(canRun()?' active':'');}
 function handleBtn(){if(done)dlPDF();else runHL();}
 
@@ -730,6 +738,11 @@ document.getElementById('hlEnabled').addEventListener('change',e=>{
     pl.querySelectorAll('input').forEach(c=>c.checked=false);
   }
   updBadge();done=false;updRun();
+});
+
+document.getElementById('bmEnabled').addEventListener('change',e=>{
+  bmEnabled=e.target.checked;
+  done=false;updRun();
 });
 
 function updBadge(){
@@ -1251,8 +1264,10 @@ async function runHL(){
       }
     }
 
-    setStatus('processing','Calculating highlight positions and drawing...');
     let totalHits=0;
+
+    if(sel.size>0){
+      setStatus('processing','Calculating highlight positions and drawing...');
 
     for(let pi=0;pi<numPages;pi++){
       const jsPage=await pdfJsDoc.getPage(pi+1);
@@ -1650,6 +1665,7 @@ async function runHL(){
         }
       }
     }
+    } // sel.size > 0 조건 닫기
 
     const ctx=pdfLibDoc.context;
     const outlineItems=[];
@@ -1910,24 +1926,27 @@ async function runHL(){
                   const itemIdx = parseInt(itemIdxStr, 10);
                   const charIndices = itemMatches[itemIdx];
                   if (charIndices.length === 0) continue;
-                  
+
                   const minCharIdx = Math.min(...charIndices);
                   const maxCharIdx = Math.max(...charIndices);
                   const matchCharCount = maxCharIdx - minCharIdx + 1;
-                  
+
                   const item = sortedCoaItems[itemIdx];
                   const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
                   const tx = item.transform;
                   const itemW = item.width || 0;
                   const charW = itemW / Math.max(s.length, 1);
-                  
-                  coaLibPage.drawRectangle({
-                      x: (tx[4] + minCharIdx * charW) * coaSx,
-                      y: (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.2), 
-                      width: Math.max(matchCharCount * charW * coaSx, 4),
-                      height: Math.max((Math.abs(tx[3]) || 10) * coaSy * 1.2, 8), 
-                      color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 
-                      opacity: 0.15 
+
+                  const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
+                  const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
+                  const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.5);
+
+                  coaLibPage.drawLine({
+                      start: { x: underlineX1, y: underlineY },
+                      end: { x: underlineX2, y: underlineY },
+                      color: PDFLib.rgb(1, 0, 0),
+                      thickness: 2.0,
+                      opacity: 0.7
                   });
                   totalHits++;
               }
@@ -1979,24 +1998,27 @@ async function runHL(){
                       const itemIdx = parseInt(itemIdxStr, 10);
                       const charIndices = itemMatches[itemIdx];
                       if (charIndices.length === 0) continue;
-                      
+
                       const minCharIdx = Math.min(...charIndices);
                       const maxCharIdx = Math.max(...charIndices);
                       const matchCharCount = maxCharIdx - minCharIdx + 1;
-                      
+
                       const item = sortedCoaItems[itemIdx];
                       const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
                       const tx = item.transform;
                       const itemW = item.width || 0;
                       const charW = itemW / Math.max(s.length, 1);
-                      
-                      coaLibPage.drawRectangle({
-                          x: (tx[4] + minCharIdx * charW) * coaSx,
-                          y: (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.2), 
-                          width: Math.max(matchCharCount * charW * coaSx, 4),
-                          height: Math.max((Math.abs(tx[3]) || 10) * coaSy * 1.2, 8), 
-                          color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 
-                          opacity: 0.15 
+
+                      const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
+                      const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
+                      const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.5);
+
+                      coaLibPage.drawLine({
+                          start: { x: underlineX1, y: underlineY },
+                          end: { x: underlineX2, y: underlineY },
+                          color: PDFLib.rgb(1, 0, 0),
+                          thickness: 2.0,
+                          opacity: 0.7
                       });
                       totalHits++;
                   }
@@ -2004,7 +2026,53 @@ async function runHL(){
               }
           }
       }
-    } 
+
+      if (extractedRoute && sortedCoaItems.length > 0) {
+        const lastItem = sortedCoaItems[sortedCoaItems.length - 1];
+        const lastY = lastItem.transform[5];
+        const itemH = Math.abs(lastItem.transform[3]) || 10;
+        const boxX = 50;
+        const boxY = (lastY * coaSy) - (itemH * coaSy * 3);
+        const boxWidth = coaW - 100;
+        const boxHeight = itemH * coaSy * 2.5;
+        const padding = 10;
+
+        coaLibPage.drawRectangle({
+          x: boxX,
+          y: boxY,
+          width: boxWidth,
+          height: boxHeight,
+          color: PDFLib.rgb(0.9, 0.9, 0.95),
+          opacity: 0.3
+        });
+
+        coaLibPage.drawRectangle({
+          x: boxX,
+          y: boxY,
+          width: boxWidth,
+          height: boxHeight,
+          borderColor: PDFLib.rgb(0.5, 0.5, 0.7),
+          borderWidth: 1.5
+        });
+
+        const routeText = extractedRoute.substring(0, 100);
+        coaLibPage.drawText('EXTRACTED ROUTE:', {
+          x: boxX + padding,
+          y: boxY + boxHeight - itemH * coaSy - 5,
+          size: 9,
+          font: stdFont,
+          color: PDFLib.rgb(0, 0, 0)
+        });
+
+        coaLibPage.drawText(routeText, {
+          x: boxX + padding,
+          y: boxY + padding,
+          size: 8,
+          font: stdFont,
+          color: PDFLib.rgb(0, 0, 0)
+        });
+      }
+    }
 
     outBytes=await pdfLibDoc.save();
     done=true;
