@@ -1195,7 +1195,7 @@ async function runHL(){
 
     const BOOKMARK_PATTERNS=[
       {label:'CFP PLAN',pattern:/CFP\s+PLAN/i},
-      {label:'COPY OF ATS', pattern:/COPY\s+OF\s+ATS\s+FPL[,\s]*SUBMITTED\s+AT/i},
+      {label:'COPY OF ATS', pattern:/COPY\s+OF\s+ATS\s+FPL/i},
       {label:'DISPATCH RELEASE INFORMATION',pattern:/DISPATCH\s+RELEASE\s+INFORMATION|DISPATCH\s+RELEASE\s+INFO/i},
       {label:'EQUAL TIME POINT DATA',pattern:/EQUAL\s+TIME\s+POINT\s+DATA/i},
       {label:'WEATHER BRIEFING',pattern:/WEATHER\s+BRIEFING/i},
@@ -1252,18 +1252,7 @@ async function runHL(){
       notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR');
     }
 
-    let edtoPointDataPageIdx = -1;
-    for(let pi=0;pi<numPages;pi++){
-      const jsPageScan=await pdfJsDoc.getPage(pi+1);
-      const textC=await jsPageScan.getTextContent();
-      const pText=textC.items.map(it=>it.str).join(' ');
-      const scanOffset = detectPageOffset(pText);
-      const decodedScanText = textC.items.map(it => cleanAndDecodeItem(it.str, scanOffset)).join(' ');
-      if (/EDTO\s+EQUAL\s+TIME\s+POINT\s+DATA/i.test(decodedScanText)) {
-        edtoPointDataPageIdx = pi;
-        break;
-      }
-    }
+    const edtoPointDataPageIdx = bmPages['EQUAL TIME POINT DATA'] !== undefined ? bmPages['EQUAL TIME POINT DATA'] : -1;
 
     let totalHits=0;
 
@@ -1282,7 +1271,6 @@ async function runHL(){
       const rawPageText = content.items.map(it => it.str).join(' ');
       const pageOffset = detectPageOffset(rawPageText);
 
-      const isPackage3Page = (pkg3StartIdx !== -1 && pi >= pkg3StartIdx);
       const isDispatchPage = (dispatchReleaseIdx !== -1 && pi >= dispatchReleaseIdx && pi < dispatchEndIdx);
       const isNotamPage = (pkg1PageIdx !== -1 && pi >= pkg1PageIdx);
 
@@ -1697,7 +1685,7 @@ async function runHL(){
         const childDest = (typeof item.y === 'number')
           ? ctx.obj([childPageRef, PDFLib.PDFName.of('XYZ'), PDFLib.PDFNumber.of(0), PDFLib.PDFNumber.of(topY), PDFLib.PDFNumber.of(0)])
           : ctx.obj([childPageRef, PDFLib.PDFName.of('Fit')]);
-        const childTitle=`${item.tag} ${item.code}`;
+        const childTitle = item.title || `${item.tag} ${item.code}`.trim();
         const childDict=ctx.obj({Title:PDFLib.PDFString.of(childTitle),Dest:childDest,Parent:parentRef});
         return ctx.register(childDict);
       });
@@ -1710,6 +1698,13 @@ async function runHL(){
       parentDict.set(PDFLib.PDFName.of('Last'),childRefs[childRefs.length-1]);
       parentDict.set(PDFLib.PDFName.of('Count'),PDFLib.PDFNumber.of(childRefs.length));
     }
+
+    // WEATHER BRIEFING 서브북마크: Vertical Cross-Section (NOTAM 1 직전 페이지)
+    const weatherSubBookmarks = [];
+    if (notam1PageIdx !== undefined && notam1PageIdx > 0) {
+      weatherSubBookmarks.push({ title: 'Vertical Cross-Section', pageIdx: notam1PageIdx - 1, y: null });
+    }
+    attachSubBookmarks('WEATHER BRIEFING', weatherSubBookmarks);
 
     attachSubBookmarks('NOTAM 1', notam1SubAirports);
     attachSubBookmarks('NOTAM 2', notam2SubAirports);
@@ -1729,25 +1724,17 @@ async function runHL(){
     }
 
     let routeTokens = [];
+    let discFuel = '', discTime = '';
+    let suitableMap = {};
 
-    const cfpPageIdx=bmPages['CFP PLAN'];
-    let coaPageIdx=bmPages['COPY OF ATS'];
-    
-    let resolvedCoaPageIdx = coaPageIdx !== undefined ? coaPageIdx : -1;
+    const cfpPageIdx = bmPages['CFP PLAN'];
+    const resolvedCoaPageIdx = bmPages['COPY OF ATS'] !== undefined ? bmPages['COPY OF ATS'] : -1;
     let foundCoaPageOffset = 0;
-    
-    for (let pi = 0; pi < numPages; pi++) {
-      const scanJsPage = await pdfJsDoc.getPage(pi + 1);
-      const scanTextContent = await scanJsPage.getTextContent();
-      const rawScanText = scanTextContent.items.map(it => it.str).join(' ');
-      const scanOffset = detectPageOffset(rawScanText);
-      const decodedScanText = scanTextContent.items.map(it => cleanAndDecodeItem(it.str, scanOffset)).join(' ');
-      
-      if (decodedScanText.toUpperCase().includes("COPY OF ATS FPL, SUBMITTED AT") || decodedScanText.toUpperCase().includes("COPY OF ATS FPL")) {
-        resolvedCoaPageIdx = pi;
-        foundCoaPageOffset = scanOffset;
-        break;
-      }
+
+    if (resolvedCoaPageIdx !== -1) {
+      const coaRawPage = await pdfJsDoc.getPage(resolvedCoaPageIdx + 1);
+      const coaRawContent = await coaRawPage.getTextContent();
+      foundCoaPageOffset = detectPageOffset(coaRawContent.items.map(it => it.str).join(' '));
     }
 
     if(cfpPageIdx!==undefined && resolvedCoaPageIdx!==-1){
@@ -1808,11 +1795,16 @@ async function runHL(){
       if(extractedRoute) {
         const noiseWords = ['FLIGHT', 'PLAN', 'FUEL', 'TIME', 'WIND', 'TEMP', 'DIST', 'COMP', 'FREQ', 'RMK', 'ALTN', 'AWY', 'POS', 'LAT', 'LONG', 'ETA', 'ETD', 'ACTL', 'TOC', 'CLB', 'CRZ', 'DSC', 'IFR', 'NAM', 'AGTOW', 'TRIP', 'SOW', 'RWY', 'RESERVE', 'FINAL', 'RES', 'CONT', 'REFILE', 'RQD', 'TAKEOFF', 'DISC', 'TANKERING', 'PLN', 'RAMP', 'OUT', 'FOD', 'ROD', 'TOW', 'MTOW', 'LDW', 'MLDW', 'TIF', 'TCAP', 'PAX', 'CGO'];
         routeTokens = extractedRoute
-            .replace(/\.\./g, ' ') 
-            .replace(/[^A-Za-z0-9\s]/g, ' ') 
+            .replace(/\.\./g, ' ')
+            .replace(/[^A-Za-z0-9\s]/g, ' ')
             .split(/\s+/)
             .filter(t => t.length >= 2 && !noiseWords.includes(t.toUpperCase()) && !/^\d+$/.test(t));
       }
+
+      // CFP에서 DISC 연료값 추출 (이미 로딩된 cfpFullTextWithNewlines 재사용)
+      const discMatch = cfpFullTextWithNewlines.match(/\bDISC\b\s+(\d{4})\s+(\d{2}\.\d{2})/i);
+      discFuel = discMatch ? discMatch[1] : '';
+      discTime = discMatch ? discMatch[2] : '';
 
       const coaJsPage=await pdfJsDoc.getPage(resolvedCoaPageIdx+1);
       const coaContent=await coaJsPage.getTextContent();
@@ -2030,77 +2022,125 @@ async function runHL(){
 
     }
 
-    // CFP PLAN에서 DISC 연료값 추출 후 DISPATCH RELEASE 페이지에 삽입
-    if (cfpPageIdx !== undefined && dispatchReleaseIdx !== -1) {
-      // 1) CFP 페이지에서 DISC 값 추출
-      const cfpScanPage = await pdfJsDoc.getPage(cfpPageIdx + 1);
-      const cfpScanContent = await cfpScanPage.getTextContent();
-      const cfpScanRaw = cfpScanContent.items.map(it => it.str).join(' ');
-      const cfpScanOffset = detectPageOffset(cfpScanRaw);
-      const cfpScanDecoded = cfpScanContent.items.map(it => cleanAndDecodeItem(it.str, cfpScanOffset)).join(' ');
+    // DISC 연료값을 DISPATCH RELEASE 페이지 DISPATCH NOTES 오른쪽에 삽입
+    if (discFuel && discTime && dispatchReleaseIdx !== -1) {
+      const drJsPage = await pdfJsDoc.getPage(dispatchReleaseIdx + 1);
+      const drContent = await drJsPage.getTextContent();
+      const drOffset = detectPageOffset(drContent.items.map(it => it.str).join(' '));
+      const drLibPage = libPages[dispatchReleaseIdx];
+      const { width: drW, height: drH } = drLibPage.getSize();
+      const drVp = drJsPage.getViewport({ scale: 1.0 });
+      const drSx = drW / drVp.width;
+      const drSy = drH / drVp.height;
 
-      let discFuel = '';
-      let discTime = '';
-      // "DISC  0050  00.31" 패턴: DISC 뒤에 4자리 숫자, 그 뒤에 HH.MM 형식
-      const discMatch = cfpScanDecoded.match(/\bDISC\b\s+(\d{4})\s+([\d]{2}\.[\d]{2})/i);
-      if (discMatch) {
-        discFuel = discMatch[1]; // e.g. 0050
-        discTime = discMatch[2]; // e.g. 00.31
+      let notesY = null, notesRightX = null;
+      let dispatchItem = null;
+      for (const item of drContent.items) {
+        const s = cleanAndDecodeItem(item.str, drOffset);
+        const su = s.trim().toUpperCase();
+        if (/DISPATCH\s*NOTES/i.test(s)) {
+          notesY = item.transform[5];
+          notesRightX = item.transform[4] + (item.width || 0);
+          break;
+        }
+        if (su === 'DISPATCH') { dispatchItem = item; continue; }
+        if (su === 'NOTES' && dispatchItem && Math.abs(item.transform[5] - dispatchItem.transform[5]) < 5) {
+          notesY = item.transform[5];
+          notesRightX = item.transform[4] + (item.width || 0);
+          break;
+        }
       }
 
-      // 2) DISPATCH RELEASE INFORMATION 페이지에서 DISPATCH NOTES 위치 찾아 삽입
-      if (discFuel && discTime) {
-        const drJsPage = await pdfJsDoc.getPage(dispatchReleaseIdx + 1);
-        const drContent = await drJsPage.getTextContent();
-        const drRawText = drContent.items.map(it => it.str).join(' ');
-        const drOffset = detectPageOffset(drRawText);
-        const drLibPage = libPages[dispatchReleaseIdx];
-        const { width: drW, height: drH } = drLibPage.getSize();
-        const drVp = drJsPage.getViewport({ scale: 1.0 });
-        const drSx = drW / drVp.width;
-        const drSy = drH / drVp.height;
+      if (notesY !== null) {
+        drLibPage.drawText(`DISC FUEL INFO  ${discFuel}  ${discTime}`, {
+          x: (notesRightX + 10) * drSx,
+          y: notesY * drSy,
+          size: 9,
+          font: stdFont,
+          color: PDFLib.rgb(1, 0, 0),
+          opacity: 0.7
+        });
+      }
+    }
 
-        // DISPATCH NOTES 텍스트 아이템 탐색
-        let notesY = null;
-        let notesRightX = null;
-        for (const item of drContent.items) {
-          const s = cleanAndDecodeItem(item.str, drOffset);
-          if (/DISPATCH\s*NOTES/i.test(s)) {
-            notesY = item.transform[5];
-            notesRightX = item.transform[4] + (item.width || 0);
-            break;
+    // ENROUTE ALTERNATES 스캔 - CFP는 다중 페이지이므로 전체 섹션 탐색
+    // (cfpPageIdx부터 NOTAM 1 시작 전까지, 최대 20페이지)
+    if (cfpPageIdx !== undefined) {
+      const cfpSectionEnd = Math.min(
+        notam1PageIdx !== undefined ? notam1PageIdx : cfpPageIdx + 20,
+        numPages
+      );
+      for (let pi = cfpPageIdx; pi < cfpSectionEnd; pi++) {
+        const scanPage = await pdfJsDoc.getPage(pi + 1);
+        const scanTc = await scanPage.getTextContent();
+        const scanRaw = scanTc.items.map(it => it.str).join(' ');
+        const scanOff = detectPageOffset(scanRaw);
+        const scanText = scanTc.items.map(it => cleanAndDecodeItem(it.str, scanOff)).join(' ');
+        if (/ENROUTE\s+ALTERNATES/i.test(scanText)) {
+          const suitRe = /\b([A-Z]{3,4})\s+SUITABLE\s+FROM\s+(\d{4})\s+UTC\s*\/\s*TO\s+(\d{4})\s+UTC/gi;
+          let sm;
+          while ((sm = suitRe.exec(scanText)) !== null) {
+            suitableMap[sm[1].toUpperCase()] = `From ${sm[2]}Z To ${sm[3]}Z`;
           }
+          break;
         }
+      }
+    }
 
-        // 같은 줄에 걸쳐 있을 수 있으므로 두 단어가 분리된 경우도 처리
-        if (notesY === null) {
-          let dispatchItem = null, notesItem = null;
-          for (const item of drContent.items) {
-            const s = cleanAndDecodeItem(item.str, drOffset).trim().toUpperCase();
-            if (s === 'DISPATCH') dispatchItem = item;
-            if (s === 'NOTES' && dispatchItem && Math.abs(item.transform[5] - dispatchItem.transform[5]) < 5) {
-              notesItem = item;
-              break;
+    // NOTAM 페이지에서 [ERA]/[EDTO]/[REFILE] 태그 공항 옆에 SUITABLE 정보 삽입
+    if (Object.keys(suitableMap).length > 0 && notam1PageIdx !== undefined) {
+      const tagRe = /\[\s*(ERA|EDTO|REFILE|\d+\s*%\s*ERA)\s*\]\s*([A-Z]{3,4})\b/gi;
+
+      for (let pi = notam1PageIdx; pi < numPages; pi++) {
+        const jsPage = await pdfJsDoc.getPage(pi + 1);
+        const tc = await jsPage.getTextContent();
+        const rawText = tc.items.map(it => it.str).join(' ');
+        const offset = detectPageOffset(rawText);
+        const lines = groupItemsIntoLines(tc.items, offset);
+        const libPage = libPages[pi];
+        const { width: lw, height: lh } = libPage.getSize();
+        const vp = jsPage.getViewport({ scale: 1.0 });
+        const sx = lw / vp.width;
+        const sy = lh / vp.height;
+
+        for (const line of lines) {
+          tagRe.lastIndex = 0;
+          let m;
+          while ((m = tagRe.exec(line.text)) !== null) {
+            const airport = m[2].toUpperCase();
+            if (!suitableMap[airport]) continue;
+            const maxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+            const annotSize = 9;
+            const annotStartX = (maxX + 6) * sx;
+            const annotMaxW = lw - annotStartX - 4;
+            const fullText = `${airport} ${suitableMap[airport]}`;
+            // split into lines that fit within annotMaxW
+            const words = fullText.split(' ');
+            const annotLines = [];
+            let cur = '';
+            for (const w of words) {
+              const test = cur ? cur + ' ' + w : w;
+              if (stdFont.widthOfTextAtSize(test, annotSize) <= annotMaxW) {
+                cur = test;
+              } else {
+                if (cur) annotLines.push(cur);
+                cur = w;
+              }
             }
+            if (cur) annotLines.push(cur);
+            const lineH = annotSize * 1.3;
+            for (let li = 0; li < annotLines.length; li++) {
+              libPage.drawText(annotLines[li], {
+                x: annotStartX,
+                y: line.y * sy - li * lineH,
+                size: annotSize,
+                font: stdFont,
+                color: PDFLib.rgb(1, 0, 0),
+                opacity: 0.7
+              });
+            }
+            totalHits++;
           }
-          if (notesItem) {
-            notesY = notesItem.transform[5];
-            notesRightX = notesItem.transform[4] + (notesItem.width || 0);
-          }
-        }
-
-        if (notesY !== null) {
-          const annotText = `DISC FUEL INFO  ${discFuel}  ${discTime}`;
-          const textX = (notesRightX + 10) * drSx;
-          const textY = notesY * drSy;
-          drLibPage.drawText(annotText, {
-            x: textX,
-            y: textY,
-            size: 9,
-            font: stdFont,
-            color: PDFLib.rgb(1, 0, 0),
-            opacity: 0.7
-          });
         }
       }
     }
