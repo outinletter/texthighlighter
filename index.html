@@ -1387,7 +1387,7 @@ async function runHL(){
           }
         }
 
-        const isEtpLine = /\betp\s*[123]/i.test(lineText);
+        const isEtpLine = /\betp\s*[1-5]/i.test(lineText);
         if (isEtpLine && isAfterEdtoHeader) {
           const minX = Math.min(...lineItems.map(it => it.transform[4]));
           const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
