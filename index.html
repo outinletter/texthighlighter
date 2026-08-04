@@ -2030,6 +2030,81 @@ async function runHL(){
 
     }
 
+    // CFP PLAN에서 DISC 연료값 추출 후 DISPATCH RELEASE 페이지에 삽입
+    if (cfpPageIdx !== undefined && dispatchReleaseIdx !== -1) {
+      // 1) CFP 페이지에서 DISC 값 추출
+      const cfpScanPage = await pdfJsDoc.getPage(cfpPageIdx + 1);
+      const cfpScanContent = await cfpScanPage.getTextContent();
+      const cfpScanRaw = cfpScanContent.items.map(it => it.str).join(' ');
+      const cfpScanOffset = detectPageOffset(cfpScanRaw);
+      const cfpScanDecoded = cfpScanContent.items.map(it => cleanAndDecodeItem(it.str, cfpScanOffset)).join(' ');
+
+      let discFuel = '';
+      let discTime = '';
+      // "DISC  0050  00.31" 패턴: DISC 뒤에 4자리 숫자, 그 뒤에 HH.MM 형식
+      const discMatch = cfpScanDecoded.match(/\bDISC\b\s+(\d{4})\s+([\d]{2}\.[\d]{2})/i);
+      if (discMatch) {
+        discFuel = discMatch[1]; // e.g. 0050
+        discTime = discMatch[2]; // e.g. 00.31
+      }
+
+      // 2) DISPATCH RELEASE INFORMATION 페이지에서 DISPATCH NOTES 위치 찾아 삽입
+      if (discFuel && discTime) {
+        const drJsPage = await pdfJsDoc.getPage(dispatchReleaseIdx + 1);
+        const drContent = await drJsPage.getTextContent();
+        const drRawText = drContent.items.map(it => it.str).join(' ');
+        const drOffset = detectPageOffset(drRawText);
+        const drLibPage = libPages[dispatchReleaseIdx];
+        const { width: drW, height: drH } = drLibPage.getSize();
+        const drVp = drJsPage.getViewport({ scale: 1.0 });
+        const drSx = drW / drVp.width;
+        const drSy = drH / drVp.height;
+
+        // DISPATCH NOTES 텍스트 아이템 탐색
+        let notesY = null;
+        let notesRightX = null;
+        for (const item of drContent.items) {
+          const s = cleanAndDecodeItem(item.str, drOffset);
+          if (/DISPATCH\s*NOTES/i.test(s)) {
+            notesY = item.transform[5];
+            notesRightX = item.transform[4] + (item.width || 0);
+            break;
+          }
+        }
+
+        // 같은 줄에 걸쳐 있을 수 있으므로 두 단어가 분리된 경우도 처리
+        if (notesY === null) {
+          let dispatchItem = null, notesItem = null;
+          for (const item of drContent.items) {
+            const s = cleanAndDecodeItem(item.str, drOffset).trim().toUpperCase();
+            if (s === 'DISPATCH') dispatchItem = item;
+            if (s === 'NOTES' && dispatchItem && Math.abs(item.transform[5] - dispatchItem.transform[5]) < 5) {
+              notesItem = item;
+              break;
+            }
+          }
+          if (notesItem) {
+            notesY = notesItem.transform[5];
+            notesRightX = notesItem.transform[4] + (notesItem.width || 0);
+          }
+        }
+
+        if (notesY !== null) {
+          const annotText = `DISC FUEL INFO  ${discFuel}  ${discTime}`;
+          const textX = (notesRightX + 10) * drSx;
+          const textY = notesY * drSy;
+          drLibPage.drawText(annotText, {
+            x: textX,
+            y: textY,
+            size: 9,
+            font: stdFont,
+            color: PDFLib.rgb(1, 0, 0),
+            opacity: 0.5
+          });
+        }
+      }
+    }
+
     outBytes=await pdfLibDoc.save();
     done=true;
     runBtn.className='action-btn dl-btn active';
