@@ -5,37 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>NOTAM HIGHLIGHTER (Offline Ready)</title>
 <style>
-:root {
-  --color-primary: #3b82f6;
-  --color-dark-bg: #1e293b;
-  --color-gray: #334155;
-  --color-light-gray: #64748b;
-  --color-bg: #0f172a;
-  --color-text: #e2e8f0;
-  --color-text-secondary: #94a3b8;
-  --color-text-muted: #475569;
-  --color-success: #10b981;
-  --color-border: #1e293b;
-  --color-white: #fff;
-  --color-highlight: #3b82f6;
-  --color-error: #ef4444;
-  --color-body-bg: #0b0f19;
-  --color-text-light: #cbd5e1;
-  --color-card-hover: rgba(59,130,246,.05);
-}
-
 *{box-sizing:border-box;margin:0;padding:0}
 body{
   font-family:system-ui, -apple-system, sans-serif;
-  background:var(--color-body-bg);
-  color:var(--color-text);
+  background:#0b0f19;
+  color:#e2e8f0;
   min-height:100vh;
   display:flex;
   flex-direction:column;
 }
 .header{
-  background:linear-gradient(135deg,#111827,var(--color-bg));
-  border-bottom:1px solid var(--color-border);
+  background:linear-gradient(135deg,#111827,#0f172a);
+  border-bottom:1px solid #1e293b;
   padding:24px 16px 12px;
   position: relative;
 }
@@ -52,19 +33,19 @@ body{
   font-size:28px;
   font-weight:800;
   letter-spacing:1px;
-  color:var(--color-white);
+  color:#fff;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .header h1 span.highlight{
-  color:var(--color-primary);
+  color:#3b82f6;
   margin-left: 6px;
 }
 .header h1 span.version {
   font-size: 14px;
   font-weight: 600;
-  color: var(--color-light-gray);
+  color: #64748b;
   background: rgba(255, 255, 255, 0.1);
   padding: 2px 8px;
   border-radius: 6px;
@@ -73,7 +54,7 @@ body{
 }
 .header p{
   font-size:10.5px;
-  color:var(--color-text-secondary);
+  color:#94a3b8;
   margin-top:4px;
 }
 
@@ -111,7 +92,7 @@ body{
 .card{
   background:#111827;
   border-radius:12px;
-  border:1px solid var(--color-border);
+  border:1px solid #1e293b;
   padding:16px;
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
   margin-bottom: 16px;
@@ -122,7 +103,7 @@ body{
 .card-title{
   font-size:11px;
   font-weight:700;
-  color:var(--color-primary);
+  color:#3b82f6;
   letter-spacing:1px;
   text-transform:uppercase;
   margin-bottom:12px;
@@ -131,7 +112,7 @@ body{
   gap:6px;
 }
 .upload-area{
-  border:2px dashed var(--color-gray);
+  border:2px dashed #334155;
   border-radius:10px;
   padding:24px 16px;
   cursor:pointer;
@@ -140,28 +121,28 @@ body{
   align-items:center;
   justify-content:space-between;
   gap:12px;
-  background:var(--color-bg);
+  background:#0f172a;
 }
 .upload-area:hover{
-  border-color:var(--color-primary);
-  background:var(--color-card-hover);
+  border-color:#3b82f6;
+  background:rgba(59,130,246,.05);
 }
 .upload-area.has-file{
-  border-color:var(--color-success);
+  border-color:#10b981;
   border-style:solid;
   background:rgba(16,185,129,.05);
 }
 .upload-area input{display:none}
 .upload-text{flex:1; min-width:0;}
-.upload-label{font-size:12.5px;color:var(--color-text-light);font-weight:600;white-space:normal;line-height:1.4;cursor:pointer}
-.upload-sub{font-size:10.5px;color:var(--color-light-gray);margin-top:2px}
-.file-name{font-size:11.5px;font-weight:600;color:var(--color-success);margin-top:4px;word-break:break-all}
+.upload-label{font-size:12.5px;color:#cbd5e1;font-weight:600;white-space:normal;line-height:1.4;cursor:pointer}
+.upload-sub{font-size:10.5px;color:#64748b;margin-top:2px}
+.file-name{font-size:11.5px;font-weight:600;color:#10b981;margin-top:4px;word-break:break-all}
 .upload-btn-label{
   padding:8px 16px;
-  border:1px solid var(--color-primary);
+  border:1px solid #3b82f6;
   border-radius:6px;
   background:rgba(59,130,246,.1);
-  color:var(--color-primary);
+  color:#3b82f6;
   font-size:11px;
   font-weight:600;
   white-space:nowrap;
@@ -169,8 +150,8 @@ body{
   flex-shrink: 0;
 }
 .upload-btn-label:hover{
-  background:var(--color-primary);
-  color:var(--color-white);
+  background:#3b82f6;
+  color:#fff;
 }
 .hl-row{
   display:flex;
@@ -190,7 +171,7 @@ body{
 .slider{
   position:absolute;
   inset:0;
-  background:var(--color-gray);
+  background:#334155;
   border-radius:24px;
   cursor:pointer;
   transition:.25s;
@@ -202,12 +183,12 @@ body{
   height:18px;
   left:3px;
   top:3px;
-  background:var(--color-text-secondary);
+  background:#94a3b8;
   border-radius:50%;
   transition:.25s;
 }
-.toggle input:checked+.slider{background:var(--color-primary)}
-.toggle input:checked+.slider:before{transform:translateX(20px);background:var(--color-white)}
+.toggle input:checked+.slider{background:#3b82f6}
+.toggle input:checked+.slider:before{transform:translateX(20px);background:#fff}
 
 .toggle-small{width:35px;height:19px}
 .toggle-small .slider:before{width:14px;height:14px;left:2px;top:2px}
@@ -216,33 +197,33 @@ body{
 .dropdown-wrap{position:relative}
 .dropdown-btn{
   padding:8px 12px;
-  border:1px solid var(--color-gray);
+  border:1px solid #334155;
   border-radius:8px;
-  background:var(--color-bg);
+  background:#0f172a;
   font-size:12px;
   cursor:pointer;
   display:flex;
   align-items:center;
   gap:6px;
-  color:var(--color-text-light);
+  color:#cbd5e1;
   transition:.15s;
 }
-.dropdown-btn:hover{border-color:var(--color-primary);color:var(--color-primary)}
+.dropdown-btn:hover{border-color:#3b82f6;color:#3b82f6}
 .badge-count{
-  background:var(--color-primary);
-  color:var(--color-white);
+  background:#3b82f6;
+  color:#fff;
   border-radius:10px;
   font-size:10px;
   padding:1px 6px;
   font-weight:700;
 }
-.badge-count.all{background:var(--color-success)}
+.badge-count.all{background:#10b981}
 .arrow{font-size:8px;transition:.2s}
 .dropdown-btn.open .arrow{transform:rotate(180deg)}
 .dropdown-menu{
   position:absolute;
-  background:var(--color-dark-bg);
-  border:1px solid var(--color-gray);
+  background:#1e293b;
+  border:1px solid #334155;
   border-radius:12px;
   padding:8px 0;
   max-width:240px;
@@ -256,32 +237,32 @@ body{
   transform:translateX(-50%);
   top:calc(100% + 6px);
 }
-.menu-section{padding:4px 12px;font-size:9px;font-weight:700;color:var(--color-light-gray);letter-spacing:1px;text-transform:uppercase}
-.menu-item{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:12.5px;color:var(--color-text-light);transition:.1s}
-.menu-item:hover{background:rgba(59,130,246,.1);color:var(--color-white)}
-.menu-item input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:var(--color-primary);flex-shrink:0}
+.menu-section{padding:4px 12px;font-size:9px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase}
+.menu-item{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:12.5px;color:#cbd5e1;transition:.1s}
+.menu-item:hover{background:rgba(59,130,246,.1);color:#fff}
+.menu-item input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:#3b82f6;flex-shrink:0}
 
 .custom-add-wrap{padding:0}
 .custom-add-row{display:flex;gap:6px}
 .custom-add-row input{
   flex:1;
-  background:var(--color-bg);
-  border:1px solid var(--color-gray);
+  background:#0f172a;
+  border:1px solid #334155;
   border-radius:8px;
   padding:8px 10px;
   font-size:12.5px;
-  color:var(--color-white);
+  color:#fff;
   outline:none;
   transition:.15s;
 }
-.custom-add-row input:focus{border-color:var(--color-primary)}
-.custom-add-row input::placeholder{color:var(--color-text-muted)}
+.custom-add-row input:focus{border-color:#3b82f6}
+.custom-add-row input::placeholder{color:#475569}
 .custom-add-row button{
   padding:8px 14px;
   border:none;
   border-radius:8px;
-  background:var(--color-primary);
-  color:var(--color-white);
+  background:#3b82f6;
+  color:#fff;
   font-size:12.5px;
   font-weight:600;
   cursor:pointer;
@@ -305,7 +286,7 @@ body{
   transform: scale(1.15);
 }
 .color-chip.active {
-  border-color: var(--color-white);
+  border-color: #fff;
   box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
   transform: scale(1.1);
 }
@@ -325,7 +306,7 @@ body{
   gap:8px;
   cursor:not-allowed;
 }
-.run-btn{background:var(--color-gray);color:var(--color-light-gray)}
+.run-btn{background:#334155;color:#64748b}
 .run-btn.active{
   background:linear-gradient(90deg,#a7f3d0,#86efac);
   color:#064e3b;
@@ -336,7 +317,7 @@ body{
 }
 .run-btn.active:hover{filter:brightness(1.05);transform:translateY(-1px); box-shadow: 0 4px 12px rgba(134, 239, 172, 0.4);}
 
-.dl-btn{background:var(--color-gray);color:var(--color-light-gray)}
+.dl-btn{background:#334155;color:#64748b}
 .dl-btn.active{
   background:linear-gradient(90deg,#bfdbfe,#93c5fd);
   color:#1e3a8a;
@@ -356,15 +337,15 @@ body{
   font-size:11.5px;
   font-weight:500;
   margin-top:10px;
-  background:var(--color-bg);
-  border:1px solid var(--color-border);
-  color:var(--color-light-gray);
+  background:#0f172a;
+  border:1px solid #1e293b;
+  color:#64748b;
   min-height:40px;
 }
-.status-bar.ready{color:var(--color-primary);border-color:var(--color-gray)}
+.status-bar.ready{color:#3b82f6;border-color:#334155}
 .status-bar.processing{color:#f59e0b;border-color:#451a03}
-.status-bar.done{color:var(--color-success);border-color:#064e3b}
-.status-bar.error{color:var(--color-error);border-color:#7f1d1d}
+.status-bar.done{color:#10b981;border-color:#064e3b}
+.status-bar.error{color:#ef4444;border-color:#7f1d1d}
 .status-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
 .status-bar.processing .status-dot{animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
@@ -380,7 +361,7 @@ body{
   line-height: 1.4;
 }
 .offline-instruction b {
-  color: var(--color-white);
+  color: #fff;
 }
 
 .offline-row-links {
@@ -392,17 +373,17 @@ body{
   background: rgba(30, 41, 59, 0.3);
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid var(--color-border);
+  border: 1px solid #1e293b;
   width: 100%;
 }
 .offline-row-links span {
   font-size: 11px;
   font-weight: 700;
-  color: var(--color-text-secondary);
+  color: #94a3b8;
 }
 .inline-download-btn {
   font-size: 11px;
-  color: var(--color-primary);
+  color: #3b82f6;
   text-decoration: none;
   font-weight: 600;
   padding: 5px 10px;
@@ -416,82 +397,9 @@ body{
   gap: 4px;
 }
 .inline-download-btn:hover {
-  background: var(--color-primary);
-  color: var(--color-white);
-  border-color: var(--color-primary);
-}
-
-/* 모바일 터치 타겟 최소화 (44x44px Apple HIG) */
-button, input[type="button"], input[type="submit"],
-.action-btn, .dropdown-btn, .upload-btn-label,
-input[type="checkbox"] + .slider {
-  min-height: 44px;
-  min-width: 44px;
-}
-
-@media (max-width: 480px) {
-  .header h1 {
-    font-size: 22px;
-  }
-
-  .header p {
-    font-size: 9px;
-  }
-
-  .card {
-    border-radius: 8px;
-    padding: 12px;
-  }
-
-  .card-title {
-    font-size: 10px;
-  }
-
-  .action-btn {
-    padding: 10px;
-    font-size: 12px;
-    min-height: 44px;
-  }
-
-  .upload-label {
-    font-size: 11px;
-  }
-
-  .dropdown-menu {
-    width: 95%;
-    max-width: calc(100vw - 20px);
-    margin: 0 10px;
-  }
-
-  .hl-label {
-    font-size: 12px;
-  }
-
-  .color-chip {
-    width: 20px;
-    height: 20px;
-  }
-
-  .toggle {
-    width: 40px;
-    height: 22px;
-  }
-
-  .toggle .slider:before {
-    width: 16px;
-    height: 16px;
-    left: 3px;
-    top: 3px;
-  }
-
-  .toggle input:checked + .slider:before {
-    transform: translateX(18px);
-  }
-
-  .menu-item {
-    padding: 8px 12px;
-    min-height: 44px;
-  }
+  background: #3b82f6;
+  color: #fff;
+  border-color: #3b82f6;
 }
 </style>
 </head>
@@ -630,28 +538,28 @@ input[type="checkbox"] + .slider {
   </div>
 </div>
 
-<footer style="text-align:center;padding:24px 16px 32px;color:var(--color-text-muted);font-size:11.5px;border-top:1px solid var(--color-border);background:#070b13;display:flex;flex-direction:column;align-items:center;gap:16px;">
+<footer style="text-align:center;padding:24px 16px 32px;color:#475569;font-size:11.5px;border-top:1px solid #1e293b;background:#070b13;display:flex;flex-direction:column;align-items:center;gap:16px;">
   
   <div style="max-width:640px; width:100%; display:flex; flex-direction:column; gap:10px; align-items:center;">
-    <div style="font-size: 11px; font-weight: 700; color: var(--color-light-gray); text-transform: uppercase; letter-spacing: 0.5px;">
+    <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
       Offline EFB Deployment Packages & Resources
     </div>
     
     <div class="offline-row-links">
       <span>Core Web App:</span>
-      <button class="inline-download-btn" onclick="downloadSelf()" style="border-color: var(--color-success); color: var(--color-success); background: rgba(16, 185, 129, 0.05);">
+      <button class="inline-download-btn" onclick="downloadSelf()" style="border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05);">
         Text_Highlighter_Offline.html
       </button>
-
-      <span style="margin-left: 10px; border-left: 1px solid var(--color-border); padding-left: 10px;">Required Library Assets:</span>
+      
+      <span style="margin-left: 10px; border-left: 1px solid #1e293b; padding-left: 10px;">Required Library Assets:</span>
       <a class="inline-download-btn" href="#" onclick="forceDownload(event, 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js', 'pdf.min.js')">pdf.min.js</a>
       <a class="inline-download-btn" href="#" onclick="forceDownload(event, 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js', 'pdf.worker.min.js')">pdf.worker.min.js</a>
       <a class="inline-download-btn" href="#" onclick="forceDownload(event, 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', 'pdf-lib.min.js')">pdf-lib.min.js</a>
     </div>
   </div>
 
-  <div style="margin-top: 8px; color: var(--color-gray); font-size: 11px;">
-    © 2026 EFB Systems &nbsp;|&nbsp; <i><a href="mailto:bongsjeon@koreanair.com" style="color:var(--color-primary);text-decoration:none">bongsjeon@koreanair.com</a></i>
+  <div style="margin-top: 8px; color: #334155; font-size: 11px;">
+    © 2026 EFB Systems &nbsp;|&nbsp; <i><a href="mailto:bongsjeon@koreanair.com" style="color:#3b82f6;text-decoration:none">bongsjeon@koreanair.com</a></i>
   </div>
 </footer>
 
@@ -775,41 +683,10 @@ async function initLibraries() {
 
 initLibraries();
 
-// Helper function to draw highlighted rectangles
-function drawHighlight(page, x, y, width, height, color, opacity) {
-  page.drawRectangle({
-    x, y, width, height,
-    color: PDFLib.rgb(color[0], color[1], color[2]),
-    opacity
-  });
-}
-
-// Helper function to draw underlines
-function drawUnderline(page, x1, x2, y, colorArray, thickness, opacity) {
-  page.drawLine({
-    start: { x: x1, y },
-    end: { x: x2, y },
-    color: PDFLib.rgb(colorArray[0], colorArray[1], colorArray[2]),
-    thickness,
-    opacity
-  });
-}
-
 const PRESETS=['A/C','ACTUAL','AGTOW','ALERT LEVEL','ALTN','AMD','AMEND','AMDT','APMS','APPLY','CAUTION','CCF','CDL','CFP PLAN','CHANGES','CLOSURE','CRZ','DIFFERENCE','DISC','DO NOT USE','DOF','EFB','ELDW','EMERGENCY','ENTRY POINT','ERA','ETP','EXC SKED', 'EXC  SKED','FOD','FOM','ILS','KAL','KE NOT','KE ROUTE','LDW','MEL','MINIMA','MOD TURB','MTOW','NO AFFECTED','NO KE','NO OPS RTE', 'NOT TO','OUT OF SERVICE','OUTAGE','OVC','RA','REFILE','RQRD','RUNWAY','SH','TAKE OFF WEIGHT','TOW','TRIP','TS','U/S','UNRELIABLE','UNSERVICEABLE','WX DEV'];
 
-const colors = {
-  primary: [0.36, 0.78, 1.0],
-  darkBg: [0.12, 0.16, 0.23],
-  gray: [0.20, 0.25, 0.33],
-  success: [0.06, 0.73, 0.51],
-  error: [0.94, 0.27, 0.27],
-  white: [1, 1, 1],
-  black: [0, 0, 0],
-  red: [1, 0, 0]
-};
-
 let currentThemeName = 'blue';
-let activeHlColorRGB = colors.primary;
+let activeHlColorRGB = [0.36, 0.78, 1.0];
 
 function selectColor(name, rgbArray) {
   currentThemeName = name;
@@ -1131,57 +1008,6 @@ function decodeForTagScan(str, offset) {
   return finalStr.replace(/[^\x20-\x7E]/g, ' ');
 }
 
-// 스케일 팩터 계산 헬퍼 함수
-function calculateScaleFactors(pageWidth, pageHeight, viewportWidth, viewportHeight) {
-  return {
-    sx: pageWidth / viewportWidth,
-    sy: pageHeight / viewportHeight
-  };
-}
-
-// itemMatches 처리 함수: 반복되는 아이템 매칭 로직을 통합
-function processItemMatches(itemMatches, sortedItems, pageOffset, sx, sy, drawCallback) {
-  for (const itemIdxStr of Object.keys(itemMatches)) {
-    const itemIdx = parseInt(itemIdxStr, 10);
-    const charIndices = itemMatches[itemIdx];
-    if (charIndices.length === 0) continue;
-
-    const minCharIdx = Math.min(...charIndices);
-    const maxCharIdx = Math.max(...charIndices);
-    const matchCharCount = maxCharIdx - minCharIdx + 1;
-
-    const item = sortedItems[itemIdx];
-    const s = cleanAndDecodeItem(item.str, pageOffset) || '';
-    const tx = item.transform;
-    const itemW = item.width || 0;
-    const charW = itemW / Math.max(s.length, 1);
-
-    drawCallback({
-      item, s, tx, itemW, charW, minCharIdx, maxCharIdx, matchCharCount, sx, sy
-    });
-  }
-}
-
-// Y 좌표로 아이템들을 줄별로 그룹핑 (단순 좌표 기반)
-function groupItemsByYCoordinate(items) {
-  const groups = [];
-  for (const item of items) {
-    const y = item.transform[5];
-    let joined = false;
-    for (const group of groups) {
-      if (Math.abs(group.y - y) < 4.0) {
-        group.items.push(item);
-        joined = true;
-        break;
-      }
-    }
-    if (!joined) {
-      groups.push({ y, items: [item] });
-    }
-  }
-  return groups;
-}
-
 // 같은 y좌표(같은 줄)에 속한 텍스트 아이템들을 하나의 줄로 묶고, 원래 배치 순서(x좌표)대로
 // 이어붙인 텍스트와 그 줄의 y좌표를 함께 돌려준다. 북마크 목적지를 "줄 단위"로 정확히
 // 잡기 위한 용도 (태그와 공항코드가 서로 다른 텍스트 아이템으로 쪼개져 있어도 한 줄로 인식).
@@ -1312,7 +1138,7 @@ async function extractMetadata(pdfJsDoc) {
         const dateMatchC = decodedText.match(/\b(\d{2})([A-Z]{3})\b/i);
         if (dateMatchC) {
           const monthStr = dateMatchC[2].toLowerCase();
-          extractedFileDate = (monthsMap[monthStr] || '01') + dateMatchC[1].padStart(2, '0');
+          extractedFileDate = (monthsMap[monthStr] || '01') + dateMatchC[2].toLowerCase();
         }
       }
     }
@@ -1336,13 +1162,6 @@ async function runHL(){
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
 
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4'];
-  const pageOffsetCache = new Map();
-
-  // 정규식 사전 컴파일 (성능 최적화)
-  const SHEAR_REGEX = /\b\d{5}[A-Za-z]\d{3}\s+([0-9]{2})\b/g;
-  const FIR_REGEX = /\bFIR\b/i;
-  const ETP_REGEX = /\betp\s*[123]/i;
-  const PAR_REGEX = /\/\s*[A-Z]{4}\s+FIR/i;
 
   const runBtn=document.getElementById('runBtn');
   runBtn.className='action-btn run-btn';
@@ -1352,15 +1171,6 @@ async function runHL(){
   document.getElementById('previewCard').style.display = 'none';
 
   await new Promise(r=>setTimeout(r,50));
-
-  function detectPageOffsetCached(rawText, pageIndex) {
-    if (pageOffsetCache.has(pageIndex)) {
-      return pageOffsetCache.get(pageIndex);
-    }
-    const offset = detectPageOffset(rawText);
-    pageOffsetCache.set(pageIndex, offset);
-    return offset;
-  }
 
   try {
     const keywords=[...sel].sort((a,b)=>b.length-a.length);
@@ -1399,7 +1209,7 @@ async function runHL(){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
       const tc=await jsPage2.getTextContent();
       const rawText=tc.items.map(it=>it.str).join(' ');
-      const offset = detectPageOffsetCached(rawText, pi);
+      const offset = detectPageOffset(rawText);
       const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
       
       for(const bm of BOOKMARK_PATTERNS){
@@ -1465,11 +1275,12 @@ async function runHL(){
       const vp=jsPage.getViewport({scale:1.0});
       const libPage=libPages[pi];
       const {width:lw,height:lh}=libPage.getSize();
-      const {sx, sy} = calculateScaleFactors(lw, lh, vp.width, vp.height);
+      const sx=lw/vp.width;
+      const sy=lh/vp.height;
       const content=await jsPage.getTextContent();
 
       const rawPageText = content.items.map(it => it.str).join(' ');
-      const pageOffset = detectPageOffsetCached(rawPageText, pi);
+      const pageOffset = detectPageOffset(rawPageText);
 
       const isPackage3Page = (pkg3StartIdx !== -1 && pi >= pkg3StartIdx);
       const isDispatchPage = (dispatchReleaseIdx !== -1 && pi >= dispatchReleaseIdx && pi < dispatchEndIdx);
@@ -1491,7 +1302,7 @@ async function runHL(){
                 y: ry,
                 size: itemH * sy,
                 font: stdFont,
-                color: PDFLib.rgb(...colors.black),
+                color: PDFLib.rgb(0, 0, 0),
                 opacity: 0.0 
               });
             } catch (err) {
@@ -1501,6 +1312,7 @@ async function runHL(){
         }
       }
 
+      const groupedLines = [];
       const sortedItems = content.items
         .filter(it => {
           const sDec = cleanAndDecodeItem(it.str, pageOffset);
@@ -1508,7 +1320,20 @@ async function runHL(){
         })
         .sort((a, b) => b.transform[5] - a.transform[5]);
 
-      const groupedLines = groupItemsByYCoordinate(sortedItems);
+      for (const item of sortedItems) {
+        const itemY = item.transform[5];
+        let joined = false;
+        for (const line of groupedLines) {
+          if (Math.abs(line.y - itemY) < 4.0) {
+            line.items.push(item);
+            joined = true;
+            break;
+          }
+        }
+        if (!joined) {
+          groupedLines.push({ y: itemY, items: [item] });
+        }
+      }
 
       const isAfterEdtoHeader = (edtoPointDataPageIdx !== -1 && pi >= edtoPointDataPageIdx);
 
@@ -1549,13 +1374,20 @@ async function runHL(){
             const itemH = Math.abs(lineItems[0].transform[3]) || 10;
             const rh = itemH * sy;
 
-            drawHighlight(libPage, minX * sx - 2, (itemY * sy) - (rh * 0.2), (maxX - minX) * sx + 4, Math.max(rh * 1.2, 8), hlRGB, 0.35);
+            libPage.drawRectangle({
+              x: minX * sx - 2,
+              y: (itemY * sy) - (rh * 0.2), 
+              width: (maxX - minX) * sx + 4,
+              height: Math.max(rh * 1.2, 8), 
+              color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+              opacity: 0.35 
+            });
             totalHits++;
             continue;
           }
         }
 
-        const isEtpLine = ETP_REGEX.test(lineText);
+        const isEtpLine = /\betp\s*[123]/i.test(lineText);
         if (isEtpLine && isAfterEdtoHeader) {
           const minX = Math.min(...lineItems.map(it => it.transform[4]));
           const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
@@ -1563,14 +1395,22 @@ async function runHL(){
           const itemH = Math.abs(lineItems[0].transform[3]) || 10;
           const rh = itemH * sy;
 
-          drawHighlight(libPage, minX * sx, (itemY * sy) - (rh * 0.2), (maxX - minX) * sx, Math.max(rh * 1.2, 8), hlRGB, 0.2);
+          libPage.drawRectangle({
+                x: minX * sx,
+                y: (itemY * sy) - (rh * 0.2), 
+                width: (maxX - minX) * sx,
+                height: Math.max(rh * 1.2, 8), 
+                color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                opacity: 0.2
+              });
           totalHits++;
-          continue;
+          continue; 
         }
 
-        const isParLine = PAR_REGEX.test(lineText);
+        const isParLine = /\/\s*[A-Z]{4}\s+FIR/i.test(lineText);
         if (isParLine) {
-          const match = FIR_REGEX.exec(lineText);
+          const firRegex = /\bFIR\b/i;
+          const match = firRegex.exec(lineText);
           if (match) {
             const postFirText = lineText.substring(match.index + match[0].length);
             const wordMatch = postFirText.match(/[A-Za-z]{3,}/);
@@ -1590,8 +1430,15 @@ async function runHL(){
                   const ry = itemY * sy;
                   const rw = targetWord.length * charW * sx;
                   const rh = itemH * sy;
-
-                  drawHighlight(libPage, rx, ry - (rh * 0.2), Math.max(rw, 4), Math.max(rh * 1.2, 8), hlRGB, 0.2);
+                  
+                  libPage.drawRectangle({
+                    x: rx,
+                    y: ry - (rh * 0.2), 
+                    width: Math.max(rw, 4),
+                    height: Math.max(rh * 1.2, 8), 
+                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                    opacity: 0.2
+                  });
                   totalHits++;
                 }
               }
@@ -1609,9 +1456,16 @@ async function runHL(){
           const itemH = Math.abs(lineItems[0].transform[3]) || 10;
           const rh = itemH * sy;
 
-          drawHighlight(libPage, minX * sx, (itemY * sy) - (rh * 0.2), (maxX - minX) * sx, Math.max(rh * 1.2, 8), intenseRGB, 0.25);
+          libPage.drawRectangle({
+            x: minX * sx,
+            y: (itemY * sy) - (rh * 0.2), 
+            width: (maxX - minX) * sx,
+            height: Math.max(rh * 1.2, 8), 
+            color: PDFLib.rgb(intenseRGB[0], intenseRGB[1], intenseRGB[2]),
+            opacity: 0.25
+          });
           totalHits++;
-          continue;
+          continue; 
         }
 
         const charMapping = [];
@@ -1667,28 +1521,47 @@ async function runHL(){
               }
             }
 
-            processItemMatches(itemMatches, lineItems, pageOffset, sx, sy, (data) => {
-              const { tx, minCharIdx, charW, matchCharCount } = data;
+            for (const itemIdxStr of Object.keys(itemMatches)) {
+              const itemIdx = parseInt(itemIdxStr, 10);
+              const charIndices = itemMatches[itemIdx];
+              if (charIndices.length === 0) continue;
+
+              const minCharIdx = Math.min(...charIndices);
+              const maxCharIdx = Math.max(...charIndices);
+              const matchCharCount = maxCharIdx - minCharIdx + 1;
+
+              const item = lineItems[itemIdx];
+              const s = cleanAndDecodeItem(item.str, pageOffset) || '';
+              const tx = item.transform;
               const itemX = tx[4], itemY = tx[5];
+              const itemW = item.width || 0;
               const itemH = Math.abs(tx[3]) || 10;
+              const charW = itemW / Math.max(s.length, 1);
 
               const rx = (itemX + minCharIdx * charW) * sx;
               const ry = itemY * sy;
               const rw = matchCharCount * charW * sx;
               const rh = itemH * sy;
 
-              drawHighlight(libPage, rx, ry - (rh * 0.2), Math.max(rw, 4), Math.max(rh * 1.2, 8), hlRGB, 0.2);
+              libPage.drawRectangle({
+                x: rx,
+                y: ry - (rh * 0.2), 
+                width: Math.max(rw, 4),
+                height: Math.max(rh * 1.2, 8), 
+                color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                opacity: 0.2
+              });
               totalHits++;
-            });
+            }
           }
         }
 
-        SHEAR_REGEX.lastIndex = 0;
+        const shearRegex = /\b\d{5}[A-Za-z]\d{3}\s+([0-9]{2})\b/g;
         let shrM;
         let lastShrIdx = -1;
-        while ((shrM = SHEAR_REGEX.exec(cleanLineText)) !== null) {
-          if (SHEAR_REGEX.lastIndex === lastShrIdx) {
-            SHEAR_REGEX.lastIndex++;
+        while ((shrM = shearRegex.exec(cleanLineText)) !== null) {
+          if (shearRegex.lastIndex === lastShrIdx) {
+            shearRegex.lastIndex++;
             continue;
           }
           lastShrIdx = shearRegex.lastIndex;
@@ -1709,19 +1582,38 @@ async function runHL(){
               }
             }
 
-            processItemMatches(itemMatches, lineItems, pageOffset, sx, sy, (data) => {
-              const { tx, minCharIdx, charW, matchCharCount } = data;
+            for (const itemIdxStr of Object.keys(itemMatches)) {
+              const itemIdx = parseInt(itemIdxStr, 10);
+              const charIndices = itemMatches[itemIdx];
+              if (charIndices.length === 0) continue;
+
+              const minCharIdx = Math.min(...charIndices);
+              const maxCharIdx = Math.max(...charIndices);
+              const matchCharCount = maxCharIdx - minCharIdx + 1;
+
+              const item = lineItems[itemIdx];
+              const s = cleanAndDecodeItem(item.str, pageOffset) || '';
+              const tx = item.transform;
               const itemX = tx[4], itemY = tx[5];
+              const itemW = item.width || 0;
               const itemH = Math.abs(tx[3]) || 10;
+              const charW = itemW / Math.max(s.length, 1);
 
               const rx = (itemX + minCharIdx * charW) * sx;
               const ry = itemY * sy;
               const rw = matchCharCount * charW * sx;
               const rh = itemH * sy;
 
-              drawHighlight(libPage, rx, ry - (rh * 0.2), Math.max(rw, 4), Math.max(rh * 1.2, 8), hlRGB, 0.15);
+              libPage.drawRectangle({
+                x: rx,
+                y: ry - (rh * 0.2), 
+                width: Math.max(rw, 4),
+                height: Math.max(rh * 1.2, 8), 
+                color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                opacity: 0.15 
+              });
               totalHits++;
-            });
+            }
           }
         }
 
@@ -1743,7 +1635,14 @@ async function runHL(){
                 const rw = targetMsaStr.length * charW * sx;
                 const rh = (Math.abs(tx[3]) || 10) * sy;
 
-                drawHighlight(libPage, rx - 1, ry - 1 - (rh * 0.2), Math.max(rw + 2, 4), Math.max(rh * 1.2 + 2, 8), hlRGB, 0.25);
+                libPage.drawRectangle({
+                  x: rx - 1,
+                  y: ry - 1 - (rh * 0.2), 
+                  width: Math.max(rw + 2, 4),
+                  height: Math.max(rh * 1.2 + 2, 8), 
+                  color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                  opacity: 0.25
+                });
                 totalHits++;
               } else if (s === targetMsaStr) {
                 const tx = item.transform;
@@ -1752,7 +1651,14 @@ async function runHL(){
                 const rw = (item.width || 0) * sx;
                 const rh = (Math.abs(tx[3]) || 10) * sy;
 
-                drawHighlight(libPage, rx - 1, ry - 1 - (rh * 0.2), Math.max(rw + 2, 4), Math.max(rh * 1.2 + 2, 8), hlRGB, 0.25);
+                libPage.drawRectangle({
+                  x: rx - 1,
+                  y: ry - 1 - (rh * 0.2), 
+                  width: Math.max(rw + 2, 4),
+                  height: Math.max(rh * 1.2 + 2, 8), 
+                  color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                  opacity: 0.25
+                });
                 totalHits++;
               }
             }
@@ -1834,7 +1740,7 @@ async function runHL(){
       const scanJsPage = await pdfJsDoc.getPage(pi + 1);
       const scanTextContent = await scanJsPage.getTextContent();
       const rawScanText = scanTextContent.items.map(it => it.str).join(' ');
-      const scanOffset = detectPageOffsetCached(rawScanText, pi);
+      const scanOffset = detectPageOffset(rawScanText);
       const decodedScanText = scanTextContent.items.map(it => cleanAndDecodeItem(it.str, scanOffset)).join(' ');
       
       if (decodedScanText.toUpperCase().includes("COPY OF ATS FPL, SUBMITTED AT") || decodedScanText.toUpperCase().includes("COPY OF ATS FPL")) {
@@ -1847,9 +1753,9 @@ async function runHL(){
     if(cfpPageIdx!==undefined && resolvedCoaPageIdx!==-1){
       const cfpJsPage=await pdfJsDoc.getPage(cfpPageIdx+1);
       const cfpContent=await cfpJsPage.getTextContent();
-
+      
       const rawCfpText = cfpContent.items.map(it => it.str).join(' ');
-      const cfpOffset = detectPageOffsetCached(rawCfpText, cfpPageIdx);
+      const cfpOffset = detectPageOffset(rawCfpText);
 
       const cfpItems=cfpContent.items.slice().sort((a,b)=>{
         const ay=a.transform[5],by2=b.transform[5];
@@ -1868,33 +1774,42 @@ async function runHL(){
         lastY = item.transform[5];
       }
 
-      // Generate routeTokens directly from CFP full text
-      let routeMatch = null;
+      let extractedRoute = "";
       if (detectedAirports.length === 2) {
         const depCode = detectedAirports[0];
         const arrCode = detectedAirports[1];
+        
         const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const routePattern1 = new RegExp(`${escapeRegExp(depCode)}\\.\\.[\\s\\S]{5,800}?\\.\\.${escapeRegExp(arrCode)}`, 'i');
         const routePattern2 = new RegExp(`\\b${escapeRegExp(depCode)}\\b[\\s\\S]{5,800}?\\b${escapeRegExp(arrCode)}\\b`, 'i');
-
-        routeMatch = cfpFullTextWithNewlines.match(routePattern1);
-        if (!routeMatch) routeMatch = cfpFullTextWithNewlines.match(routePattern2);
-      }
-
-      if (!routeMatch) {
-        const fallbackRouteRegex = /(KSEA[\s\S]{1,600}?RKSI)/i;
-        routeMatch = cfpFullTextWithNewlines.match(fallbackRouteRegex);
-        if (!routeMatch) {
-          const genericRouteRegex = /([A-Z]{4}[\s\S]{1,600}?[A-Z]{4})/i;
-          routeMatch = cfpFullTextWithNewlines.match(genericRouteRegex);
+        
+        let rMatch = cfpFullTextWithNewlines.match(routePattern1);
+        if (!rMatch) rMatch = cfpFullTextWithNewlines.match(routePattern2);
+        
+        if (rMatch) {
+          extractedRoute = rMatch[0].trim();
         }
       }
 
-      if(routeMatch) {
+      if (!extractedRoute) {
+        const fallbackRouteRegex = /(KSEA[\s\S]{1,600}?RKSI)/i;
+        const fbMatch = cfpFullTextWithNewlines.match(fallbackRouteRegex);
+        if (fbMatch) {
+          extractedRoute = fbMatch[1].trim();
+        } else {
+          const genericRouteRegex = /([A-Z]{4}[\s\S]{1,600}?[A-Z]{4})/i;
+          const genMatch = cfpFullTextWithNewlines.match(genericRouteRegex);
+          if (genMatch) {
+            extractedRoute = genMatch[1].trim();
+          }
+        }
+      }
+
+      if(extractedRoute) {
         const noiseWords = ['FLIGHT', 'PLAN', 'FUEL', 'TIME', 'WIND', 'TEMP', 'DIST', 'COMP', 'FREQ', 'RMK', 'ALTN', 'AWY', 'POS', 'LAT', 'LONG', 'ETA', 'ETD', 'ACTL', 'TOC', 'CLB', 'CRZ', 'DSC', 'IFR', 'NAM', 'AGTOW', 'TRIP', 'SOW', 'RWY', 'RESERVE', 'FINAL', 'RES', 'CONT', 'REFILE', 'RQD', 'TAKEOFF', 'DISC', 'TANKERING', 'PLN', 'RAMP', 'OUT', 'FOD', 'ROD', 'TOW', 'MTOW', 'LDW', 'MLDW', 'TIF', 'TCAP', 'PAX', 'CGO'];
-        routeTokens = routeMatch[0]
-            .replace(/\.\./g, ' ')
-            .replace(/[^A-Za-z0-9\s]/g, ' ')
+        routeTokens = extractedRoute
+            .replace(/\.\./g, ' ') 
+            .replace(/[^A-Za-z0-9\s]/g, ' ') 
             .split(/\s+/)
             .filter(t => t.length >= 2 && !noiseWords.includes(t.toUpperCase()) && !/^\d+$/.test(t));
       }
@@ -1904,7 +1819,8 @@ async function runHL(){
       const coaLibPage = libPages[resolvedCoaPageIdx];
       const {width:coaW,height:coaH}=coaLibPage.getSize();
       const coaVp=coaJsPage.getViewport({scale:1.0});
-      const {sx: coaSx, sy: coaSy} = calculateScaleFactors(coaW, coaH, coaVp.width, coaVp.height);
+      const coaSx=coaW/coaVp.width;
+      const coaSy=coaH/coaVp.height;
 
       const sortedCoaItems = coaContent.items.slice().sort((a,b) => {
         const ay = a.transform[5], by = b.transform[5];
@@ -2007,15 +1923,34 @@ async function runHL(){
                   }
               }
               
-              processItemMatches(itemMatches, sortedCoaItems, foundCoaPageOffset, coaSx, coaSy, (data) => {
-                  const { tx, minCharIdx, charW, matchCharCount } = data;
+              for (const itemIdxStr of Object.keys(itemMatches)) {
+                  const itemIdx = parseInt(itemIdxStr, 10);
+                  const charIndices = itemMatches[itemIdx];
+                  if (charIndices.length === 0) continue;
+
+                  const minCharIdx = Math.min(...charIndices);
+                  const maxCharIdx = Math.max(...charIndices);
+                  const matchCharCount = maxCharIdx - minCharIdx + 1;
+
+                  const item = sortedCoaItems[itemIdx];
+                  const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
+                  const tx = item.transform;
+                  const itemW = item.width || 0;
+                  const charW = itemW / Math.max(s.length, 1);
+
                   const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
                   const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
                   const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
 
-                  drawUnderline(coaLibPage, underlineX1, underlineX2, underlineY, colors.red, 2.0, 0.5);
+                  coaLibPage.drawLine({
+                      start: { x: underlineX1, y: underlineY },
+                      end: { x: underlineX2, y: underlineY },
+                      color: PDFLib.rgb(1, 0, 0),
+                      thickness: 2.0,
+                      opacity: 0.5
+                  });
                   totalHits++;
-              });
+              }
           }
       }
 
@@ -2060,18 +1995,95 @@ async function runHL(){
                       }
                   }
                   
-                  processItemMatches(itemMatches, sortedCoaItems, foundCoaPageOffset, coaSx, coaSy, (data) => {
-                      const { tx, minCharIdx, charW, matchCharCount } = data;
+                  for (const itemIdxStr of Object.keys(itemMatches)) {
+                      const itemIdx = parseInt(itemIdxStr, 10);
+                      const charIndices = itemMatches[itemIdx];
+                      if (charIndices.length === 0) continue;
+
+                      const minCharIdx = Math.min(...charIndices);
+                      const maxCharIdx = Math.max(...charIndices);
+                      const matchCharCount = maxCharIdx - minCharIdx + 1;
+
+                      const item = sortedCoaItems[itemIdx];
+                      const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
+                      const tx = item.transform;
+                      const itemW = item.width || 0;
+                      const charW = itemW / Math.max(s.length, 1);
+
                       const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
                       const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
                       const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
 
-                      drawUnderline(coaLibPage, underlineX1, underlineX2, underlineY, colors.red, 2.0, 0.5);
+                      coaLibPage.drawLine({
+                          start: { x: underlineX1, y: underlineY },
+                          end: { x: underlineX2, y: underlineY },
+                          color: PDFLib.rgb(1, 0, 0),
+                          thickness: 2.0,
+                          opacity: 0.5
+                      });
                       totalHits++;
-                  });
+                  }
                   searchStartIndex = bestMatchIdx + 1;
               }
           }
+      }
+
+      if (extractedRoute && sortedCoaItems.length > 0) {
+        let headerY = null;
+        let headerPageHeight = coaH;
+
+        for (const item of sortedCoaItems) {
+          const itemStr = cleanAndDecodeItem(item.str, foundCoaPageOffset);
+          if (itemStr.toUpperCase().includes('COPY OF ATS FPL') || itemStr.toUpperCase().includes('ATS FPL')) {
+            headerY = item.transform[5];
+            break;
+          }
+        }
+
+        if (headerY !== null) {
+          const boxX = 50;
+          const boxY = (headerY * coaSy) - 65;
+          const boxWidth = coaW - 100;
+          const boxHeight = 55;
+          const padding = 8;
+
+          coaLibPage.drawRectangle({
+            x: boxX,
+            y: boxY,
+            width: boxWidth,
+            height: boxHeight,
+            color: PDFLib.rgb(0.9, 0.9, 0.95),
+            opacity: 0.25
+          });
+
+          coaLibPage.drawRectangle({
+            x: boxX,
+            y: boxY,
+            width: boxWidth,
+            height: boxHeight,
+            borderColor: PDFLib.rgb(0.4, 0.4, 0.6),
+            borderWidth: 1.2
+          });
+
+          const routeText = extractedRoute.substring(0, 100);
+          coaLibPage.drawText('ROUTE:', {
+            x: boxX + padding,
+            y: boxY + boxHeight - 15,
+            size: 7.5,
+            font: stdFont,
+            color: PDFLib.rgb(0.2, 0.2, 0.2),
+            opacity: 0.8
+          });
+
+          coaLibPage.drawText(routeText, {
+            x: boxX + padding + 40,
+            y: boxY + boxHeight - 15,
+            size: 7.5,
+            font: stdFont,
+            color: PDFLib.rgb(0.1, 0.1, 0.1),
+            opacity: 0.9
+          });
+        }
       }
     }
 
