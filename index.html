@@ -1762,34 +1762,34 @@ async function runHL(){
       }
 
       let extractedRoute = "";
-      if (detectedAirports.length === 2) {
-        const depCode = detectedAirports[0];
-        const arrCode = detectedAirports[1];
-        
-        const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const routePattern1 = new RegExp(`${escapeRegExp(depCode)}\\.\\.[\\s\\S]{5,800}?\\.\\.${escapeRegExp(arrCode)}`, 'i');
-        const routePattern2 = new RegExp(`\\b${escapeRegExp(depCode)}\\b[\\s\\S]{5,800}?\\b${escapeRegExp(arrCode)}\\b`, 'i');
-        
-        let rMatch = cfpFullTextWithNewlines.match(routePattern1);
-        if (!rMatch) rMatch = cfpFullTextWithNewlines.match(routePattern2);
-        
-        if (rMatch) {
-          extractedRoute = rMatch[0].trim();
+
+      // 1순위: '2ND' 마커 이후부터 'DIST LATITUDE' 헤더 이전까지 추출
+      {
+        const distIdx = cfpFullTextWithNewlines.search(/DIST\s+LATITUDE/i);
+        if (distIdx !== -1) {
+          const beforeDist = cfpFullTextWithNewlines.substring(0, distIdx);
+          const lines = beforeDist.split('\n').map(l => l.trim()).filter(l => l);
+          // '2ND'가 포함된 마지막 라인 이후를 루트로 간주
+          let routeStartLine = -1;
+          for (let i = lines.length - 1; i >= 0; i--) {
+            if (/2ND/i.test(lines[i])) { routeStartLine = i + 1; break; }
+          }
+          if (routeStartLine !== -1 && routeStartLine < lines.length) {
+            extractedRoute = lines.slice(routeStartLine).join(' ').trim();
+          }
         }
       }
 
-      if (!extractedRoute) {
-        const fallbackRouteRegex = /(KSEA[\s\S]{1,600}?RKSI)/i;
-        const fbMatch = cfpFullTextWithNewlines.match(fallbackRouteRegex);
-        if (fbMatch) {
-          extractedRoute = fbMatch[1].trim();
-        } else {
-          const genericRouteRegex = /([A-Z]{4}[\s\S]{1,600}?[A-Z]{4})/i;
-          const genMatch = cfpFullTextWithNewlines.match(genericRouteRegex);
-          if (genMatch) {
-            extractedRoute = genMatch[1].trim();
-          }
-        }
+      // 2순위: dep..arr 패턴 매칭
+      if (!extractedRoute && detectedAirports.length === 2) {
+        const depCode = detectedAirports[0];
+        const arrCode = detectedAirports[1];
+        const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const routePattern1 = new RegExp(`${escapeRegExp(depCode)}\\.\\.[\\s\\S]{5,800}?\\.\\.${escapeRegExp(arrCode)}`, 'i');
+        const routePattern2 = new RegExp(`\\b${escapeRegExp(depCode)}\\b[\\s\\S]{5,800}?\\b${escapeRegExp(arrCode)}\\b`, 'i');
+        let rMatch = cfpFullTextWithNewlines.match(routePattern1);
+        if (!rMatch) rMatch = cfpFullTextWithNewlines.match(routePattern2);
+        if (rMatch) extractedRoute = rMatch[0].trim();
       }
 
       if(extractedRoute) {
@@ -2018,6 +2018,64 @@ async function runHL(){
                   searchStartIndex = bestMatchIdx + 1;
               }
           }
+      }
+
+      // CFP 루트 텍스트를 COA 페이지 마지막 줄 아래에 삽입
+      if (extractedRoute) {
+        const routeDisplay = extractedRoute.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+
+        // "SUBMITTED AT" 텍스트가 있는 줄 찾기 (없으면 최하단 줄)
+        let anchorY = null;
+        let anchorX = null;
+        for (const item of sortedCoaItems) {
+          const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
+          if (s && /SUBMITTED\s+AT/i.test(s)) {
+            anchorY = item.transform[5];
+            anchorX = item.transform[4];
+          }
+        }
+        if (anchorY === null) {
+          for (const item of sortedCoaItems) {
+            const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
+            if (s) {
+              const y = item.transform[5];
+              if (anchorY === null || y < anchorY) { anchorY = y; anchorX = item.transform[4]; }
+            }
+          }
+        }
+
+        if (anchorY !== null) {
+          const rSize = 11;
+          const rStartX = (anchorX || 36) * coaSx;
+          const rMaxW = coaW * 0.75;
+          const rStartY = (anchorY - 14 - rSize * 1.4) * coaSy;
+
+          const words = routeDisplay.split(' ');
+          const rLines = [];
+          let cur = '';
+          for (const w of words) {
+            const test = cur ? cur + ' ' + w : w;
+            if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) {
+              cur = test;
+            } else {
+              if (cur) rLines.push(cur);
+              cur = w;
+            }
+          }
+          if (cur) rLines.push(cur);
+
+          const lineH = rSize * 1.4;
+          for (let li = 0; li < rLines.length; li++) {
+            coaLibPage.drawText(rLines[li], {
+              x: rStartX,
+              y: rStartY - li * lineH,
+              size: rSize,
+              font: stdFont,
+              color: PDFLib.rgb(1, 0, 0),
+              opacity: 0.7
+            });
+          }
+        }
       }
 
     }
