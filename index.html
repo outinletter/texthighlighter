@@ -2270,29 +2270,34 @@ async function runHL(){
       const drSx = drW / drVp.width;
       const drSy = drH / drVp.height;
 
-      let notesY = null, notesRightX = null;
+      let notesY = null, notesRightX = null, notesFS = 10;
       let dispatchItem = null;
       for (const item of drContent.items) {
         const s = cleanAndDecodeItem(item.str, drOffset);
         const su = s.trim().toUpperCase();
         if (/DISPATCH\s*NOTES/i.test(s)) {
           notesY = item.transform[5];
+          notesFS = Math.abs(item.transform[3]) || 10;
           notesRightX = item.transform[4] + (item.width || 0);
           break;
         }
         if (su === 'DISPATCH') { dispatchItem = item; continue; }
         if (su === 'NOTES' && dispatchItem && Math.abs(item.transform[5] - dispatchItem.transform[5]) < 5) {
           notesY = item.transform[5];
+          notesFS = Math.abs(item.transform[3]) || 10;
           notesRightX = item.transform[4] + (item.width || 0);
           break;
         }
       }
 
       if (notesY !== null) {
+        const annotSize9 = 9;
+        const notesMidY = notesY + notesFS * (0.72 - 0.19) / 2;
+        const annotBaseY = notesMidY - annotSize9 * (0.72 - 0.19) / 2;
         drLibPage.drawText(`DISC FUEL INFO  ${discFuel}  ${discTime}`, {
           x: (notesRightX + 10) * drSx,
-          y: notesY * drSy,
-          size: 9,
+          y: annotBaseY * drSy,
+          size: annotSize9,
           font: stdFont,
           color: PDFLib.rgb(1, 0, 0),
           opacity: 0.7
