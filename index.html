@@ -2294,14 +2294,27 @@ async function runHL(){
       if (notesY !== null) {
         const annotSize9 = 9;
         const notesMidY = notesY + notesFS * (0.72 - 0.19) / 2;
-        const annotBaseY = notesMidY - annotSize9 * (0.72 - 0.19) / 2;
-        drLibPage.drawText(`DISC FUEL INFO  ${discFuel}  ${discTime}`, {
+        const annotBaseY = (notesMidY - annotSize9 * (0.72 - 0.19) / 2) * drSy;
+        const discText = `DISC FUEL INFO  ${discFuel}  ${discTime}`;
+        const discTextWidth = stdFont.widthOfTextAtSize(discText, annotSize9);
+        const discPadH = 4, discPadV = 2.5;
+        const discAscent = annotSize9 * 0.72;
+        const discDescent = annotSize9 * 0.19;
+        drLibPage.drawRectangle({
+          x: (notesRightX + 10) * drSx - discPadH,
+          y: annotBaseY - discDescent - discPadV,
+          width: discTextWidth + discPadH * 2,
+          height: discAscent + discDescent + discPadV * 2,
+          color: PDFLib.rgb(0.98, 0.50, 0.35),
+          opacity: 0.75
+        });
+        drLibPage.drawText(discText, {
           x: (notesRightX + 10) * drSx,
-          y: annotBaseY * drSy,
+          y: annotBaseY,
           size: annotSize9,
           font: stdFont,
-          color: PDFLib.rgb(1, 0, 0),
-          opacity: 0.7
+          color: PDFLib.rgb(1, 1, 1),
+          opacity: 1.0
         });
       }
     }
