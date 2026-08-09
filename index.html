@@ -1065,7 +1065,8 @@ async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusi
         const m = re.exec(line.text);
         if (m) {
           const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
-          found[tag] = { code: m[1].toUpperCase(), pageIdx: pi, y: line.y, maxX: lineMaxX };
+          const lineFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+          found[tag] = { code: m[1].toUpperCase(), pageIdx: pi, y: line.y, maxX: lineMaxX, fontSize: lineFS };
         }
       }
     }
@@ -1073,7 +1074,7 @@ async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusi
 
   const ordered = [];
   for (const tag of tags) {
-    if (found[tag]) ordered.push({ tag, code: found[tag].code, pageIdx: found[tag].pageIdx, y: found[tag].y, maxX: found[tag].maxX });
+    if (found[tag]) ordered.push({ tag, code: found[tag].code, pageIdx: found[tag].pageIdx, y: found[tag].y, maxX: found[tag].maxX, fontSize: found[tag].fontSize });
   }
   return ordered;
 }
@@ -2357,12 +2358,13 @@ async function runHL(){
             const rightMargin = 36;
             const annotStartX = lw - textWidth - rightMargin;
             const padH = 4, padV = 2.5;
-            // Helvetica ascender/descender ratios for correct visual centering
+            const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+            const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
+            const annotBaseY = srcMidY - annotSize * (0.72 - 0.19) / 2;
             const ascent  = annotSize * 0.72;
             const descent = annotSize * 0.19;
-            const boxY = line.y * sy - descent - padV;
+            const boxY = annotBaseY - descent - padV;
             const boxH = ascent + descent + padV * 2;
-            // Background box — equal visual padding above cap and below descender
             libPage.drawRectangle({
               x: annotStartX - padH,
               y: boxY,
@@ -2371,10 +2373,9 @@ async function runHL(){
               color: PDFLib.rgb(0.98, 0.50, 0.35),
               opacity: 0.75
             });
-            // Text on top (baseline unchanged)
             libPage.drawText(fullText, {
               x: annotStartX,
-              y: line.y * sy,
+              y: annotBaseY,
               size: annotSize,
               font: stdFont,
               color: PDFLib.rgb(1, 1, 1),
@@ -2405,13 +2406,29 @@ async function runHL(){
           pageScaleCache[pi] = { sx: lw / vp.width, sy: lh / vp.height };
         }
         const { sx, sy } = pageScaleCache[pi];
+        const depAnnotSize = 9;
+        const depTextWidth = stdFont.widthOfTextAtSize(timeText, depAnnotSize);
+        const depSrcFS = subAirport.fontSize || 10;
+        const depSrcMidY = subAirport.y * sy + depSrcFS * sy * (0.72 - 0.19) / 2;
+        const depBaseY = depSrcMidY - depAnnotSize * (0.72 - 0.19) / 2;
+        const depPadH = 4, depPadV = 2.5;
+        const depAscent = depAnnotSize * 0.72;
+        const depDescent = depAnnotSize * 0.19;
+        libPages[pi].drawRectangle({
+          x: (subAirport.maxX + 8) * sx - depPadH,
+          y: depBaseY - depDescent - depPadV,
+          width: depTextWidth + depPadH * 2,
+          height: depAscent + depDescent + depPadV * 2,
+          color: PDFLib.rgb(0.98, 0.50, 0.35),
+          opacity: 0.75
+        });
         libPages[pi].drawText(timeText, {
           x: (subAirport.maxX + 8) * sx,
-          y: subAirport.y * sy,
-          size: 9,
+          y: depBaseY,
+          size: depAnnotSize,
           font: stdFont,
-          color: PDFLib.rgb(1, 0, 0),
-          opacity: 0.7
+          color: PDFLib.rgb(1, 1, 1),
+          opacity: 1.0
         });
       }
     }
