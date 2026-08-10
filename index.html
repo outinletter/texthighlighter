@@ -1572,7 +1572,7 @@ async function runHL(){
           while (true) {
             const dIdx = cleanLineText.indexOf(notamDatePrefix, dSearchStart);
             if (dIdx === -1) break;
-            dSearchStart = dIdx + 1;
+            dSearchStart = dIdx + notamDatePrefix.length;
             const dItemMatches = {};
             for (let c = dIdx; c < dIdx + notamDatePrefix.length; c++) {
               const map = charMapping[c];
@@ -1599,7 +1599,7 @@ async function runHL(){
                 y: (tx[5] * sy) - (itemH * sy * 0.2),
                 width: Math.max(matchCharCount * charW * sx, 4),
                 height: Math.max(itemH * sy * 1.2, 8),
-                color: PDFLib.rgb(1.0, 0.55, 0.0),
+                color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
                 opacity: 0.35
               });
               totalHits++;
