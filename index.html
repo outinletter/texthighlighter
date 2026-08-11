@@ -1239,6 +1239,7 @@ async function runHL(){
     ];
     
     const bmPages={};
+    let edtoBookmarkY = null;
     for(let pi=0;pi<numPages;pi++){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
       const tc=await jsPage2.getTextContent();
@@ -1250,6 +1251,10 @@ async function runHL(){
         if(bmPages[bm.label]!==undefined)continue;
         if(bm.pattern.test(pageText)){
           bmPages[bm.label]=pi;
+          if (bm.label === 'EQUAL TIME POINT DATA') {
+            const matchItem = tc.items.find(it => /EQUAL/i.test(cleanAndDecodeItem(it.str, offset)));
+            if (matchItem) edtoBookmarkY = matchItem.transform[5];
+          }
         }
       }
     }
@@ -1804,7 +1809,17 @@ async function runHL(){
     for(const bm of BOOKMARK_PATTERNS){
       const pi=bmPages[bm.label];if(pi===undefined)continue;
       const pageRef=pdfLibDoc.getPage(pi).ref;
-      const dest=ctx.obj([pageRef,PDFLib.PDFName.of('Fit')]);
+      let dest;
+      if (bm.label === 'EQUAL TIME POINT DATA' && typeof edtoBookmarkY === 'number') {
+        // 'EDTO EQUAL TIME POINT DATA' 텍스트가 화면 상단 근처에 오도록 XYZ 목적지 사용
+        const pageObj = pdfLibDoc.getPage(pi);
+        const pageHeight = pageObj.getHeight();
+        const topMargin = 30;
+        const topY = Math.max(0, Math.min(pageHeight, edtoBookmarkY + topMargin));
+        dest = ctx.obj([pageRef, PDFLib.PDFName.of('XYZ'), PDFLib.PDFNumber.of(0), PDFLib.PDFNumber.of(topY), PDFLib.PDFNumber.of(0)]);
+      } else {
+        dest=ctx.obj([pageRef,PDFLib.PDFName.of('Fit')]);
+      }
       const itemDict=ctx.obj({Title:PDFLib.PDFString.of(bm.label),Dest:dest});
       const itemRef=ctx.register(itemDict);
       outlineItems.push(itemRef);
