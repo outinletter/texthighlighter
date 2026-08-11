@@ -1773,10 +1773,25 @@ async function runHL(){
           };
 
           if (regEsc) {
-            let re; try { re = new RegExp(`\\b${regEsc}\\b`, 'gi'); } catch(e) { re = new RegExp(regEsc, 'gi'); }
-            let m;
-            while ((m = re.exec(clean)) !== null)
-              applyHl(m.index, m.index + m[0].length, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+            const lineUpper = lineRaw.toUpperCase().replace(/\s+/g, '');
+            let isRouteLine = false;
+            for (const pair of [detectedAirports, iataAirports]) {
+              if (pair.length === 2) {
+                const a = pair[0].toUpperCase(), b = pair[1].toUpperCase();
+                if (lineUpper.includes(`${a}/${b}`) || lineUpper.includes(`${a}-${b}`) ||
+                    lineUpper.includes(`${a}TO${b}`) || lineUpper.includes(`${a}${b}`)) {
+                  isRouteLine = true;
+                  break;
+                }
+              }
+            }
+            // Skip: a route-string line is already highlighted whole by the main pass above.
+            if (!isRouteLine) {
+              let re; try { re = new RegExp(`\\b${regEsc}\\b`, 'gi'); } catch(e) { re = new RegExp(regEsc, 'gi'); }
+              let m;
+              while ((m = re.exec(clean)) !== null)
+                applyHl(m.index, m.index + m[0].length, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+            }
           }
 
         }
