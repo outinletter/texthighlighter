@@ -854,14 +854,12 @@ function checkKeywordMatch(text, kw) {
 const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE", "WEATHER", "AIR", "ROUTE", "ALTN", "INFO"];
 const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
 
-// Optimized detectPageOffset for extreme speed
 function detectPageOffset(rawText) {
   if (!rawText) return 0;
   let bestOffset = 0;
   let bestMatches = 0; 
   const sampleLen = Math.min(rawText.length, 1500);
   
-  // Fast path: check common offsets first
   for (const offset of OFFSETS_TO_TEST) {
     let decodedSample = "";
     for (let j = 0; j < sampleLen; j++) {
@@ -872,7 +870,7 @@ function detectPageOffset(rawText) {
     for (const kw of TEST_KEYWORDS) {
       if (cleanSample.includes(kw)) matchCount++;
     }
-    if (matchCount >= 3) return offset; // Early exit - huge speed boost
+    if (matchCount >= 3) return offset;
     if (matchCount > bestMatches) {
       bestMatches = matchCount;
       bestOffset = offset;
@@ -881,7 +879,6 @@ function detectPageOffset(rawText) {
   
   if (bestMatches > 0) return bestOffset;
   
-  // Slow path: check other possible offsets
   for (let i = -120; i <= 120; i++) {
     if (OFFSETS_TO_TEST.includes(i)) continue;
     let decodedSample = "";
@@ -897,7 +894,7 @@ function detectPageOffset(rawText) {
       bestMatches = matchCount;
       bestOffset = i;
     }
-    if (bestMatches >= 3) break; // Early exit
+    if (bestMatches >= 3) break;
   }
   
   return bestOffset;
@@ -926,13 +923,10 @@ function cleanAndDecodeItem(str, offset) {
     }
   }
   
-  // Force only English, numbers, and basic symbols, replace others with spaces
   return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
 }
 
-// Shared highlight-rectangle drawer for a char-index range within a single text item.
-// Consolidates the geometry formula previously duplicated across keyword, NOTAM date,
-// aircraft registration, and DOF highlight blocks.
+// 텍스트 범위 하이라이트를 그리는 공통 헬퍼 함수
 function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity) {
   const s = cleanAndDecodeItem(item.str, pageOffset) || '';
   const tx = item.transform;
@@ -961,7 +955,6 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
       
       const isDispatchReleasePage = /DISPATCH\s+RELEASE\s+INFORMATION/i.test(decodedRawText) || /I\s+HEREBY\s+RELEASE/i.test(decodedRawText);
 
-      // Extract ICAO codes
       if (airports.length === 0) {
         const m1 = /\bFLIGHT\s+RELEASE\s+[A-Z0-9]+\s+([A-Z]{4})[\/-]([A-Z]{4})\b/i.exec(decodedRawText);
         if (m1) {
@@ -979,7 +972,6 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
         }
       }
 
-      // Extract IATA codes (Searching for 3/3 pattern on Dispatch Release page)
       if (iataAirports.length === 0 && isDispatchReleasePage) {
         const mIata = /\b([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/g;
         let match;
@@ -994,7 +986,6 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
         }
       }
 
-      // Backup extraction via package header (e.g., KE0497 / ICN / DEL)
       if (iataAirports.length === 0) {
          const mHeader = /\b(?:KAL|KE)\s*\d+\s*\/\s*([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
          if (mHeader) {
@@ -1010,9 +1001,6 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
   return airports;
 }
 
-// cleanAndDecodeItem은 [ ] % 등의 문자를 공백으로 치환해버려 [DEP]/[ERA]/[FIR] 같은
-// 태그 검출에 쓸 수 없다. 동일한 offset 판별 로직을 쓰되, 인쇄 가능한 ASCII 문자는
-// (대괄호, %, 콜론 등 포함) 그대로 보존하는 전용 디코더.
 function decodeForTagScan(str, offset) {
   if (!str) return '';
   let finalStr = str;
@@ -1024,13 +1012,9 @@ function decodeForTagScan(str, offset) {
       finalStr = decrypted;
     }
   }
-  // 제어문자 등 비인쇄 ASCII만 공백으로 치환하고, [ ] % 등은 그대로 유지
   return finalStr.replace(/[^\x20-\x7E]/g, ' ');
 }
 
-// 같은 y좌표(같은 줄)에 속한 텍스트 아이템들을 하나의 줄로 묶고, 원래 배치 순서(x좌표)대로
-// 이어붙인 텍스트와 그 줄의 y좌표를 함께 돌려준다. 북마크 목적지를 "줄 단위"로 정확히
-// 잡기 위한 용도 (태그와 공항코드가 서로 다른 텍스트 아이템으로 쪼개져 있어도 한 줄로 인식).
 function groupItemsIntoLines(items, offset) {
   const decorated = items
     .map(it => ({ item: it, text: decodeForTagScan(it.str, offset) }))
@@ -1059,8 +1043,6 @@ function groupItemsIntoLines(items, offset) {
   return lines;
 }
 
-// NOTAM 1 구간: [DEP], [DEST], [ALTN] 태그 뒤에 나오는 공항코드를 그 고정 순서대로 1개씩 추출.
-// 태그가 있는 "줄"의 y좌표까지 함께 반환하여, 북마크가 해당 줄을 화면 상단에 정확히 위치시키도록 한다.
 async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
   const found = {};
   if (startPageIdx === undefined || startPageIdx === -1) return [];
@@ -1097,9 +1079,6 @@ async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusi
   return ordered;
 }
 
-// NOTAM 2 / NOTAM 3 구간: 지정한 태그 패턴([ERA], [3% ERA], [EDTO], [FIR] 등)으로 나열된
-// 모든 공항코드를 문서에 등장하는 순서 그대로 추출하는 범용 함수. 마찬가지로 각 태그가
-// 위치한 "줄"의 y좌표를 함께 반환한다.
 async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tagPattern) {
   const results = [];
   if (startPageIdx === undefined || startPageIdx === -1) return results;
@@ -1176,16 +1155,6 @@ async function extractMetadata(pdfJsDoc) {
     }
   } catch (err) {
     console.warn("Metadata extraction failed: ", err);
-  }
-}
-
-function getIntenseHlColor(themeName) {
-  switch (themeName) {
-    case 'pink':   return [0.85, 0.15, 0.40]; 
-    case 'yellow': return [0.85, 0.40, 0.00]; 
-    case 'green':  return [0.05, 0.55, 0.25]; 
-    case 'blue':
-    default:       return [0.15, 0.52, 0.90]; 
   }
 }
 
@@ -1282,12 +1251,10 @@ async function runHL(){
     }
     if (notam2PageIdx !== undefined) {
       const notam2EndIdx = notam3PageIdx !== undefined ? notam3PageIdx : numPages;
-      // ERA(및 3% ERA)와 EDTO 지정 공항을 모두 포함
       notam2SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam2PageIdx, notam2EndIdx, '(?:\\d+\\s*%\\s*)?ERA|EDTO');
     }
     if (notam3PageIdx !== undefined) {
       const notam3EndIdx = numPages;
-      // FIR(비행정보구역) 공역 북마크
       notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR');
     }
 
@@ -1537,8 +1504,6 @@ async function runHL(){
             const startIdx = m.index;
             const endIdx = startIdx + m[0].length;
 
-            // MEL/CDL immediately adjacent to '/' (e.g. part of a code like "XX/MEL/YY")
-            // are excluded from highlighting.
             if (kw.toUpperCase() === 'MEL' || kw.toUpperCase() === 'CDL') {
               if (lineTextFromMapping[startIdx - 1] === '/' || lineTextFromMapping[endIdx] === '/') {
                 continue;
@@ -1572,9 +1537,8 @@ async function runHL(){
           }
         }
 
-        // Highlight DOF/YYMMDD (Date Of Flight) — the 6 digits after "DOF" are always a date,
-        // so extract and highlight them directly. This is now the single, unified date
-        // highlight (previously there was a separate bare-date-substring match too).
+        // Highlight DOF/YYMMDD (Date Of Flight)
+        // 기존의 하드코딩된 주황색 대신 사용자가 설정한 hlRGB 색상을 동일하게 적용하도록 수정되었습니다.
         {
           const dofLineRegex = /\bDOF\s+(\d{6})\b/i;
           const dofLineM = dofLineRegex.exec(cleanLineText);
@@ -1607,9 +1571,6 @@ async function runHL(){
         const shearRegex = /\b\d{5}[A-Za-z ]\d{3}\s+([0-9]{2})\b/g;
         let shrM;
         let lastShrIdx = -1;
-        // Nav-log route lines always contain the "---/" separator; the wind/temperature
-        // summary table (no "---/") uses the same digit-space-digit shape after cleaning,
-        // so restrict this match to route lines to avoid false hits there.
         if (lineTextFromMapping.includes('---')) {
         while ((shrM = shearRegex.exec(cleanLineText)) !== null) {
           if (shearRegex.lastIndex === lastShrIdx) {
@@ -1719,10 +1680,8 @@ async function runHL(){
         }
       }
     }
-    } // sel.size > 0 조건 닫기
+    }
 
-    // Always highlight aircraft registration and flight date on ALL pages
-    // Uses charMapping (line-level) so split PDF items are handled correctly
     if (extractedAcReg) {
       const regAlnum = extractedAcReg ? extractedAcReg.replace(/[^A-Z0-9]/g, '') : '';
       const regEsc = regAlnum ? regAlnum.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
@@ -1737,7 +1696,6 @@ async function runHL(){
         const aRaw = aContent.items.map(it => it.str).join(' ');
         const aOff = detectPageOffset(aRaw);
 
-        // Group into lines
         const aLines = [];
         const aSorted = aContent.items
           .filter(it => { const s = cleanAndDecodeItem(it.str, aOff); return s && s.trim(); })
@@ -1790,7 +1748,6 @@ async function runHL(){
                 }
               }
             }
-            // Skip: a route-string line is already highlighted whole by the main pass above.
             if (!isRouteLine) {
               let re; try { re = new RegExp(`\\b${regEsc}\\b`, 'gi'); } catch(e) { re = new RegExp(regEsc, 'gi'); }
               let m;
@@ -1811,7 +1768,6 @@ async function runHL(){
       const pageRef=pdfLibDoc.getPage(pi).ref;
       let dest;
       if (bm.label === 'EQUAL TIME POINT DATA' && typeof edtoBookmarkY === 'number') {
-        // 'EDTO EQUAL TIME POINT DATA' 텍스트가 화면 상단 근처에 오도록 XYZ 목적지 사용
         const pageObj = pdfLibDoc.getPage(pi);
         const pageHeight = pageObj.getHeight();
         const topMargin = 30;
@@ -1833,8 +1789,6 @@ async function runHL(){
       const childRefs=subAirports.map(item=>{
         const childPage=pdfLibDoc.getPage(item.pageIdx);
         const childPageRef=childPage.ref;
-        // 해당 줄(y)이 화면 상단 근처에 오도록 XYZ 목적지 사용. 위쪽 여백을 조금 남겨
-        // 텍스트가 화면 최상단에 딱 붙지 않게 하고, 페이지 높이를 넘지 않도록 clamp.
         const pageHeight = childPage.getHeight();
         const topMargin = 30;
         let topY = (typeof item.y === 'number') ? (item.y + topMargin) : pageHeight;
@@ -1856,7 +1810,6 @@ async function runHL(){
       parentDict.set(PDFLib.PDFName.of('Count'),PDFLib.PDFNumber.of(childRefs.length));
     }
 
-    // WEATHER BRIEFING 서브북마크: Vertical Cross-Section (NOTAM 1 직전 페이지)
     const weatherSubBookmarks = [];
     if (notam1PageIdx !== undefined && notam1PageIdx > 0) {
       weatherSubBookmarks.push({ title: 'Vertical Cross-Section', pageIdx: notam1PageIdx - 1, y: null });
@@ -1921,13 +1874,11 @@ async function runHL(){
 
       let extractedRoute = "";
 
-      // 1순위: '2ND' 마커 이후부터 'DIST LATITUDE' 헤더 이전까지 추출
       {
         const distIdx = cfpFullTextWithNewlines.search(/DIST\s+LATITUDE/i);
         if (distIdx !== -1) {
           const beforeDist = cfpFullTextWithNewlines.substring(0, distIdx);
           const lines = beforeDist.split('\n').map(l => l.trim()).filter(l => l);
-          // '2ND'가 포함된 마지막 라인 이후를 루트로 간주
           let routeStartLine = -1;
           for (let i = lines.length - 1; i >= 0; i--) {
             if (/2ND/i.test(lines[i])) { routeStartLine = i + 1; break; }
@@ -1938,7 +1889,6 @@ async function runHL(){
         }
       }
 
-      // 2순위: dep..arr 패턴 매칭
       if (!extractedRoute && detectedAirports.length === 2) {
         const depCode = detectedAirports[0];
         const arrCode = detectedAirports[1];
@@ -1959,7 +1909,6 @@ async function runHL(){
             .filter(t => t.length >= 2 && !noiseWords.includes(t.toUpperCase()) && !/^\d+$/.test(t));
       }
 
-      // CFP에서 DISC 연료값 추출 (이미 로딩된 cfpFullTextWithNewlines 재사용)
       const discMatch = cfpFullTextWithNewlines.match(/\bDISC\b\s+(\d{4})\s+(\d{2}\.\d{2})/i);
       discFuel = discMatch ? discMatch[1] : '';
       discTime = discMatch ? discMatch[2] : '';
@@ -2184,11 +2133,9 @@ async function runHL(){
           }
       }
 
-      // CFP 루트 텍스트를 COA 페이지 마지막 줄 아래에 삽입
       if (extractedRoute) {
         const routeDisplay = extractedRoute.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
 
-        // "SUBMITTED AT" 텍스트가 있는 줄 찾기 (없으면 최하단 줄)
         let anchorY = null;
         let anchorX = null;
         for (const item of sortedCoaItems) {
@@ -2244,7 +2191,6 @@ async function runHL(){
 
     }
 
-    // DISC 연료값을 DISPATCH RELEASE 페이지 DISPATCH NOTES 오른쪽에 삽입
     if (discFuel && discTime && dispatchReleaseIdx !== -1) {
       const drJsPage = await pdfJsDoc.getPage(dispatchReleaseIdx + 1);
       const drContent = await drJsPage.getTextContent();
@@ -2303,8 +2249,6 @@ async function runHL(){
       }
     }
 
-    // ENROUTE ALTERNATES 스캔 - CFP는 다중 페이지이므로 전체 섹션 탐색
-    // (cfpPageIdx부터 NOTAM 1 시작 전까지, 최대 20페이지)
     if (cfpPageIdx !== undefined) {
       const cfpSectionEnd = Math.min(
         notam1PageIdx !== undefined ? notam1PageIdx : cfpPageIdx + 20,
@@ -2327,7 +2271,6 @@ async function runHL(){
       }
     }
 
-    // NOTAM 페이지에서 [ERA]/[EDTO]/[REFILE] 태그 공항 옆에 SUITABLE 정보 삽입
     if (Object.keys(suitableMap).length > 0 && notam1PageIdx !== undefined) {
       const tagRe = /\[\s*(ERA|EDTO|REFILE|\d+\s*%\s*ERA)\s*\]\s*([A-Z]{3,4})\b/gi;
 
@@ -2384,7 +2327,6 @@ async function runHL(){
       }
     }
 
-    // Annotate [DEP]/[DEST] lines in NOTAM 1 with ETD/ETA times
     const tagTimeMap = {};
     if (extractedEtd) tagTimeMap['DEP'] = extractedEtd;
     if (extractedEta) tagTimeMap['DEST'] = extractedEta;
