@@ -1538,7 +1538,6 @@ async function runHL(){
         }
 
         // Highlight DOF/YYMMDD (Date Of Flight)
-        // 기존의 하드코딩된 주황색 대신 사용자가 설정한 hlRGB 색상을 동일하게 적용하도록 수정되었습니다.
         {
           const dofLineRegex = /\bDOF\s+(\d{6})\b/i;
           const dofLineM = dofLineRegex.exec(cleanLineText);
@@ -1848,12 +1847,16 @@ async function runHL(){
       foundCoaPageOffset = detectPageOffset(coaRawContent.items.map(it => it.str).join(' '));
     }
 
-    if(cfpPageIdx!==undefined && resolvedCoaPageIdx!==-1){
+    if(cfpPageIdx!==undefined) {
       const cfpJsPage=await pdfJsDoc.getPage(cfpPageIdx+1);
       const cfpContent=await cfpJsPage.getTextContent();
-      
       const rawCfpText = cfpContent.items.map(it => it.str).join(' ');
       const cfpOffset = detectPageOffset(rawCfpText);
+      const cfpLibPage = libPages[cfpPageIdx];
+      const { width: cfpW, height: cfpH } = cfpLibPage.getSize();
+      const cfpVp = cfpJsPage.getViewport({ scale: 1.0 });
+      const cfpSx = cfpW / cfpVp.width;
+      const cfpSy = cfpH / cfpVp.height;
 
       const cfpItems=cfpContent.items.slice().sort((a,b)=>{
         const ay=a.transform[5],by2=b.transform[5];
@@ -1870,6 +1873,93 @@ async function runHL(){
         }
         cfpFullTextWithNewlines += decodedStr + " ";
         lastY = item.transform[5];
+      }
+
+      // =========================================================================
+      // TRIP 비행시간 계산 로직 (7:30~11:30 미만: 2/3, 1/3 | 11:30 이상: 1/2)
+      // =========================================================================
+      const tripMatch = cfpFullTextWithNewlines.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
+
+      if (tripMatch) {
+        const hours = parseInt(tripMatch[2], 10);
+        const minutes = parseInt(tripMatch[3], 10);
+        const totalMinutes = hours * 60 + minutes;
+
+        const formatTime = (totalMins) => {
+          const h = Math.floor(totalMins / 60).toString().padStart(2, '0');
+          const m = (totalMins % 60).toString().padStart(2, '0');
+          return `${h}:${m}`;
+        };
+
+        let formattedCalcText = "";
+
+        if (totalMinutes >= 690) { // 11시간 30분(690분) 이상
+          const halfMin = Math.round(totalMinutes / 2);
+          const halfStr = formatTime(halfMin);
+          formattedCalcText = `(Duty time ${halfStr})`;
+        } else if (totalMinutes >= 450) { // 7시간 30분(450분) 이상 ~ 11시간 30분 미만
+          const twoThirdsMin = Math.round((totalMinutes * 2) / 3);
+          const oneThirdMin = Math.round(totalMinutes / 3);
+          const twoThirdsStr = formatTime(twoThirdsMin);
+          const oneThirdStr = formatTime(oneThirdMin);
+          formattedCalcText = `(Duty Time ${twoThirdsStr} (${oneThirdStr}))`;
+        }
+
+        if (formattedCalcText) {
+          let secondLineY = null;
+          let secondLineMaxX = null;
+          let secondLineFS = 10;
+
+          for (const item of cfpItems) {
+            const s = cleanAndDecodeItem(item.str, cfpOffset);
+            if (/2ND/i.test(s)) {
+              secondLineY = item.transform[5];
+              secondLineFS = Math.abs(item.transform[3]) || 10;
+              break;
+            }
+          }
+
+          if (secondLineY !== null) {
+            for (const item of cfpItems) {
+              if (Math.abs(item.transform[5] - secondLineY) < 4.0) {
+                const itemRightX = item.transform[4] + (item.width || 0);
+                if (secondLineMaxX === null || itemRightX > secondLineMaxX) {
+                  secondLineMaxX = itemRightX;
+                }
+              }
+            }
+
+            const annotSize = 9;
+            const textWidth = stdFont.widthOfTextAtSize(formattedCalcText, annotSize);
+            const padH = 4, padV = 2.5;
+            const ascent = annotSize * 0.72;
+            const descent = annotSize * 0.19;
+
+            const srcMidY = secondLineY + secondLineFS * (0.72 - 0.19) / 2;
+            const annotBaseY = (srcMidY - annotSize * (0.72 - 0.19) / 2) * cfpSy;
+            const drawX = (secondLineMaxX + 10) * cfpSx;
+
+            cfpLibPage.drawRectangle({
+              x: drawX - padH,
+              y: annotBaseY - descent - padV,
+              width: textWidth + padH * 2,
+              height: ascent + descent + padV * 2,
+              color: PDFLib.rgb(1.0, 0.45, 0.65), // 분홍색 배경
+              opacity: 0.85
+            });
+
+            cfpLibPage.drawText(formattedCalcText, {
+              x: drawX,
+              y: annotBaseY,
+              size: annotSize,
+              font: stdFont,
+              color: PDFLib.rgb(1, 1, 1), // 흰색 글씨
+              opacity: 1.0
+            });
+
+            totalHits++;
+          }
+        }
       }
 
       let extractedRoute = "";
@@ -1919,276 +2009,277 @@ async function runHL(){
         extractedEta = `${etdEtaMatch[3].toUpperCase()} ${etdEtaMatch[4].toUpperCase()}`;
       }
 
-      const coaJsPage=await pdfJsDoc.getPage(resolvedCoaPageIdx+1);
-      const coaContent=await coaJsPage.getTextContent();
-      const coaLibPage = libPages[resolvedCoaPageIdx];
-      const {width:coaW,height:coaH}=coaLibPage.getSize();
-      const coaVp=coaJsPage.getViewport({scale:1.0});
-      const coaSx=coaW/coaVp.width;
-      const coaSy=coaH/coaVp.height;
+      if (resolvedCoaPageIdx !== -1) {
+        const coaJsPage=await pdfJsDoc.getPage(resolvedCoaPageIdx+1);
+        const coaContent=await coaJsPage.getTextContent();
+        const coaLibPage = libPages[resolvedCoaPageIdx];
+        const {width:coaW,height:coaH}=coaLibPage.getSize();
+        const coaVp=coaJsPage.getViewport({scale:1.0});
+        const coaSx=coaW/coaVp.width;
+        const coaSy=coaH/coaVp.height;
 
-      const sortedCoaItems = coaContent.items.slice().sort((a,b) => {
-        const ay = a.transform[5], by = b.transform[5];
-        if (Math.abs(ay - by) > 4) return by - ay;
-        return a.transform[4] - b.transform[4];
-      });
+        const sortedCoaItems = coaContent.items.slice().sort((a,b) => {
+          const ay = a.transform[5], by = b.transform[5];
+          if (Math.abs(ay - by) > 4) return by - ay;
+          return a.transform[4] - b.transform[4];
+        });
 
-      let coaFullTextWithNewlines = "";
-      const coaCharMapping = [];
+        let coaFullTextWithNewlines = "";
+        const coaCharMapping = [];
 
-      for (let i = 0; i < sortedCoaItems.length; i++) {
-        const item = sortedCoaItems[i];
-        const prevItem = i > 0 ? sortedCoaItems[i-1] : null;
-        const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
+        for (let i = 0; i < sortedCoaItems.length; i++) {
+          const item = sortedCoaItems[i];
+          const prevItem = i > 0 ? sortedCoaItems[i-1] : null;
+          const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
 
-        if (prevItem) {
-           const dy = Math.abs(prevItem.transform[5] - item.transform[5]);
-           const dx = item.transform[4] - (prevItem.transform[4] + prevItem.width);
-           if (dy > 4 || dx > 2) { 
-               coaFullTextWithNewlines += "\n";
-               coaCharMapping.push({ isSeparator: true, itemIndex: -1, charIndex: -1 });
-           }
-        }
-
-        for (let c = 0; c < s.length; c++) {
-           let charToMatch = s[c].toUpperCase();
-           if (!/[A-Z0-9\/\-]/.test(charToMatch)) { 
-               charToMatch = ' ';
-           }
-           coaFullTextWithNewlines += charToMatch;
-           coaCharMapping.push({ itemIndex: i, charIndex: c });
-        }
-      }
-
-      const speedAltRegex = /-(K|N|M)\s*\d\s*\d\s*\d\s*\d\s*(F|S|M|A)\s*\d\s*\d\s*\d/i;
-      let destRegex = null;
-      if (detectedAirports.length === 2) {
-          const destStr = detectedAirports[1].split('').join('\\s*');
-          destRegex = new RegExp(`-\\s*${destStr}\\s*\\d\\s*\\d\\s*\\d\\s*\\d`, 'i');
-      } else {
-          destRegex = /-\s*[A-Z]\s*[A-Z]\s*[A-Z]\s*[A-Z]\s*\d\s*\d\s*\d\s*\d/i;
-      }
-      
-      const startMatch = coaFullTextWithNewlines.match(speedAltRegex);
-      const endMatch = coaFullTextWithNewlines.match(destRegex);
-
-      let highlightedSomething = false;
-
-      if (startMatch && endMatch && startMatch.index < endMatch.index) {
-          const routeStart = startMatch.index + startMatch[0].length;
-          const routeEnd = endMatch.index;
-
-          let currentWord = { text: "", chars: [] };
-          const atsWordsToHighlight = [];
-
-          for (let i = routeStart; i < routeEnd; i++) {
-              const char = coaFullTextWithNewlines[i];
-
-              if (char === '/') {
-                  if (currentWord.text.length > 0) {
-                      atsWordsToHighlight.push(currentWord);
-                      currentWord = { text: "", chars: [] };
-                  }
-                  while (i < routeEnd && coaFullTextWithNewlines[i] !== ' ' && coaFullTextWithNewlines[i] !== '\n') {
-                      i++;
-                  }
-                  continue;
-              }
-
-              if (/[A-Z0-9]/i.test(char)) {
-                  currentWord.text += char;
-                  currentWord.chars.push(i);
-              } else {
-                  if (currentWord.text.length > 0) {
-                      atsWordsToHighlight.push(currentWord);
-                      currentWord = { text: "", chars: [] };
-                  }
-              }
-          }
-          
-          if (currentWord.text.length > 0) {
-              atsWordsToHighlight.push(currentWord);
+          if (prevItem) {
+             const dy = Math.abs(prevItem.transform[5] - item.transform[5]);
+             const dx = item.transform[4] - (prevItem.transform[4] + prevItem.width);
+             if (dy > 4 || dx > 2) { 
+                 coaFullTextWithNewlines += "\n";
+                 coaCharMapping.push({ isSeparator: true, itemIndex: -1, charIndex: -1 });
+             }
           }
 
-          const validAtsWords = atsWordsToHighlight.filter(w => w.text.toUpperCase() !== "DCT" && !/^\d+$/.test(w.text));
-
-          if (validAtsWords.length > 0) {
-              highlightedSomething = true;
-          }
-
-          for (const wordObj of validAtsWords) {
-              const itemMatches = {};
-              for (let c of wordObj.chars) {
-                  const map = coaCharMapping[c];
-                  if (map && map.itemIndex !== -1) {
-                      if (!itemMatches[map.itemIndex]) {
-                          itemMatches[map.itemIndex] = [];
-                      }
-                      itemMatches[map.itemIndex].push(map.charIndex);
-                  }
-              }
-              
-              for (const itemIdxStr of Object.keys(itemMatches)) {
-                  const itemIdx = parseInt(itemIdxStr, 10);
-                  const charIndices = itemMatches[itemIdx];
-                  if (charIndices.length === 0) continue;
-
-                  const minCharIdx = Math.min(...charIndices);
-                  const maxCharIdx = Math.max(...charIndices);
-                  const matchCharCount = maxCharIdx - minCharIdx + 1;
-
-                  const item = sortedCoaItems[itemIdx];
-                  const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
-                  const tx = item.transform;
-                  const itemW = item.width || 0;
-                  const charW = itemW / Math.max(s.length, 1);
-
-                  const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
-                  const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
-                  const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
-
-                  coaLibPage.drawLine({
-                      start: { x: underlineX1, y: underlineY },
-                      end: { x: underlineX2, y: underlineY },
-                      color: PDFLib.rgb(1, 0, 0),
-                      thickness: 2.0,
-                      opacity: 0.5
-                  });
-                  totalHits++;
-              }
-          }
-      }
-
-      if (!highlightedSomething && routeTokens.length > 0) {
-          let searchStartIndex = 0;
-          const coaTokens = [];
-          let currentToken = null;
-          for (let i = 0; i < coaCharMapping.length; i++) {
-              const map = coaCharMapping[i];
-              if (!map.isSeparator && /[A-Z0-9]/.test(coaFullTextWithNewlines[i])) {
-                  if (!currentToken) currentToken = { text: '', chars: [] };
-                  currentToken.text += coaFullTextWithNewlines[i];
-                  currentToken.chars.push(i);
-              } else {
-                  if (currentToken) {
-                      coaTokens.push(currentToken);
-                      currentToken = null;
-                  }
-              }
-          }
-          if (currentToken) coaTokens.push(currentToken);
-
-          for (const rToken of routeTokens) {
-              const expectedToken = rToken.toUpperCase();
-              let bestMatchIdx = -1;
-              for (let i = searchStartIndex; i < coaTokens.length; i++) {
-                  const cToken = coaTokens[i].text.toUpperCase();
-                  if (cToken === expectedToken || cToken.includes(expectedToken) || expectedToken.includes(cToken)) {
-                      bestMatchIdx = i;
-                      break;
-                  }
-              }
-
-              if (bestMatchIdx !== -1) {
-                  const matchedCToken = coaTokens[bestMatchIdx];
-                  const itemMatches = {};
-                  for (let c of matchedCToken.chars) {
-                      const map = coaCharMapping[c];
-                      if (map && map.itemIndex !== -1) {
-                          if (!itemMatches[map.itemIndex]) itemMatches[map.itemIndex] = [];
-                          itemMatches[map.itemIndex].push(map.charIndex);
-                      }
-                  }
-                  
-                  for (const itemIdxStr of Object.keys(itemMatches)) {
-                      const itemIdx = parseInt(itemIdxStr, 10);
-                      const charIndices = itemMatches[itemIdx];
-                      if (charIndices.length === 0) continue;
-
-                      const minCharIdx = Math.min(...charIndices);
-                      const maxCharIdx = Math.max(...charIndices);
-                      const matchCharCount = maxCharIdx - minCharIdx + 1;
-
-                      const item = sortedCoaItems[itemIdx];
-                      const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
-                      const tx = item.transform;
-                      const itemW = item.width || 0;
-                      const charW = itemW / Math.max(s.length, 1);
-
-                      const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
-                      const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
-                      const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
-
-                      coaLibPage.drawLine({
-                          start: { x: underlineX1, y: underlineY },
-                          end: { x: underlineX2, y: underlineY },
-                          color: PDFLib.rgb(1, 0, 0),
-                          thickness: 2.0,
-                          opacity: 0.5
-                      });
-                      totalHits++;
-                  }
-                  searchStartIndex = bestMatchIdx + 1;
-              }
-          }
-      }
-
-      if (extractedRoute) {
-        const routeDisplay = extractedRoute.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
-
-        let anchorY = null;
-        let anchorX = null;
-        for (const item of sortedCoaItems) {
-          const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
-          if (s && /SUBMITTED\s+AT/i.test(s)) {
-            anchorY = item.transform[5];
-            anchorX = item.transform[4];
+          for (let c = 0; c < s.length; c++) {
+             let charToMatch = s[c].toUpperCase();
+             if (!/[A-Z0-9\/\-]/.test(charToMatch)) { 
+                 charToMatch = ' ';
+             }
+             coaFullTextWithNewlines += charToMatch;
+             coaCharMapping.push({ itemIndex: i, charIndex: c });
           }
         }
-        if (anchorY === null) {
+
+        const speedAltRegex = /-(K|N|M)\s*\d\s*\d\s*\d\s*\d\s*(F|S|M|A)\s*\d\s*\d\s*\d/i;
+        let destRegex = null;
+        if (detectedAirports.length === 2) {
+            const destStr = detectedAirports[1].split('').join('\\s*');
+            destRegex = new RegExp(`-\\s*${destStr}\\s*\\d\\s*\\d\\s*\\d\\s*\\d`, 'i');
+        } else {
+            destRegex = /-\s*[A-Z]\s*[A-Z]\s*[A-Z]\s*[A-Z]\s*\d\s*\d\s*\d\s*\d/i;
+        }
+        
+        const startMatch = coaFullTextWithNewlines.match(speedAltRegex);
+        const endMatch = coaFullTextWithNewlines.match(destRegex);
+
+        let highlightedSomething = false;
+
+        if (startMatch && endMatch && startMatch.index < endMatch.index) {
+            const routeStart = startMatch.index + startMatch[0].length;
+            const routeEnd = endMatch.index;
+
+            let currentWord = { text: "", chars: [] };
+            const atsWordsToHighlight = [];
+
+            for (let i = routeStart; i < routeEnd; i++) {
+                const char = coaFullTextWithNewlines[i];
+
+                if (char === '/') {
+                    if (currentWord.text.length > 0) {
+                        atsWordsToHighlight.push(currentWord);
+                        currentWord = { text: "", chars: [] };
+                    }
+                    while (i < routeEnd && coaFullTextWithNewlines[i] !== ' ' && coaFullTextWithNewlines[i] !== '\n') {
+                        i++;
+                    }
+                    continue;
+                }
+
+                if (/[A-Z0-9]/i.test(char)) {
+                    currentWord.text += char;
+                    currentWord.chars.push(i);
+                } else {
+                    if (currentWord.text.length > 0) {
+                        atsWordsToHighlight.push(currentWord);
+                        currentWord = { text: "", chars: [] };
+                    }
+                }
+            }
+            
+            if (currentWord.text.length > 0) {
+                atsWordsToHighlight.push(currentWord);
+            }
+
+            const validAtsWords = atsWordsToHighlight.filter(w => w.text.toUpperCase() !== "DCT" && !/^\d+$/.test(w.text));
+
+            if (validAtsWords.length > 0) {
+                highlightedSomething = true;
+            }
+
+            for (const wordObj of validAtsWords) {
+                const itemMatches = {};
+                for (let c of wordObj.chars) {
+                    const map = coaCharMapping[c];
+                    if (map && map.itemIndex !== -1) {
+                        if (!itemMatches[map.itemIndex]) {
+                            itemMatches[map.itemIndex] = [];
+                        }
+                        itemMatches[map.itemIndex].push(map.charIndex);
+                    }
+                }
+                
+                for (const itemIdxStr of Object.keys(itemMatches)) {
+                    const itemIdx = parseInt(itemIdxStr, 10);
+                    const charIndices = itemMatches[itemIdx];
+                    if (charIndices.length === 0) continue;
+
+                    const minCharIdx = Math.min(...charIndices);
+                    const maxCharIdx = Math.max(...charIndices);
+                    const matchCharCount = maxCharIdx - minCharIdx + 1;
+
+                    const item = sortedCoaItems[itemIdx];
+                    const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
+                    const tx = item.transform;
+                    const itemW = item.width || 0;
+                    const charW = itemW / Math.max(s.length, 1);
+
+                    const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
+                    const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
+                    const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
+
+                    coaLibPage.drawLine({
+                        start: { x: underlineX1, y: underlineY },
+                        end: { x: underlineX2, y: underlineY },
+                        color: PDFLib.rgb(1, 0, 0),
+                        thickness: 2.0,
+                        opacity: 0.5
+                    });
+                    totalHits++;
+                }
+            }
+        }
+
+        if (!highlightedSomething && routeTokens.length > 0) {
+            let searchStartIndex = 0;
+            const coaTokens = [];
+            let currentToken = null;
+            for (let i = 0; i < coaCharMapping.length; i++) {
+                const map = coaCharMapping[i];
+                if (!map.isSeparator && /[A-Z0-9]/.test(coaFullTextWithNewlines[i])) {
+                    if (!currentToken) currentToken = { text: '', chars: [] };
+                    currentToken.text += coaFullTextWithNewlines[i];
+                    currentToken.chars.push(i);
+                } else {
+                    if (currentToken) {
+                        coaTokens.push(currentToken);
+                        currentToken = null;
+                    }
+                }
+            }
+            if (currentToken) coaTokens.push(currentToken);
+
+            for (const rToken of routeTokens) {
+                const expectedToken = rToken.toUpperCase();
+                let bestMatchIdx = -1;
+                for (let i = searchStartIndex; i < coaTokens.length; i++) {
+                    const cToken = coaTokens[i].text.toUpperCase();
+                    if (cToken === expectedToken || cToken.includes(expectedToken) || expectedToken.includes(cToken)) {
+                        bestMatchIdx = i;
+                        break;
+                    }
+                }
+
+                if (bestMatchIdx !== -1) {
+                    const matchedCToken = coaTokens[bestMatchIdx];
+                    const itemMatches = {};
+                    for (let c of matchedCToken.chars) {
+                        const map = coaCharMapping[c];
+                        if (map && map.itemIndex !== -1) {
+                            if (!itemMatches[map.itemIndex]) itemMatches[map.itemIndex] = [];
+                            itemMatches[map.itemIndex].push(map.charIndex);
+                        }
+                    }
+                    
+                    for (const itemIdxStr of Object.keys(itemMatches)) {
+                        const itemIdx = parseInt(itemIdxStr, 10);
+                        const charIndices = itemMatches[itemIdx];
+                        if (charIndices.length === 0) continue;
+
+                        const minCharIdx = Math.min(...charIndices);
+                        const maxCharIdx = Math.max(...charIndices);
+                        const matchCharCount = maxCharIdx - minCharIdx + 1;
+
+                        const item = sortedCoaItems[itemIdx];
+                        const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
+                        const tx = item.transform;
+                        const itemW = item.width || 0;
+                        const charW = itemW / Math.max(s.length, 1);
+
+                        const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
+                        const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
+                        const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
+
+                        coaLibPage.drawLine({
+                            start: { x: underlineX1, y: underlineY },
+                            end: { x: underlineX2, y: underlineY },
+                            color: PDFLib.rgb(1, 0, 0),
+                            thickness: 2.0,
+                            opacity: 0.5
+                        });
+                        totalHits++;
+                    }
+                    searchStartIndex = bestMatchIdx + 1;
+                }
+            }
+        }
+
+        if (extractedRoute) {
+          const routeDisplay = extractedRoute.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
+
+          let anchorY = null;
+          let anchorX = null;
           for (const item of sortedCoaItems) {
             const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
-            if (s) {
-              const y = item.transform[5];
-              if (anchorY === null || y < anchorY) { anchorY = y; anchorX = item.transform[4]; }
+            if (s && /SUBMITTED\s+AT/i.test(s)) {
+              anchorY = item.transform[5];
+              anchorX = item.transform[4];
             }
           }
-        }
-
-        if (anchorY !== null) {
-          const rSize = 11;
-          const rStartX = (anchorX || 36) * coaSx;
-          const rMaxW = coaW * 0.75;
-          const rStartY = (anchorY - 14 - rSize * 1.4) * coaSy;
-
-          const words = routeDisplay.split(' ');
-          const rLines = [];
-          let cur = '';
-          for (const w of words) {
-            const test = cur ? cur + ' ' + w : w;
-            if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) {
-              cur = test;
-            } else {
-              if (cur) rLines.push(cur);
-              cur = w;
+          if (anchorY === null) {
+            for (const item of sortedCoaItems) {
+              const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
+              if (s) {
+                const y = item.transform[5];
+                if (anchorY === null || y < anchorY) { anchorY = y; anchorX = item.transform[4]; }
+              }
             }
           }
-          if (cur) rLines.push(cur);
 
-          const lineH = rSize * 1.4;
-          for (let li = 0; li < rLines.length; li++) {
-            coaLibPage.drawText(rLines[li], {
-              x: rStartX,
-              y: rStartY - li * lineH,
-              size: rSize,
-              font: stdFont,
-              color: PDFLib.rgb(1, 0, 0),
-              opacity: 0.7
-            });
+          if (anchorY !== null) {
+            const rSize = 11;
+            const rStartX = (anchorX || 36) * coaSx;
+            const rMaxW = coaW * 0.75;
+            const rStartY = (anchorY - 14 - rSize * 1.4) * coaSy;
+
+            const words = routeDisplay.split(' ');
+            const rLines = [];
+            let cur = '';
+            for (const w of words) {
+              const test = cur ? cur + ' ' + w : w;
+              if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) {
+                cur = test;
+              } else {
+                if (cur) rLines.push(cur);
+                cur = w;
+              }
+            }
+            if (cur) rLines.push(cur);
+
+            const lineH = rSize * 1.4;
+            for (let li = 0; li < rLines.length; li++) {
+              coaLibPage.drawText(rLines[li], {
+                x: rStartX,
+                y: rStartY - li * lineH,
+                size: rSize,
+                font: stdFont,
+                color: PDFLib.rgb(1, 0, 0),
+                opacity: 0.7
+              });
+            }
           }
         }
       }
-
     }
 
     if (discFuel && discTime && dispatchReleaseIdx !== -1) {
