@@ -76,32 +76,89 @@ async function initLibraries() {
 
 initLibraries();
 
+
 // DOM EVENT BINDING
 document.addEventListener('DOMContentLoaded', () => {
   renderPresets();
   
   // Handlers
-  document.getElementById('hlEnabled').addEventListener('change', toggleAllKeywords);
-  document.getElementById('bmEnabled').addEventListener('change', (e) => { bmEnabled = e.target.checked; done = false; updRun(); });
-  document.getElementById('dropBtn').addEventListener('click', toggleDD);
-  document.getElementById('cwInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustom(); });
-  document.getElementById('addCustomBtn').addEventListener('click', addCustom);
-  document.getElementById('runBtn').addEventListener('click', handleBtn);
-  document.getElementById('downloadPdfBtn').addEventListener('click', dlPDF);
-  document.getElementById('downloadSelfBtn').addEventListener('click', downloadSelf);
+  const hlEnabled = document.getElementById('hlEnabled');
+  if (hlEnabled) hlEnabled.addEventListener('change', toggleAllKeywords);
 
-  // File upload area
+  const bmEnabledEl = document.getElementById('bmEnabled');
+  if (bmEnabledEl) {
+    bmEnabledEl.addEventListener('change', (e) => { 
+      bmEnabled = e.target.checked; 
+      done = false; 
+      updRun(); 
+    });
+  }
+
+  const dropBtn = document.getElementById('dropBtn');
+  if (dropBtn) dropBtn.addEventListener('click', toggleDD);
+
+  const cwInput = document.getElementById('cwInput');
+  if (cwInput) cwInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') addCustom(); });
+
+  const addCustomBtn = document.getElementById('addCustomBtn');
+  if (addCustomBtn) addCustomBtn.addEventListener('click', addCustom);
+
+  const runBtn = document.getElementById('runBtn');
+  if (runBtn) runBtn.addEventListener('click', handleBtn);
+
+  const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+  if (downloadPdfBtn) downloadPdfBtn.addEventListener('click', dlPDF);
+
+  const downloadSelfBtn = document.getElementById('downloadSelfBtn');
+  if (downloadSelfBtn) downloadSelfBtn.addEventListener('click', downloadSelf);
+
+  // ==========================================
+  // [수정된 파일 업로드 영역 이벤트 핸들러]
+  // ==========================================
   const fi = document.getElementById('fi');
   const ua = document.getElementById('uploadArea');
 
-  ua.addEventListener('click', e => { if (e.target.id !== 'fi') fi.click(); });
-  fi.addEventListener('change', e => { if (e.target.files[0]) { loadFile(e.target.files[0]); e.target.value = ''; } });
-  ua.addEventListener('dragover', e => { e.preventDefault(); ua.style.borderColor = '#3b82f6'; });
-  ua.addEventListener('dragleave', () => { ua.style.borderColor = ''; });
-  ua.addEventListener('drop', e => {
-    e.preventDefault(); ua.style.borderColor = '';
-    if (e.dataTransfer.files[0]?.type === 'application/pdf') loadFile(e.dataTransfer.files[0]);
-  });
+  if (fi && ua) {
+    // 1. Drop Area 및 Browse 버튼 클릭 시 hidden input 연결
+    ua.addEventListener('click', (e) => {
+      if (e.target !== fi) {
+        fi.click();
+      }
+    });
+
+    // 2. 파일 선택 창에서 파일이 선택되었을 때
+    fi.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        loadFile(e.target.files[0]);
+        e.target.value = ''; // 재업로드가 가능하도록 초기화
+      }
+    });
+
+    // 3. 드래그 앤 드롭 지원
+    ua.addEventListener('dragover', (e) => { 
+      e.preventDefault(); 
+      e.stopPropagation();
+      ua.style.borderColor = '#3b82f6'; 
+    });
+
+    ua.addEventListener('dragleave', (e) => { 
+      e.preventDefault(); 
+      e.stopPropagation();
+      ua.style.borderColor = ''; 
+    });
+
+    ua.addEventListener('drop', (e) => {
+      e.preventDefault(); 
+      e.stopPropagation();
+      ua.style.borderColor = '';
+      const droppedFiles = e.dataTransfer.files;
+      if (droppedFiles && droppedFiles[0] && droppedFiles[0].type === 'application/pdf') {
+        loadFile(droppedFiles[0]);
+      } else {
+        alert('PDF 파일만 업로드할 수 있습니다.');
+      }
+    });
+  }
 
   // Color chips
   document.querySelectorAll('.color-chip').forEach(chip => {
@@ -124,8 +181,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Outside click for dropdown
   document.addEventListener('click', e => {
     if (!e.target.closest('.dropdown-wrap')) {
-      document.getElementById('dropMenu').style.display = 'none';
-      document.getElementById('dropBtn').classList.remove('open');
+      const dropMenu = document.getElementById('dropMenu');
+      const dropBtn = document.getElementById('dropBtn');
+      if (dropMenu) dropMenu.style.display = 'none';
+      if (dropBtn) dropBtn.classList.remove('open');
     }
   });
 });
