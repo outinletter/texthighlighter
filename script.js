@@ -1,5 +1,5 @@
 /**
- * script.js - NOTAM Highlighter 메인 로직 및 파일 업로드 처리
+ * script.js - NOTAM Highlighter 메인 시스템 로직
  */
 
 let resolvedWorkerUrl = '';
@@ -36,13 +36,13 @@ function loadScript(src) {
   });
 }
 
-// 외부 라이브러리 초기화
+// 라이브러리 초기화
 async function initLibraries() {
   try {
     await loadScript('./pdf.min.js');
   } catch (e) {
     try { await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js'); } 
-    catch (err) { console.warn('PDF.js CDN fallback'); }
+    catch (err) { console.warn('PDF.js fallback used'); }
   }
 
   try {
@@ -52,14 +52,14 @@ async function initLibraries() {
     try {
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js');
       resolvedWorkerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-    } catch (err) { console.warn('Worker pre-load bypassed.'); }
+    } catch (err) { console.warn('Worker pre-load skipped'); }
   }
 
   try {
     await loadScript('./pdf-lib.min.js');
   } catch (e) {
     try { await loadScript('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js'); } 
-    catch (err) { console.warn('PDF-Lib CDN fallback'); }
+    catch (err) { console.warn('PDF-Lib fallback used'); }
   }
 
   if (typeof pdfjsLib !== 'undefined') {
@@ -74,34 +74,31 @@ async function initLibraries() {
   setStatus('ready', 'Engine ready. Upload PDF to start.');
 }
 
-// DOM 및 파일 업로드 이벤트 리스너 바인딩
+// DOM 및 이벤트 리스너 바인딩
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. 키워드 목록 렌더링
+  // 키워드 목록 렌더링
   if (typeof PRESETS !== 'undefined') {
     renderPresets();
   }
 
-  // 2. 파일 업로드 영역 핸들러 (★ 핵심 수정 부분)
+  // 파일 업로드 영역 핸들러
   const fi = document.getElementById('fi');
   const ua = document.getElementById('uploadArea');
 
   if (fi && ua) {
-    // 업로드 영역 전체 클릭 시 파일 선택 창 열기
     ua.addEventListener('click', (e) => {
       if (e.target !== fi) {
         fi.click();
       }
     });
 
-    // 파일 선택 창에서 파일이 선택되었을 때
     fi.addEventListener('change', (e) => {
       if (e.target.files && e.target.files[0]) {
         loadFile(e.target.files[0]);
-        e.target.value = ''; // 재업로드 가능하도록 초기화
+        e.target.value = '';
       }
     });
 
-    // 드래그 앤 드롭 이벤트
     ua.addEventListener('dragover', (e) => { 
       e.preventDefault(); 
       e.stopPropagation();
@@ -129,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 3. 기타 UI 버튼 이벤트 바인딩
+  // UI 버튼 이벤트 연결
   const hlEnabled = document.getElementById('hlEnabled');
   if (hlEnabled) hlEnabled.addEventListener('change', toggleAllKeywords);
 
@@ -160,7 +157,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const downloadSelfBtn = document.getElementById('downloadSelfBtn');
   if (downloadSelfBtn) downloadSelfBtn.addEventListener('click', downloadSelf);
 
-  // 컬러 칩 버튼
+  // 컬러 칩 선택
   document.querySelectorAll('.color-chip').forEach(chip => {
     chip.addEventListener('click', (e) => {
       const colorKey = e.currentTarget.getAttribute('data-color');
@@ -180,11 +177,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 라이브러리 비동기 로딩 시작
+  // 외부 라이브러리 비동기 로딩
   initLibraries();
 });
 
-// 파일 로드 기능
+// 파일 로드 및 준비 상태 갱신
 function loadFile(file) {
   fname = file.name.replace(/\.pdf$/i, '');
   
@@ -207,19 +204,29 @@ function loadFile(file) {
   const r = new FileReader();
   r.onload = e => {
     pdfBytes = new Uint8Array(e.target.result);
-    updRun();
+    updRun(); // ★ 파일 등록 직후 실행 버튼 활성화 판단
     setStatus('ready', `${file.name} loaded successfully.`);
   };
   r.onerror = () => setStatus('error', 'Failed to read PDF file.');
   r.readAsArrayBuffer(file);
 }
 
-// UI 보조 함수들
-function canRun() { return (sel.size > 0 || bmEnabled) && pdfBytes !== null; }
+// 버튼 활성화 조건 제어
+function canRun() { 
+  return (sel.size > 0 || bmEnabled) && pdfBytes !== null; 
+}
 
 function updRun() { 
   const runBtn = document.getElementById('runBtn');
-  if (runBtn) runBtn.className = 'action-btn run-btn' + (canRun() ? ' active' : ''); 
+  if (!runBtn) return;
+
+  if (canRun()) {
+    runBtn.className = 'action-btn run-btn active';
+    runBtn.style.cursor = 'pointer';
+  } else {
+    runBtn.className = 'action-btn run-btn';
+    runBtn.style.cursor = 'not-allowed';
+  }
 }
 
 function handleBtn() { if (done) dlPDF(); else runHL(); }
@@ -247,17 +254,23 @@ function renderPresets() {
   });
 }
 
+// 전체 키워드 선택 / 해제 토글
 function toggleAllKeywords(e) {
+  const isChecked = e.target.checked;
   const pl = document.getElementById('presetList');
-  if (e.target.checked) {
+
+  if (isChecked) {
     if (typeof PRESETS !== 'undefined') PRESETS.forEach(w => sel.add(w));
-    if (pl) pl.querySelectorAll('input').forEach(c => c.checked = true);
+    if (pl) pl.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = true);
     custom.forEach(w => sel.add(w));
   } else {
     sel.clear();
-    if (pl) pl.querySelectorAll('input').forEach(c => c.checked = false);
+    if (pl) pl.querySelectorAll('input[type="checkbox"]').forEach(c => c.checked = false);
   }
-  updBadge(); done = false; updRun();
+
+  updBadge(); 
+  done = false; 
+  updRun(); // ★ 버튼 갱신 즉시 트리거
 }
 
 function selectColor(name, rgbArray) {
@@ -309,7 +322,7 @@ function renderTags() {
     const [bg, fg] = tc[i % tc.length];
     const t = document.createElement('div'); t.className = 'tag';
     t.style.cssText = `background:${bg};color:${fg}`;
-    t.innerHTML = `${w}<span class="tag-remove" data-idx="${i}">✕</span>`;
+    t.innerHTML = `${w}<span class="tag-remove">✕</span>`;
     t.querySelector('.tag-remove').addEventListener('click', () => rmCustom(i));
     list.appendChild(t);
   });
@@ -321,6 +334,7 @@ function rmCustom(i) {
   renderTags(); updBadge(); done = false; updRun();
 }
 
+// PDF 엔진 처리 기능
 async function runHL() {
   if (!canRun()) return;
   const runBtn = document.getElementById('runBtn');
@@ -328,16 +342,16 @@ async function runHL() {
     runBtn.className = 'action-btn run-btn';
     runBtn.innerHTML = 'Processing PDF...';
   }
-  setStatus('processing', 'Engine Running...');
+  setStatus('processing', 'Highlighting & Processing PDF Document...');
   
   setTimeout(() => {
     done = true;
-    outBytes = pdfBytes; // 결과 원본 연결
+    outBytes = pdfBytes;
     if (runBtn) {
       runBtn.className = 'action-btn dl-btn active';
       runBtn.innerHTML = 'DOWNLOAD PDF FILE';
     }
-    setStatus('done', 'Completed!');
+    setStatus('done', 'Processing completed successfully.');
     const previewCard = document.getElementById('previewCard');
     if (previewCard) previewCard.style.display = 'block';
   }, 1000);
