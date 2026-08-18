@@ -24,6 +24,7 @@
 <div class="body">
   <div class="app">
     
+    <!-- Feature Info Card -->
     <div class="card">
       <div class="card-title">Key Features of NOTAM HIGHLIGHTER</div>
       <div class="offline-instruction" style="margin-bottom: 0; text-align: left;">
@@ -56,6 +57,7 @@
       </div>
     </div>
 
+    <!-- 1. PDF Upload Area -->
     <div class="card">
       <div class="card-title">1. PDF FLIGHT PACKAGE</div>
       <div class="upload-area" id="uploadArea">
@@ -69,6 +71,7 @@
       </div>
     </div>
 
+    <!-- 2. Settings -->
     <div class="card">
       <div class="card-title">2. HIGHLIGHT SETTINGS</div>
       <div class="hl-row" style="justify-content: space-between;">
@@ -85,7 +88,7 @@
           </span>
         </div>
         <div class="dropdown-wrap">
-          <button class="dropdown-btn" id="dropBtn" onclick="toggleDD()">
+          <button class="dropdown-btn" id="dropBtn">
             Select Words <span class="badge-count" id="selCount">0</span><span class="arrow"> ▼</span>
           </button>
           <div class="dropdown-menu" id="dropMenu" style="display:none">
@@ -98,40 +101,43 @@
       <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between;">
         <span style="font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.5px;">Highlight Marker Color</span>
         <div style="display: flex; gap: 8px;">
-          <button class="color-chip active" id="chip-blue" onclick="selectColor('blue', [0.36, 0.78, 1.0])" style="background: #3b82f6;" title="Sky Blue"></button>
-          <button class="color-chip" id="chip-pink" onclick="selectColor('pink', [1.0, 0.45, 0.65])" style="background: #ff73a6;" title="Soft Pink"></button>
-          <button class="color-chip" id="chip-yellow" onclick="selectColor('yellow', [1.0, 0.75, 0.0])" style="background: #ffc000;" title="Golden Yellow"></button>
-          <button class="color-chip" id="chip-green" onclick="selectColor('green', [0.22, 0.85, 0.48])" style="background: #38d97a;" title="Neon Green"></button>
+          <button class="color-chip active" id="chip-blue" data-color="blue" style="background: #3b82f6;" title="Sky Blue"></button>
+          <button class="color-chip" id="chip-pink" data-color="pink" style="background: #ff73a6;" title="Soft Pink"></button>
+          <button class="color-chip" id="chip-yellow" data-color="yellow" style="background: #ffc000;" title="Golden Yellow"></button>
+          <button class="color-chip" id="chip-green" data-color="green" style="background: #38d97a;" title="Neon Green"></button>
         </div>
       </div>
     </div>
 
+    <!-- 3. Custom Tags -->
     <div class="card">
       <div class="card-title">3. ADD CUSTOM WORD TAGS</div>
       <div class="custom-add-wrap">
         <div class="custom-add-row">
           <input type="text" id="cwInput" placeholder="Enter custom words (comma or space separated)">
-          <button onclick="addCustom()">Add</button>
+          <button id="addCustomBtn">Add</button>
         </div>
       </div>
       <div class="tag-list" id="tagList"></div>
     </div>
 
+    <!-- 4. Run System Engine -->
     <div class="card">
       <div class="card-title">4. RUN SYSTEM ENGINE</div>
-      <button class="action-btn run-btn" id="runBtn" onclick="handleBtn()">RUN ENGINE</button>
+      <button class="action-btn run-btn" id="runBtn">RUN ENGINE</button>
       <div class="status-bar" id="sb">
         <div class="status-dot"></div>
         <span id="st">Engine ready. Select keywords and upload PDF to start.</span>
       </div>
     </div>
 
+    <!-- 5. Download -->
     <div class="card" id="previewCard" style="display:none">
       <div class="card-title">5. SAVE OPTIMIZED DOCUMENT</div>
       <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">
         If automatic download is blocked, tap the button below to save to your local drive or share/Airdrop with your crew.
       </p>
-      <button class="action-btn dl-btn active" onclick="dlPDF()">
+      <button class="action-btn dl-btn active" id="downloadPdfBtn">
         DOWNLOAD PDF FILE
       </button>
     </div>
@@ -147,14 +153,14 @@
     
     <div class="offline-row-links">
       <span>Core Web App:</span>
-      <button class="inline-download-btn" onclick="downloadSelf()" style="border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05);">
+      <button class="inline-download-btn" id="downloadSelfBtn" style="border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05);">
         Text_Highlighter_Offline.html
       </button>
       
       <span style="margin-left: 10px; border-left: 1px solid #1e293b; padding-left: 10px;">Required Library Assets:</span>
-      <a class="inline-download-btn" href="#" onclick="forceDownload(event, 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js', 'pdf.min.js')">pdf.min.js</a>
-      <a class="inline-download-btn" href="#" onclick="forceDownload(event, 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js', 'pdf.worker.min.js')">pdf.worker.min.js</a>
-      <a class="inline-download-btn" href="#" onclick="forceDownload(event, 'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js', 'pdf-lib.min.js')">pdf-lib.min.js</a>
+      <a class="inline-download-btn lib-download" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js" data-file="pdf.min.js">pdf.min.js</a>
+      <a class="inline-download-btn lib-download" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js" data-file="pdf.worker.min.js">pdf.worker.min.js</a>
+      <a class="inline-download-btn lib-download" href="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" data-file="pdf-lib.min.js">pdf-lib.min.js</a>
     </div>
   </div>
 
