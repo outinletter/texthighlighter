@@ -750,7 +750,7 @@ async function initLibraries() {
 
 initLibraries();
 
-const PRESETS=['A/C','ACTUAL','AGTOW','ALERT LEVEL','ALTN','AMD','AMEND','AMDT','APMS','APPLY','CAUTION','CCF','CDL','CFP PLAN','CHANGES','CLOSURE','CRZ','DIFFERENCE','DISC','DO NOT USE','EDTO','EFB','ELDW','EMERGENCY','ENTRY POINT','ERA','ETP','EXC SKED', 'EXC  SKED','FOD','FOM','ILS','KAL','KE NOT','KE ROUTE','LDW','MEL','MINIMA','MOD TURB','MTOW','NO AFFECTED','NO KE','NO OPS RTE', 'NOT TO','OUT OF SERVICE','OUTAGE','OVC','RA','REFILE','RQRD','RUNWAY','SH','TAKE OFF WEIGHT','TOW','TRIP','TS','U/S','UNRELIABLE','UNSERVICEABLE','WX DEV'];
+const PRESETS=['A/C','ACTUAL','AGTOW','ALERT LEVEL','ALTN','AMD','AMEND','AMDT','APMS','APPLY','B789','B781','CAUTION','CCF','CDL','CFP PLAN','CHANGES','CLOSURE','CRZ','DIFFERENCE','DISC','DO NOT USE','EDTO','EFB','ELDW','EMERGENCY','ENTRY POINT','ERA','ETP','EXC SKED', 'EXC  SKED','FOD','FOM','ILS','KAL','KE NOT','KE ROUTE','LDW','MEL','MINIMA','MOD TURB','MTOW','NO AFFECTED','NO KE','NO OPS RTE', 'NOT TO','OUT OF SERVICE','OUTAGE','OVC','RA','REFILE','RQRD','RUNWAY','SH','TAKE OFF WEIGHT','TOW','TRIP','TS','U/S','UNRELIABLE','UNSERVICEABLE','WX DEV'];
 
 let currentThemeName = 'blue';
 let activeHlColorRGB = [0.36, 0.78, 1.0];
@@ -840,11 +840,26 @@ document.addEventListener('click',e=>{
 
 function addCustom(){
   const inp=document.getElementById('cwInput');
-  inp.value.split(/[\s,]+/).map(w=>w.trim().toUpperCase()).filter(w=>w)
-    .forEach(w=>{if(!custom.includes(w)&&!PRESETS.includes(w))custom.push(w);});
+  const words = inp.value.split(/[\s,]+/).map(w=>w.trim().toUpperCase()).filter(w=>w);
+
+  words.forEach(w => {
+    if(!custom.includes(w)) {
+      custom.push(w);
+    }
+    sel.add(w);
+
+    const presetIndex = PRESETS.indexOf(w);
+    if (presetIndex !== -1) {
+      const checkbox = document.getElementById(`p${presetIndex}`);
+      if (checkbox) checkbox.checked = true;
+    }
+  });
+
   inp.value='';
-  custom.forEach(w=>sel.add(w));
-  renderTags();updBadge();done=false;updRun();
+  renderTags();
+  updBadge();
+  done=false;
+  updRun();
 }
 document.getElementById('cwInput').addEventListener('keydown',e=>{if(e.key==='Enter')addCustom();});
 
