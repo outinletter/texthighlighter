@@ -350,15 +350,11 @@ function buildWptTimeMap(fullPdfText) {
   const wptTimeMap = new Map();
   if (!fullPdfText) return wptTimeMap;
 
-  // Waypoint 패턴 (예: 34E60, 35E50, ETP2, NOGUP 등)과 시간 추출 (예: 04.56, 05.57)
-  // 패턴: [WPT] ... / ... [HH.MM] [HHMM]/
-  const re = /\b([A-Z0-9]{3,10})\b[^\/]*\/\s*[^\/]*?\b(\d{2}\.\d{2})\b\s+\d{4}\//gi;
-
-  let match;
-  while ((match = re.exec(fullPdfText)) !== null) {
-    const wptName = match[1].toUpperCase();
-    const timeVal = match[2];
-    wptTimeMap.set(wptName, timeVal);
+  // CFP waypoint 행: "34E60 ... / ... 04.56 0639/"
+  // 행 단위로 제한해 다음 WPT 행의 시간과 잘못 연결되지 않도록 한다.
+  for (const line of fullPdfText.split(/\r?\n/)) {
+    const match = /\b([A-Z0-9]{3,10})\b[^\/\r\n]*\/[^\/\r\n]*?\b(\d{2}\.\d{2})\b\s+\d{4}\//i.exec(line);
+    if (match) wptTimeMap.set(match[1].toUpperCase(), match[2]);
   }
   return wptTimeMap;
 }
@@ -996,12 +992,11 @@ async function runHL(){
       }
 
       // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
+      // CFP보다 뒤에 있는 다음 섹션만 종료 지점으로 사용한다.
       const cfpEndIdx = Math.min(
         numPages,
-        resolvedCoaPageIdx !== -1 ? resolvedCoaPageIdx : numPages,
-        dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : numPages,
-        weatherBriefingIdx !== -1 ? weatherBriefingIdx : numPages,
-        pkg1PageIdx !== -1 ? pkg1PageIdx : numPages
+        ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
+          .filter(idx => idx !== -1 && idx > cfpPageIdx)
       );
 
       let cfpFullSectionText = "";
@@ -1502,7 +1497,9 @@ async function runHL(){
     // EXPECTED FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
     // =========================================================================
     const expectedRegex = /EXPECTED\s+FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
-    for (let pi = 0; pi < numPages; pi++) {
+    const expectedStartIdx = dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : 0;
+    const expectedEndIdx = dispatchReleaseIdx !== -1 ? dispatchEndIdx : numPages;
+    for (let pi = expectedStartIdx; pi < expectedEndIdx; pi++) {
       const jsPage = await pdfJsDoc.getPage(pi + 1);
       const tc = await jsPage.getTextContent();
       const rawText = tc.items.map(it => it.str).join(' ');
@@ -1531,12 +1528,15 @@ async function runHL(){
             const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
             const annotBaseY = srcMidY - 9 * (0.72 - 0.19) / 2;
 
+            const badgeSize = 9;
+            const badgeWidth = stdFont.widthOfTextAtSize(badgeText, badgeSize) + 8;
+            const badgeX = Math.min((lineMaxX + 12) * sx, lw - badgeWidth - 24);
             drawDutyTimeStyleBadge(libPage, {
               text: badgeText,
-              x: (lineMaxX + 12) * sx,
+              x: badgeX,
               y: annotBaseY,
               font: stdFont,
-              fontSize: 9,
+              fontSize: badgeSize,
               bgColor: [0.98, 0.50, 0.35],
               textColor: [1.0, 1.0, 1.0],
               bgOpacity: 0.85
