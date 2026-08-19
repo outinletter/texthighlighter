@@ -168,11 +168,29 @@ function toggleDD(){
 
 function addCustom(){
   const inp=document.getElementById('cwInput');
-  inp.value.split(/[\s,]+/).map(w=>w.trim().toUpperCase()).filter(w=>w)
-    .forEach(w=>{if(!custom.includes(w)&&!PRESETS.includes(w))custom.push(w);});
+  const words = inp.value.split(/[\s,]+/).map(w=>w.trim().toUpperCase()).filter(w=>w);
+
+  words.forEach(w => {
+    // custom 배열에 없으면 추가 (화면 태그 표시용)
+    if(!custom.includes(w)) {
+      custom.push(w);
+    }
+    // sel Set에 추가 (실제 하이라이트 대상)
+    sel.add(w);
+
+    // 만약 PRESETS에 있는 단어라면, 해당 체크박스도 찾아 체크해줌 (UI 동기화)
+    const presetIndex = PRESETS.indexOf(w);
+    if (presetIndex !== -1) {
+      const checkbox = document.getElementById(`p${presetIndex}`);
+      if (checkbox) checkbox.checked = true;
+    }
+  });
+
   inp.value='';
-  custom.forEach(w=>sel.add(w));
-  renderTags();updBadge();done=false;updRun();
+  renderTags();
+  updBadge();
+  done=false;
+  updRun();
 }
 
 function renderTags(){
