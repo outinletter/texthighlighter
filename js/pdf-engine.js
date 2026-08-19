@@ -6,7 +6,7 @@ const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE"
 const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
 
 /**
- * 'Duty Time' 스타일 배지 렌더링 공통 함수
+ * 'Duty Time' / Accent Style Badge Drawer
  */
 function drawDutyTimeStyleBadge(libPage, options) {
   const {
@@ -15,7 +15,7 @@ function drawDutyTimeStyleBadge(libPage, options) {
     y,
     font,
     fontSize = 9,
-    bgColor = [0.98, 0.50, 0.35], // Orange-Red Accent (DISC FUEL INFO 스타일 적용)
+    bgColor = [0.98, 0.50, 0.35], // Orange-Red Accent
     textColor = [1.0, 1.0, 1.0], // White
     bgOpacity = 0.75,
     padH = 4,
@@ -26,7 +26,6 @@ function drawDutyTimeStyleBadge(libPage, options) {
   const ascent = fontSize * 0.72;
   const descent = fontSize * 0.19;
 
-  // 배경 상자 그리기
   libPage.drawRectangle({
     x: x - padH,
     y: y - descent - padV,
@@ -36,7 +35,6 @@ function drawDutyTimeStyleBadge(libPage, options) {
     opacity: bgOpacity
   });
 
-  // 텍스트 출력
   libPage.drawText(text, {
     x: x,
     y: y,
@@ -47,7 +45,9 @@ function drawDutyTimeStyleBadge(libPage, options) {
   });
 }
 
-// 헬퍼: Text Item Line 그룹화
+/**
+ * Text Item Line Grouping
+ */
 function groupTextItemsByLine(items, offset) {
   const decorated = items
     .map(it => ({ item: it, text: decodeForTagScan(it.str, offset) }))
@@ -74,16 +74,16 @@ function groupTextItemsByLine(items, offset) {
     line.text = line.parts.map(p => p.text).join('');
     line.items = line.parts.map(p => p.item);
   }
+
   return lines;
 }
 
 function checkKeywordMatch(text, kw) {
   const normalizedText = text.replace(/[^A-Za-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
   const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
   let re;
   try {
-    re = kw.toLowerCase() === 'restrict' 
+    re = kw.toLowerCase() === 'restrict'
       ? new RegExp(`\\b${escaped}[A-Za-z]*\\b`, 'i')
       : new RegExp(`\\b${escaped}\\b`, 'i');
   } catch (e) {
@@ -95,9 +95,9 @@ function checkKeywordMatch(text, kw) {
 function detectPageOffset(rawText) {
   if (!rawText) return 0;
   let bestOffset = 0;
-  let bestMatches = 0; 
+  let bestMatches = 0;
+
   const sampleLen = Math.min(rawText.length, 1500);
-  
   for (const offset of OFFSETS_TO_TEST) {
     let decodedSample = "";
     for (let j = 0; j < sampleLen; j++) {
@@ -114,9 +114,9 @@ function detectPageOffset(rawText) {
       bestOffset = offset;
     }
   }
-  
+
   if (bestMatches > 0) return bestOffset;
-  
+
   for (let i = -120; i <= 120; i++) {
     if (OFFSETS_TO_TEST.includes(i)) continue;
     let decodedSample = "";
@@ -134,7 +134,7 @@ function detectPageOffset(rawText) {
     }
     if (bestMatches >= 3) break;
   }
-  
+
   return bestOffset;
 }
 
@@ -183,9 +183,8 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
       const rawText = textContent.items.map(it => it.str).join(' ');
       const offset = detectPageOffset(rawText);
       const decodedRawText = textContent.items.map(it => decodeStr(it.str, offset)).join(' ');
-      
-      const isDispatchReleasePage = /DISPATCH\s+RELEASE\s+INFORMATION/i.test(decodedRawText) || /I\s+HEREBY\s+RELEASE/i.test(decodedRawText);
 
+      const isDispatchReleasePage = /DISPATCH\s+RELEASE\s+INFORMATION/i.test(decodedRawText) || /I\s+HEREBY\s+RELEASE/i.test(decodedRawText);
       if (airports.length === 0) {
         const m1 = /\bFLIGHT\s+RELEASE\s+[A-Z0-9]+\s+([A-Z]{4})[\/-]([A-Z]{4})\b/i.exec(decodedRawText);
         if (m1) {
@@ -200,7 +199,6 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
           }
         }
       }
-
       if (iataAirports.length === 0 && isDispatchReleasePage) {
         const mIata = /\b([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/g;
         let match;
@@ -213,13 +211,11 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
           }
         }
       }
-
       if (iataAirports.length === 0) {
          const mHeader = /\b(?:KAL|KE)\s*\d+\s*\/\s*([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
          if (mHeader) iataAirports.push(mHeader[1].toUpperCase().trim(), mHeader[2].toUpperCase().trim());
       }
-
-      if (airports.length === 2 && iataAirports.length === 2) break; 
+      if (airports.length === 2 && iataAirports.length === 2) break;
     }
   } catch (err) {
     console.warn("Airport code extraction failed: ", err);
@@ -347,6 +343,26 @@ async function extractMetadata(pdfJsDoc) {
   }
 }
 
+/**
+ * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM 형식)을 매핑하는 함수
+ */
+function buildWptTimeMap(fullPdfText) {
+  const wptTimeMap = new Map();
+  if (!fullPdfText) return wptTimeMap;
+
+  // Waypoint 패턴 (예: 34E60, 35E50, ETP2, NOGUP 등)과 시간 추출 (예: 04.56, 05.57)
+  // 패턴: [WPT] ... / ... [HH.MM] [HHMM]/
+  const re = /\b([A-Z0-9]{3,10})\b[^\/]*\/\s*[^\/]*?\b(\d{2}\.\d{2})\b\s+\d{4}\//gi;
+
+  let match;
+  while ((match = re.exec(fullPdfText)) !== null) {
+    const wptName = match[1].toUpperCase();
+    const timeVal = match[2];
+    wptTimeMap.set(wptName, timeVal);
+  }
+  return wptTimeMap;
+}
+
 async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
@@ -358,6 +374,7 @@ async function runHL(){
   runBtn.className='action-btn run-btn';
   runBtn.innerHTML='Processing locally...';
   setStatus('processing','Restoring text encoding & analyzing highlights...');
+
   done=false;outBytes=null;detectedAirports=[]; iataAirports=[];
   document.getElementById('previewCard').style.display = 'none';
 
@@ -376,7 +393,7 @@ async function runHL(){
       pdfjsLib.GlobalWorkerOptions.workerSrc = '';
       pdfJsDoc = await pdfjsLib.getDocument({data:pdfBytes.buffer.slice(0)}).promise;
     }
-    
+
     const numPages=pdfJsDoc.numPages;
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
     const libPages=pdfLibDoc.getPages();
@@ -395,16 +412,17 @@ async function runHL(){
       {label:'NOTAM 2',pattern:/(NOTAM\s*(PACKAGE)?\s*[-_]?\s*2)\b|(\[\s*NOTAM\s*2\s*\])/i},
       {label:'NOTAM 3',pattern:/(NOTAM\s*(PACKAGE)?\s*[-_]?\s*3)\b|(\[\s*NOTAM\s*3\s*\])/i},
     ];
-    
+
     const bmPages={};
     let edtoBookmarkY = null;
+
     for(let pi=0;pi<numPages;pi++){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
       const tc=await jsPage2.getTextContent();
       const rawText=tc.items.map(it=>it.str).join(' ');
       const offset = detectPageOffset(rawText);
       const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
-      
+
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined)continue;
         if(bm.pattern.test(pageText)){
@@ -434,6 +452,7 @@ async function runHL(){
     let notam1SubAirports = [];
     let notam2SubAirports = [];
     let notam3SubAirports = [];
+
     if (notam1PageIdx !== undefined) {
       const notam1EndIdx = notam2PageIdx !== undefined ? notam2PageIdx : (notam3PageIdx !== undefined ? notam3PageIdx : numPages);
       notam1SubAirports = await extractFirstTagAirports(pdfJsDoc, notam1PageIdx, notam1EndIdx, ['DEP', 'DEST', 'ALTN']);
@@ -453,284 +472,206 @@ async function runHL(){
 
     if(sel.size>0){
       setStatus('processing','Calculating highlight positions and drawing...');
+      for(let pi=0;pi<numPages;pi++){
+        const jsPage=await pdfJsDoc.getPage(pi+1);
+        const vp=jsPage.getViewport({scale:1.0});
+        const libPage=libPages[pi];
+        const {width:lw,height:lh}=libPage.getSize();
+        const sx=lw/vp.width;
+        const sy=lh/vp.height;
 
-    for(let pi=0;pi<numPages;pi++){
-      const jsPage=await pdfJsDoc.getPage(pi+1);
-      const vp=jsPage.getViewport({scale:1.0});
-      const libPage=libPages[pi];
-      const {width:lw,height:lh}=libPage.getSize();
-      const sx=lw/vp.width;
-      const sy=lh/vp.height;
-      const content=await jsPage.getTextContent();
+        const content=await jsPage.getTextContent();
+        const rawPageText = content.items.map(it => it.str).join(' ');
+        const pageOffset = detectPageOffset(rawPageText);
 
-      const rawPageText = content.items.map(it => it.str).join(' ');
-      const pageOffset = detectPageOffset(rawPageText);
+        const isDispatchPage = (dispatchReleaseIdx !== -1 && pi >= dispatchReleaseIdx && pi < dispatchEndIdx);
+        const isNotamPage = (pkg1PageIdx !== -1 && pi >= pkg1PageIdx);
 
-      const isDispatchPage = (dispatchReleaseIdx !== -1 && pi >= dispatchReleaseIdx && pi < dispatchEndIdx);
-      const isNotamPage = (pkg1PageIdx !== -1 && pi >= pkg1PageIdx);
+        if (pageOffset !== 0) {
+          for (const item of content.items) {
+            const originalStr = cleanAndDecodeItem(item.str, pageOffset);
+            const asciiStr = originalStr ? originalStr.replace(/[^\x00-\x7F]/g, '') : '';
 
-      if (pageOffset !== 0) {
-        for (const item of content.items) {
-          const originalStr = cleanAndDecodeItem(item.str, pageOffset);
-          const asciiStr = originalStr ? originalStr.replace(/[^\x00-\x7F]/g, '') : '';
-          
-          if (asciiStr && asciiStr.trim()) {
-            const tx = item.transform;
-            const rx = tx[4] * sx;
-            const ry = tx[5] * sy;
-            const itemH = Math.abs(tx[3]) || 10;
-            try {
-              libPage.drawText(asciiStr, {
-                x: rx, y: ry, size: itemH * sy, font: stdFont, color: PDFLib.rgb(0, 0, 0), opacity: 0.0 
-              });
-            } catch (err) {
-              console.warn("Search layer injection skipped", err);
+            if (asciiStr && asciiStr.trim()) {
+              const tx = item.transform;
+              const rx = tx[4] * sx;
+              const ry = tx[5] * sy;
+              const itemH = Math.abs(tx[3]) || 10;
+              try {
+                libPage.drawText(asciiStr, {
+                  x: rx, y: ry, size: itemH * sy, font: stdFont, color: PDFLib.rgb(0, 0, 0), opacity: 0.0
+                });
+              } catch (err) {
+                console.warn("Search layer injection skipped", err);
+              }
             }
           }
         }
-      }
 
-      const groupedLines = [];
-      const sortedItems = content.items
-        .filter(it => {
-          const sDec = cleanAndDecodeItem(it.str, pageOffset);
-          return sDec && sDec.trim();
-        })
-        .sort((a, b) => b.transform[5] - a.transform[5]);
+        const groupedLines = [];
+        const sortedItems = content.items
+          .filter(it => {
+            const sDec = cleanAndDecodeItem(it.str, pageOffset);
+            return sDec && sDec.trim();
+          })
+          .sort((a, b) => b.transform[5] - a.transform[5]);
 
-      for (const item of sortedItems) {
-        const itemY = item.transform[5];
-        let joined = false;
+        for (const item of sortedItems) {
+          const itemY = item.transform[5];
+          let joined = false;
+          for (const line of groupedLines) {
+            if (Math.abs(line.y - itemY) < 4.0) {
+              line.items.push(item);
+              joined = true;
+              break;
+            }
+          }
+          if (!joined) groupedLines.push({ y: itemY, items: [item] });
+        }
+
+        const isAfterEdtoHeader = (edtoPointDataPageIdx !== -1 && pi >= edtoPointDataPageIdx);
+
         for (const line of groupedLines) {
-          if (Math.abs(line.y - itemY) < 4.0) {
-            line.items.push(item);
-            joined = true;
-            break;
-          }
-        }
-        if (!joined) groupedLines.push({ y: itemY, items: [item] });
-      }
+          const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
+          const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
 
-      const isAfterEdtoHeader = (edtoPointDataPageIdx !== -1 && pi >= edtoPointDataPageIdx);
+          if (isDispatchPage || isNotamPage) {
+            let hasRouteStr = false;
+            const cleanLineTextUpper = lineText.toUpperCase().replace(/\s+/g, '');
 
-      for (const line of groupedLines) {
-        const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
-        const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
+            if (detectedAirports.length === 2) {
+              const a = detectedAirports[0].toUpperCase(), b = detectedAirports[1].toUpperCase();
+              if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
+                hasRouteStr = true;
+              }
+            }
 
-        if (isDispatchPage || isNotamPage) {
-          let hasRouteStr = false;
-          const cleanLineTextUpper = lineText.toUpperCase().replace(/\s+/g, '');
-          
-          if (detectedAirports.length === 2) {
-            const a = detectedAirports[0].toUpperCase(), b = detectedAirports[1].toUpperCase();
-            if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
-              hasRouteStr = true;
+            if (iataAirports.length === 2) {
+              const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
+              if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
+                hasRouteStr = true;
+              }
+            }
+
+            if (hasRouteStr) {
+              const minX = Math.min(...lineItems.map(it => it.transform[4]));
+              const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
+              const itemY = line.y;
+              const itemH = Math.abs(lineItems[0].transform[3]) || 10;
+              const rh = itemH * sy;
+              libPage.drawRectangle({
+                x: minX * sx - 2,
+                y: (itemY * sy) - (rh * 0.2),
+                width: (maxX - minX) * sx + 4,
+                height: Math.max(rh * 1.2, 8),
+                color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                opacity: 0.25
+              });
+              totalHits++;
+              continue;
             }
           }
-          
-          if (iataAirports.length === 2) {
-            const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
-            if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
-              hasRouteStr = true;
-            }
-          }
 
-          if (hasRouteStr) {
+          const isEtpLine = /\betp\s*[1-5]/i.test(lineText);
+          if (isEtpLine && isAfterEdtoHeader) {
             const minX = Math.min(...lineItems.map(it => it.transform[4]));
             const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
             const itemY = line.y;
             const itemH = Math.abs(lineItems[0].transform[3]) || 10;
             const rh = itemH * sy;
-
             libPage.drawRectangle({
-              x: minX * sx - 2,
-              y: (itemY * sy) - (rh * 0.2), 
-              width: (maxX - minX) * sx + 4,
-              height: Math.max(rh * 1.2, 8), 
+              x: minX * sx,
+              y: (itemY * sy) - (rh * 0.2),
+              width: (maxX - minX) * sx,
+              height: Math.max(rh * 1.2, 8),
               color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-              opacity: 0.25 
+              opacity: 0.25
             });
             totalHits++;
             continue;
           }
-        }
 
-        const isEtpLine = /\betp\s*[1-5]/i.test(lineText);
-        if (isEtpLine && isAfterEdtoHeader) {
-          const minX = Math.min(...lineItems.map(it => it.transform[4]));
-          const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
-          const itemY = line.y;
-          const itemH = Math.abs(lineItems[0].transform[3]) || 10;
-          const rh = itemH * sy;
+          const isParLine = /\/\s*[A-Z]{4}\s+FIR/i.test(lineText);
+          if (isParLine) {
+            const firRegex = /\bFIR\b/i;
+            const match = firRegex.exec(lineText);
+            if (match) {
+              const postFirText = lineText.substring(match.index + match[0].length);
+              const wordMatch = postFirText.match(/[A-Za-z]{3,}/);
+              if (wordMatch) {
+                const targetWord = wordMatch[0];
+                for (const item of lineItems) {
+                  const s = cleanAndDecodeItem(item.str, pageOffset);
+                  const tx = item.transform;
+                  const itemX = tx[4], itemY = tx[5];
+                  const itemW = item.width || 0;
+                  const itemH = Math.abs(tx[3]) || 10;
+                  const charW = itemW / Math.max(s.length, 1);
 
-          libPage.drawRectangle({
-            x: minX * sx,
-            y: (itemY * sy) - (rh * 0.2), 
-            width: (maxX - minX) * sx,
-            height: Math.max(rh * 1.2, 8), 
-            color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-            opacity: 0.25
-          });
-          totalHits++;
-          continue; 
-        }
+                  const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
+                  if (idx !== -1) {
+                    const rx = (itemX + idx * charW) * sx;
+                    const ry = itemY * sy;
+                    const rw = targetWord.length * charW * sx;
+                    const rh = itemH * sy;
 
-        const isParLine = /\/\s*[A-Z]{4}\s+FIR/i.test(lineText);
-        if (isParLine) {
-          const firRegex = /\bFIR\b/i;
-          const match = firRegex.exec(lineText);
-          if (match) {
-            const postFirText = lineText.substring(match.index + match[0].length);
-            const wordMatch = postFirText.match(/[A-Za-z]{3,}/);
-            if (wordMatch) {
-              const targetWord = wordMatch[0];
-              for (const item of lineItems) {
-                const s = cleanAndDecodeItem(item.str, pageOffset);
-                const tx = item.transform;
-                const itemX = tx[4], itemY = tx[5];
-                const itemW = item.width || 0;
-                const itemH = Math.abs(tx[3]) || 10;
-                const charW = itemW / Math.max(s.length, 1);
-                
-                const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
-                if (idx !== -1) {
-                  const rx = (itemX + idx * charW) * sx;
-                  const ry = itemY * sy;
-                  const rw = targetWord.length * charW * sx;
-                  const rh = itemH * sy;
-                  
-                  libPage.drawRectangle({
-                    x: rx, y: ry - (rh * 0.2), 
-                    width: Math.max(rw, 4), height: Math.max(rh * 1.2, 8), 
-                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                    opacity: 0.25
-                  });
-                  totalHits++;
+                    libPage.drawRectangle({
+                      x: rx, y: ry - (rh * 0.2),
+                      width: Math.max(rw, 4), height: Math.max(rh * 1.2, 8),
+                      color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                      opacity: 0.25
+                    });
+                    totalHits++;
+                  }
                 }
               }
             }
+            continue;
           }
-          continue; 
-        }
 
-        const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
-
-        if (hasSentenceKw) {
-          const minX = Math.min(...lineItems.map(it => it.transform[4]));
-          const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
-          const itemY = line.y;
-          const itemH = Math.abs(lineItems[0].transform[3]) || 10;
-          const rh = itemH * sy;
-
-          libPage.drawRectangle({
-            x: minX * sx, y: (itemY * sy) - (rh * 0.2), 
-            width: (maxX - minX) * sx, height: Math.max(rh * 1.2, 8), 
-            color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-            opacity: 0.25
-          });
-          totalHits++;
-          continue; 
-        }
-
-        const charMapping = [];
-        for (let i = 0; i < lineItems.length; i++) {
-          const item = lineItems[i];
-          const decodedStr = cleanAndDecodeItem(item.str, pageOffset) || '';
-          if (i > 0) charMapping.push({ isSeparator: true });
-          for (let charIdx = 0; charIdx < decodedStr.length; charIdx++) {
-            charMapping.push({ itemIndex: i, charIndex: charIdx, char: decodedStr[charIdx] });
+          const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
+          if (hasSentenceKw) {
+            const minX = Math.min(...lineItems.map(it => it.transform[4]));
+            const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
+            const itemY = line.y;
+            const itemH = Math.abs(lineItems[0].transform[3]) || 10;
+            const rh = itemH * sy;
+            libPage.drawRectangle({
+              x: minX * sx, y: (itemY * sy) - (rh * 0.2),
+              width: (maxX - minX) * sx, height: Math.max(rh * 1.2, 8),
+              color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+              opacity: 0.25
+            });
+            totalHits++;
+            continue;
           }
-        }
 
-        const lineTextFromMapping = charMapping.map(m => m.isSeparator ? ' ' : m.char).join('');
-        const cleanLineText = lineTextFromMapping.replace(/[^A-Za-z0-9]/g, ' ');
-
-        for (const kw of keywords) {
-          const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[^A-Za-z0-9]+');
-          let re;
-          try { re = new RegExp(`\\b${escapedKw}\\b`, 'gi'); } catch(e) { re = new RegExp(escapedKw, 'gi'); }
-
-          let m;
-          let lastIndex = -1;
-          while ((m = re.exec(cleanLineText)) !== null) {
-            if (re.lastIndex === lastIndex) { re.lastIndex++; continue; }
-            lastIndex = re.lastIndex;
-
-            const startIdx = m.index;
-            const endIdx = startIdx + m[0].length;
-
-            if (kw.toUpperCase() === 'MEL' || kw.toUpperCase() === 'CDL') {
-              if (lineTextFromMapping[startIdx - 1] === '/' || lineTextFromMapping[endIdx] === '/') continue;
+          const charMapping = [];
+          for (let i = 0; i < lineItems.length; i++) {
+            const item = lineItems[i];
+            const decodedStr = cleanAndDecodeItem(item.str, pageOffset) || '';
+            if (i > 0) charMapping.push({ isSeparator: true });
+            for (let charIdx = 0; charIdx < decodedStr.length; charIdx++) {
+              charMapping.push({ itemIndex: i, charIndex: charIdx, char: decodedStr[charIdx] });
             }
+          }
+          const lineTextFromMapping = charMapping.map(m => m.isSeparator ? ' ' : m.char).join('');
+          const cleanLineText = lineTextFromMapping.replace(/[^A-Za-z0-9]/g, ' ');
 
-            const itemMatches = {};
-            for (let c = startIdx; c < endIdx; c++) {
-              const map = charMapping[c];
-              if (map && !map.isSeparator) {
-                if (!itemMatches[map.itemIndex]) itemMatches[map.itemIndex] = [];
-                itemMatches[map.itemIndex].push(map.charIndex);
+          for (const kw of keywords) {
+            const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[^A-Za-z0-9]+');
+            let re;
+            try { re = new RegExp(`\\b${escapedKw}\\b`, 'gi'); } catch(e) { re = new RegExp(escapedKw, 'gi'); }
+            let m;
+            let lastIndex = -1;
+            while ((m = re.exec(cleanLineText)) !== null) {
+              if (re.lastIndex === lastIndex) { re.lastIndex++; continue; }
+              lastIndex = re.lastIndex;
+              const startIdx = m.index;
+              const endIdx = startIdx + m[0].length;
+              if (kw.toUpperCase() === 'MEL' || kw.toUpperCase() === 'CDL') {
+                if (lineTextFromMapping[startIdx - 1] === '/' || lineTextFromMapping[endIdx] === '/') continue;
               }
-            }
-
-            for (const itemIdxStr of Object.keys(itemMatches)) {
-              const itemIdx = parseInt(itemIdxStr, 10);
-              const charIndices = itemMatches[itemIdx];
-              if (charIndices.length === 0) continue;
-
-              const minCharIdx = Math.min(...charIndices);
-              const maxCharIdx = Math.max(...charIndices);
-              const item = lineItems[itemIdx];
-
-              drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
-              totalHits++;
-            }
-          }
-        }
-
-        // Highlight DOF
-        {
-          const dofLineRegex = /\bDOF\s+(\d{6})\b/i;
-          const dofLineM = dofLineRegex.exec(cleanLineText);
-          if (dofLineM) {
-            const dStart = dofLineM.index + dofLineM[0].length - dofLineM[1].length;
-            const dEnd = dStart + 6;
-            const dItemMatches = {};
-            for (let c = dStart; c < dEnd; c++) {
-              const map = charMapping[c];
-              if (map && !map.isSeparator) {
-                if (!dItemMatches[map.itemIndex]) dItemMatches[map.itemIndex] = [];
-                dItemMatches[map.itemIndex].push(map.charIndex);
-              }
-            }
-            for (const itemIdxStr of Object.keys(dItemMatches)) {
-              const itemIdx = parseInt(itemIdxStr, 10);
-              const charIndices = dItemMatches[itemIdx];
-              if (charIndices.length === 0) continue;
-              const minCharIdx = Math.min(...charIndices);
-              const maxCharIdx = Math.max(...charIndices);
-              const item = lineItems[itemIdx];
-
-              drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
-              totalHits++;
-            }
-          }
-        }
-
-        const shearRegex = /\b\d{5}[A-Za-z ]\d{3}\s+([0-9]{2})\b/g;
-        let shrM;
-        let lastShrIdx = -1;
-        if (lineTextFromMapping.includes('---')) {
-          while ((shrM = shearRegex.exec(cleanLineText)) !== null) {
-            if (shearRegex.lastIndex === lastShrIdx) { shearRegex.lastIndex++; continue; }
-            lastShrIdx = shearRegex.lastIndex;
-
-            const shearVal = parseInt(shrM[1], 10);
-            if (shearVal >= 5) { 
-              const startIdx = shrM.index + shrM[0].length - shrM[1].length;
-              const endIdx = startIdx + shrM[1].length;
-
               const itemMatches = {};
               for (let c = startIdx; c < endIdx; c++) {
                 const map = charMapping[c];
@@ -739,86 +680,141 @@ async function runHL(){
                   itemMatches[map.itemIndex].push(map.charIndex);
                 }
               }
-
               for (const itemIdxStr of Object.keys(itemMatches)) {
                 const itemIdx = parseInt(itemIdxStr, 10);
                 const charIndices = itemMatches[itemIdx];
                 if (charIndices.length === 0) continue;
-
                 const minCharIdx = Math.min(...charIndices);
                 const maxCharIdx = Math.max(...charIndices);
-                const matchCharCount = maxCharIdx - minCharIdx + 1;
-
                 const item = lineItems[itemIdx];
-                const s = cleanAndDecodeItem(item.str, pageOffset) || '';
-                const tx = item.transform;
-                const itemX = tx[4], itemY = tx[5];
-                const itemW = item.width || 0;
-                const itemH = Math.abs(tx[3]) || 10;
-                const charW = itemW / Math.max(s.length, 1);
-
-                const rx = (itemX + minCharIdx * charW) * sx;
-                const ry = itemY * sy;
-                const rw = matchCharCount * charW * sx;
-                const rh = itemH * sy;
-
-                libPage.drawRectangle({
-                  x: rx, y: ry - (rh * 0.2), 
-                  width: Math.max(rw, 4), height: Math.max(rh * 1.2, 8), 
-                  color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                  opacity: 0.25 
-                });
+                drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
+                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
                 totalHits++;
               }
             }
           }
-        }
 
-        const msaRegex = /---\s*\/\s*(\d{3})\b/i;
-        const msaMatch = lineText.match(msaRegex);
-        if (msaMatch) {
-          const msaVal = parseInt(msaMatch[1], 10);
-          if (msaVal >= 100) {
-            const targetMsaStr = msaMatch[1];
-            for (const item of lineItems) {
-              const s = cleanAndDecodeItem(item.str, pageOffset);
-              let idx = s.indexOf("/" + targetMsaStr);
-              if (idx !== -1) {
-                idx += 1;
-                const tx = item.transform;
-                const charW = (item.width || 0) / Math.max(item.str.length, 1);
-                const rx = (tx[4] + idx * charW) * sx;
-                const ry = tx[5] * sy;
-                const rw = targetMsaStr.length * charW * sx;
-                const rh = (Math.abs(tx[3]) || 10) * sy;
-
-                libPage.drawRectangle({
-                  x: rx - 1, y: ry - 1 - (rh * 0.2), 
-                  width: Math.max(rw + 2, 4), height: Math.max(rh * 1.2 + 2, 8), 
-                  color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                  opacity: 0.25
-                });
+          // Highlight DOF
+          {
+            const dofLineRegex = /\bDOF\s+(\d{6})\b/i;
+            const dofLineM = dofLineRegex.exec(cleanLineText);
+            if (dofLineM) {
+              const dStart = dofLineM.index + dofLineM[0].length - dofLineM[1].length;
+              const dEnd = dStart + 6;
+              const dItemMatches = {};
+              for (let c = dStart; c < dEnd; c++) {
+                const map = charMapping[c];
+                if (map && !map.isSeparator) {
+                  if (!dItemMatches[map.itemIndex]) dItemMatches[map.itemIndex] = [];
+                  dItemMatches[map.itemIndex].push(map.charIndex);
+                }
+              }
+              for (const itemIdxStr of Object.keys(dItemMatches)) {
+                const itemIdx = parseInt(itemIdxStr, 10);
+                const charIndices = dItemMatches[itemIdx];
+                if (charIndices.length === 0) continue;
+                const minCharIdx = Math.min(...charIndices);
+                const maxCharIdx = Math.max(...charIndices);
+                const item = lineItems[itemIdx];
+                drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
+                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
                 totalHits++;
-              } else if (s === targetMsaStr) {
-                const tx = item.transform;
-                const rx = tx[4] * sx;
-                const ry = tx[5] * sy;
-                const rw = (item.width || 0) * sx;
-                const rh = (Math.abs(tx[3]) || 10) * sy;
+              }
+            }
+          }
 
-                libPage.drawRectangle({
-                  x: rx - 1, y: ry - 1 - (rh * 0.2), 
-                  width: Math.max(rw + 2, 4), height: Math.max(rh * 1.2 + 2, 8), 
-                  color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                  opacity: 0.25
-                });
-                totalHits++;
+          const shearRegex = /\b\d{5}[A-Za-z ]\d{3}\s+([0-9]{2})\b/g;
+          let shrM;
+          let lastShrIdx = -1;
+          if (lineTextFromMapping.includes('---')) {
+            while ((shrM = shearRegex.exec(cleanLineText)) !== null) {
+              if (shearRegex.lastIndex === lastShrIdx) { shearRegex.lastIndex++; continue; }
+              lastShrIdx = shearRegex.lastIndex;
+              const shearVal = parseInt(shrM[1], 10);
+              if (shearVal >= 5) {
+                const startIdx = shrM.index + shrM[0].length - shrM[1].length;
+                const endIdx = startIdx + shrM[1].length;
+                const itemMatches = {};
+                for (let c = startIdx; c < endIdx; c++) {
+                  const map = charMapping[c];
+                  if (map && !map.isSeparator) {
+                    if (!itemMatches[map.itemIndex]) itemMatches[map.itemIndex] = [];
+                    itemMatches[map.itemIndex].push(map.charIndex);
+                  }
+                }
+                for (const itemIdxStr of Object.keys(itemMatches)) {
+                  const itemIdx = parseInt(itemIdxStr, 10);
+                  const charIndices = itemMatches[itemIdx];
+                  if (charIndices.length === 0) continue;
+                  const minCharIdx = Math.min(...charIndices);
+                  const maxCharIdx = Math.max(...charIndices);
+                  const matchCharCount = maxCharIdx - minCharIdx + 1;
+                  const item = lineItems[itemIdx];
+                  const s = cleanAndDecodeItem(item.str, pageOffset) || '';
+                  const tx = item.transform;
+                  const itemX = tx[4], itemY = tx[5];
+                  const itemW = item.width || 0;
+                  const itemH = Math.abs(tx[3]) || 10;
+                  const charW = itemW / Math.max(s.length, 1);
+                  const rx = (itemX + minCharIdx * charW) * sx;
+                  const ry = itemY * sy;
+                  const rw = matchCharCount * charW * sx;
+                  const rh = itemH * sy;
+                  libPage.drawRectangle({
+                    x: rx, y: ry - (rh * 0.2),
+                    width: Math.max(rw, 4), height: Math.max(rh * 1.2, 8),
+                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                    opacity: 0.25
+                  });
+                  totalHits++;
+                }
+              }
+            }
+          }
+
+          const msaRegex = /---\s*\/\s*(\d{3})\b/i;
+          const msaMatch = lineText.match(msaRegex);
+          if (msaMatch) {
+            const msaVal = parseInt(msaMatch[1], 10);
+            if (msaVal >= 100) {
+              const targetMsaStr = msaMatch[1];
+              for (const item of lineItems) {
+                const s = cleanAndDecodeItem(item.str, pageOffset);
+                let idx = s.indexOf("/" + targetMsaStr);
+                if (idx !== -1) {
+                  idx += 1;
+                  const tx = item.transform;
+                  const charW = (item.width || 0) / Math.max(item.str.length, 1);
+                  const rx = (tx[4] + idx * charW) * sx;
+                  const ry = tx[5] * sy;
+                  const rw = targetMsaStr.length * charW * sx;
+                  const rh = (Math.abs(tx[3]) || 10) * sy;
+                  libPage.drawRectangle({
+                    x: rx - 1, y: ry - 1 - (rh * 0.2),
+                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.2 + 2, 8),
+                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                    opacity: 0.25
+                  });
+                  totalHits++;
+                } else if (s === targetMsaStr) {
+                  const tx = item.transform;
+                  const rx = tx[4] * sx;
+                  const ry = tx[5] * sy;
+                  const rw = (item.width || 0) * sx;
+                  const rh = (Math.abs(tx[3]) || 10) * sy;
+                  libPage.drawRectangle({
+                    x: rx - 1, y: ry - 1 - (rh * 0.2),
+                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.2 + 2, 8),
+                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                    opacity: 0.25
+                  });
+                  totalHits++;
+                }
               }
             }
           }
         }
       }
-    }
     }
 
     if (extractedAcReg) {
@@ -834,9 +830,7 @@ async function runHL(){
         const aContent = await aJsPage.getTextContent();
         const aRaw = aContent.items.map(it => it.str).join(' ');
         const aOff = detectPageOffset(aRaw);
-
         const aLines = groupTextItemsByLine(aContent.items, aOff);
-
         for (const aLine of aLines) {
           const lineItems = aLine.items;
           const cm = [];
@@ -847,7 +841,6 @@ async function runHL(){
           }
           const lineRaw = cm.map(m => m.sep ? ' ' : m.ch).join('');
           const clean = lineRaw.replace(/[^A-Za-z0-9]/g, ' ');
-
           const applyHl = (s, e, color, opacity) => {
             const buckets = {};
             for (let c = s; c < e; c++) {
@@ -862,7 +855,6 @@ async function runHL(){
               totalHits++;
             }
           };
-
           if (regEsc) {
             const lineUpper = lineRaw.toUpperCase().replace(/\s+/g, '');
             let isRouteLine = false;
@@ -890,6 +882,7 @@ async function runHL(){
     const ctx=pdfLibDoc.context;
     const outlineItems=[];
     const bmLabelToRef={};
+
     for(const bm of BOOKMARK_PATTERNS){
       const pi=bmPages[bm.label];if(pi===undefined)continue;
       const pageRef=pdfLibDoc.getPage(pi).ref;
@@ -942,7 +935,6 @@ async function runHL(){
       weatherSubBookmarks.push({ title: 'Vertical Cross-Section', pageIdx: notam1PageIdx - 1, y: null });
     }
     attachSubBookmarks('WEATHER BRIEFING', weatherSubBookmarks);
-
     attachSubBookmarks('NOTAM 1', notam1SubAirports);
     attachSubBookmarks('NOTAM 2', notam2SubAirports);
     attachSubBookmarks('NOTAM 3', notam3SubAirports);
@@ -964,11 +956,11 @@ async function runHL(){
     let discFuel = '', discTime = '';
     let extractedEtd = '', extractedEta = '';
     let suitableMap = {};
+    let wptTimeMap = new Map();
 
     const cfpPageIdx = bmPages['CFP PLAN'];
     const resolvedCoaPageIdx = bmPages['COPY OF ATS'] !== undefined ? bmPages['COPY OF ATS'] : -1;
     let foundCoaPageOffset = 0;
-
     if (resolvedCoaPageIdx !== -1) {
       const coaRawPage = await pdfJsDoc.getPage(resolvedCoaPageIdx + 1);
       const coaRawContent = await coaRawPage.getTextContent();
@@ -991,23 +983,54 @@ async function runHL(){
         if(Math.abs(ay-by2)>2)return by2-ay;
         return a.transform[4]-b.transform[4];
       });
-      
-      let cfpFullTextWithNewlines = "";
+
+      let cfpFirstPageText = "";
       let lastY = null;
       for (const item of cfpItems) {
         const decodedStr = cleanAndDecodeItem(item.str, cfpOffset);
         if (lastY !== null && Math.abs(item.transform[5] - lastY) > 4.5) {
-          cfpFullTextWithNewlines += "\n";
+          cfpFirstPageText += "\n";
         }
-        cfpFullTextWithNewlines += decodedStr + " ";
+        cfpFirstPageText += decodedStr + " ";
         lastY = item.transform[5];
       }
 
-      // =========================================================================
-      // TRIP 비행시간 계산 및 (Duty time ...) 공통 헬퍼 적용
-      // =========================================================================
-      const tripMatch = cfpFullTextWithNewlines.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
+      // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
+      const cfpEndIdx = Math.min(
+        numPages,
+        resolvedCoaPageIdx !== -1 ? resolvedCoaPageIdx : numPages,
+        dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : numPages,
+        weatherBriefingIdx !== -1 ? weatherBriefingIdx : numPages,
+        pkg1PageIdx !== -1 ? pkg1PageIdx : numPages
+      );
 
+      let cfpFullSectionText = "";
+      for (let pi = cfpPageIdx; pi < cfpEndIdx; pi++) {
+        const p = await pdfJsDoc.getPage(pi + 1);
+        const tc = await p.getTextContent();
+        const raw = tc.items.map(it => it.str).join(' ');
+        const off = detectPageOffset(raw);
+        const sorted = tc.items.slice().sort((a,b)=>{
+          const ay=a.transform[5], by2=b.transform[5];
+          if(Math.abs(ay-by2)>2) return by2-ay;
+          return a.transform[4]-b.transform[4];
+        });
+        let pageLastY = null;
+        for (const item of sorted) {
+          const s = cleanAndDecodeItem(item.str, off);
+          if (pageLastY !== null && Math.abs(item.transform[5] - pageLastY) > 4.5) cfpFullSectionText += "\n";
+          cfpFullSectionText += s + " ";
+          pageLastY = item.transform[5];
+        }
+        cfpFullSectionText += "\n";
+      }
+
+      wptTimeMap = buildWptTimeMap(cfpFullSectionText);
+
+      // =========================================================================
+      // TRIP 시간 계산 (Duty time 오버레이) - 첫 페이지 기준
+      // =========================================================================
+      const tripMatch = cfpFirstPageText.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
       if (tripMatch) {
         const hours = parseInt(tripMatch[2], 10);
         const minutes = parseInt(tripMatch[3], 10);
@@ -1020,11 +1043,10 @@ async function runHL(){
         };
 
         let formattedCalcText = "";
-
-        if (totalMinutes >= 690) { 
+        if (totalMinutes >= 690) {
           const halfMin = Math.round(totalMinutes / 2);
           formattedCalcText = `Duty time ${formatTime(halfMin)}`;
-        } else if (totalMinutes >= 450) { 
+        } else if (totalMinutes >= 450) {
           const twoThirdsMin = Math.round((totalMinutes * 2) / 3);
           const oneThirdMin = Math.round(totalMinutes / 3);
           formattedCalcText = `Duty Time ${formatTime(twoThirdsMin)} (${formatTime(oneThirdMin)})`;
@@ -1040,7 +1062,6 @@ async function runHL(){
               break;
             }
           }
-
           if (secondLineY !== null) {
             for (const item of cfpItems) {
               if (Math.abs(item.transform[5] - secondLineY) < 4.0) {
@@ -1048,22 +1069,19 @@ async function runHL(){
                 if (secondLineMaxX === null || itemRightX > secondLineMaxX) secondLineMaxX = itemRightX;
               }
             }
-
             const srcMidY = secondLineY + secondLineFS * (0.72 - 0.19) / 2;
             const annotBaseY = (srcMidY - 9 * (0.72 - 0.19) / 2) * cfpSy;
             const drawX = (secondLineMaxX + 10) * cfpSx;
 
-            // 공통 함수(drawDutyTimeStyleBadge) 사용
             drawDutyTimeStyleBadge(cfpLibPage, {
               text: formattedCalcText,
               x: drawX,
               y: annotBaseY,
               font: stdFont,
               fontSize: 9,
-              bgColor: [0.98, 0.50, 0.35], // Orange-Red Accent
+              bgColor: [0.98, 0.50, 0.35],
               bgOpacity: 0.75
             });
-
             totalHits++;
           }
         }
@@ -1071,9 +1089,9 @@ async function runHL(){
 
       let extractedRoute = "";
       {
-        const distIdx = cfpFullTextWithNewlines.search(/DIST\s+LATITUDE/i);
+        const distIdx = cfpFullSectionText.search(/DIST\s+LATITUDE/i);
         if (distIdx !== -1) {
-          const beforeDist = cfpFullTextWithNewlines.substring(0, distIdx);
+          const beforeDist = cfpFullSectionText.substring(0, distIdx);
           const lines = beforeDist.split('\n').map(l => l.trim()).filter(l => l);
           let routeStartLine = -1;
           for (let i = lines.length - 1; i >= 0; i--) {
@@ -1090,7 +1108,7 @@ async function runHL(){
         const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const routePattern1 = new RegExp(`${escapeRegExp(depCode)}\\.\\.[\\s\\S]{5,800}?\\.\\.${escapeRegExp(arrCode)}`, 'i');
         const routePattern2 = new RegExp(`\\b${escapeRegExp(depCode)}\\b[\\s\\S]{5,800}?\\b${escapeRegExp(arrCode)}\\b`, 'i');
-        let rMatch = cfpFullTextWithNewlines.match(routePattern1) || cfpFullTextWithNewlines.match(routePattern2);
+        let rMatch = cfpFullSectionText.match(routePattern1) || cfpFullSectionText.match(routePattern2);
         if (rMatch) extractedRoute = rMatch[0].trim();
       }
 
@@ -1103,11 +1121,11 @@ async function runHL(){
             .filter(t => t.length >= 2 && !noiseWords.includes(t.toUpperCase()) && !/^\d+$/.test(t));
       }
 
-      const discMatch = cfpFullTextWithNewlines.match(/\bDISC\b\s+(\d{4})\s+(\d{2}\.\d{2})/i);
+      const discMatch = cfpFullSectionText.match(/\bDISC\b\s+(\d{4})\s+(\d{2}\.\d{2})/i);
       discFuel = discMatch ? discMatch[1] : '';
       discTime = discMatch ? discMatch[2] : '';
 
-      const etdEtaMatch = cfpFullTextWithNewlines.match(/\bETD\s+([A-Z]{3,4})\s+(\d{4}Z)\s+ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
+      const etdEtaMatch = cfpFullSectionText.match(/\bETD\s+([A-Z]{3,4})\s+(\d{4}Z)\s+ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
       if (etdEtaMatch) {
         extractedEtd = `${etdEtaMatch[1].toUpperCase()} ${etdEtaMatch[2].toUpperCase()}`;
         extractedEta = `${etdEtaMatch[3].toUpperCase()} ${etdEtaMatch[4].toUpperCase()}`;
@@ -1139,8 +1157,8 @@ async function runHL(){
           if (prevItem) {
              const dy = Math.abs(prevItem.transform[5] - item.transform[5]);
              const dx = item.transform[4] - (prevItem.transform[4] + prevItem.width);
-             if (dy > 4 || dx > 2) { 
-                 coaFullTextWithNewlines += "\n";
+             if (dy > 4 || dx > 2) {
+                  coaFullTextWithNewlines += "\n";
                  coaCharMapping.push({ isSeparator: true, itemIndex: -1, charIndex: -1 });
              }
           }
@@ -1157,16 +1175,14 @@ async function runHL(){
         let destRegex = detectedAirports.length === 2
           ? new RegExp(`-\\s*${detectedAirports[1].split('').join('\\s*')}\\s*\\d\\s*\\d\\s*\\d\\s*\\d`, 'i')
           : /-\s*[A-Z]\s*[A-Z]\s*[A-Z]\s*[A-Z]\s*\d\s*\d\s*\d\s*\d/i;
-        
+
         const startMatch = coaFullTextWithNewlines.match(speedAltRegex);
         const endMatch = coaFullTextWithNewlines.match(destRegex);
-
         let highlightedSomething = false;
 
         if (startMatch && endMatch && startMatch.index < endMatch.index) {
             const routeStart = startMatch.index + startMatch[0].length;
             const routeEnd = endMatch.index;
-
             let currentWord = { text: "", chars: [] };
             const atsWordsToHighlight = [];
 
@@ -1180,7 +1196,6 @@ async function runHL(){
                     while (i < routeEnd && coaFullTextWithNewlines[i] !== ' ' && coaFullTextWithNewlines[i] !== '\n') i++;
                     continue;
                 }
-
                 if (/[A-Z0-9]/i.test(char)) {
                     currentWord.text += char;
                     currentWord.chars.push(i);
@@ -1205,25 +1220,21 @@ async function runHL(){
                         itemMatches[map.itemIndex].push(map.charIndex);
                     }
                 }
-                
+
                 for (const itemIdxStr of Object.keys(itemMatches)) {
                     const itemIdx = parseInt(itemIdxStr, 10);
                     const charIndices = itemMatches[itemIdx];
                     if (charIndices.length === 0) continue;
-
                     const minCharIdx = Math.min(...charIndices);
                     const maxCharIdx = Math.max(...charIndices);
                     const matchCharCount = maxCharIdx - minCharIdx + 1;
-
                     const item = sortedCoaItems[itemIdx];
                     const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
                     const tx = item.transform;
                     const charW = (item.width || 0) / Math.max(s.length, 1);
-
                     const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
                     const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
                     const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
-
                     coaLibPage.drawLine({
                         start: { x: underlineX1, y: underlineY },
                         end: { x: underlineX2, y: underlineY },
@@ -1238,6 +1249,7 @@ async function runHL(){
             let searchStartIndex = 0;
             const coaTokens = [];
             let currentToken = null;
+
             for (let i = 0; i < coaCharMapping.length; i++) {
                 const map = coaCharMapping[i];
                 if (!map.isSeparator && /[A-Z0-9]/.test(coaFullTextWithNewlines[i])) {
@@ -1260,7 +1272,6 @@ async function runHL(){
                         break;
                     }
                 }
-
                 if (bestMatchIdx !== -1) {
                     const matchedCToken = coaTokens[bestMatchIdx];
                     const itemMatches = {};
@@ -1271,25 +1282,21 @@ async function runHL(){
                             itemMatches[map.itemIndex].push(map.charIndex);
                         }
                     }
-                    
+
                     for (const itemIdxStr of Object.keys(itemMatches)) {
                         const itemIdx = parseInt(itemIdxStr, 10);
                         const charIndices = itemMatches[itemIdx];
                         if (charIndices.length === 0) continue;
-
                         const minCharIdx = Math.min(...charIndices);
                         const maxCharIdx = Math.max(...charIndices);
                         const matchCharCount = maxCharIdx - minCharIdx + 1;
-
                         const item = sortedCoaItems[itemIdx];
                         const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
                         const tx = item.transform;
                         const charW = (item.width || 0) / Math.max(s.length, 1);
-
                         const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
                         const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
                         const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
-
                         coaLibPage.drawLine({
                             start: { x: underlineX1, y: underlineY },
                             end: { x: underlineX2, y: underlineY },
@@ -1305,7 +1312,6 @@ async function runHL(){
         if (extractedRoute) {
           const routeDisplay = extractedRoute.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
           let anchorY = null, anchorX = null;
-
           for (const item of sortedCoaItems) {
             const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
             if (s && /SUBMITTED\s+AT/i.test(s)) {
@@ -1321,13 +1327,11 @@ async function runHL(){
               }
             }
           }
-
           if (anchorY !== null) {
             const rSize = 11;
             const rStartX = (anchorX || 36) * coaSx;
             const rMaxW = coaW * 0.75;
             const rStartY = (anchorY - 14 - rSize * 1.4) * coaSy;
-
             const words = routeDisplay.split(' ');
             const rLines = [];
             let cur = '';
@@ -1337,7 +1341,6 @@ async function runHL(){
               else { if (cur) rLines.push(cur); cur = w; }
             }
             if (cur) rLines.push(cur);
-
             const lineH = rSize * 1.4;
             for (let li = 0; li < rLines.length; li++) {
               coaLibPage.drawText(rLines[li], {
@@ -1350,7 +1353,7 @@ async function runHL(){
       }
     }
 
-    // DISC FUEL 배지에도 공통 함수 사용
+    // DISC FUEL 정보 오버레이
     if (discFuel && discTime && dispatchReleaseIdx !== -1) {
       const drJsPage = await pdfJsDoc.getPage(dispatchReleaseIdx + 1);
       const drContent = await drJsPage.getTextContent();
@@ -1359,9 +1362,9 @@ async function runHL(){
       const { width: drW, height: drH } = drLibPage.getSize();
       const drVp = drJsPage.getViewport({ scale: 1.0 });
       const drSx = drW / drVp.width, drSy = drH / drVp.height;
-
       let notesY = null, notesRightX = null, notesFS = 10;
       let dispatchItem = null;
+
       for (const item of drContent.items) {
         const s = cleanAndDecodeItem(item.str, drOffset);
         const su = s.trim().toUpperCase();
@@ -1383,14 +1386,13 @@ async function runHL(){
       if (notesY !== null) {
         const notesMidY = notesY + notesFS * (0.72 - 0.19) / 2;
         const annotBaseY = (notesMidY - 9 * (0.72 - 0.19) / 2) * drSy;
-
         drawDutyTimeStyleBadge(drLibPage, {
           text: `DISC FUEL INFO  ${discFuel}  ${discTime}`,
           x: (notesRightX + 10) * drSx,
           y: annotBaseY,
           font: stdFont,
           fontSize: 9,
-          bgColor: [0.98, 0.50, 0.35], // Orange-Red Accent
+          bgColor: [0.98, 0.50, 0.35],
           bgOpacity: 0.75
         });
       }
@@ -1418,10 +1420,9 @@ async function runHL(){
       }
     }
 
-    // Suitable 시간 배지에도 공통 함수 사용
+    // Suitable Enroute Alternate 표시
     if (Object.keys(suitableMap).length > 0 && notam1PageIdx !== undefined) {
       const tagRe = /\[\s*(ERA|EDTO|REFILE|\d+\s*%\s*ERA)\s*\]\s*([A-Z]{3,4})\b/gi;
-
       for (let pi = notam1PageIdx; pi < numPages; pi++) {
         const jsPage = await pdfJsDoc.getPage(pi + 1);
         const tc = await jsPage.getTextContent();
@@ -1446,7 +1447,6 @@ async function runHL(){
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
             const annotBaseY = srcMidY - annotSize * (0.72 - 0.19) / 2;
-
             drawDutyTimeStyleBadge(libPage, {
               text: fullText,
               x: annotStartX,
@@ -1462,7 +1462,7 @@ async function runHL(){
       }
     }
 
-    // DEP/DEST 시간 배지에도 공통 함수 사용
+    // DEP/DEST 시간 표시
     const tagTimeMap = {};
     if (extractedEtd) tagTimeMap['DEP'] = extractedEtd;
     if (extractedEta) tagTimeMap['DEST'] = extractedEta;
@@ -1498,16 +1498,64 @@ async function runHL(){
       }
     }
 
+    // =========================================================================
+    // EXPECTED FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
+    // =========================================================================
+    const expectedRegex = /EXPECTED\s+FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
+    for (let pi = 0; pi < numPages; pi++) {
+      const jsPage = await pdfJsDoc.getPage(pi + 1);
+      const tc = await jsPage.getTextContent();
+      const rawText = tc.items.map(it => it.str).join(' ');
+      const offset = detectPageOffset(rawText);
+      const lines = groupTextItemsByLine(tc.items, offset);
+      const libPage = libPages[pi];
+      const { width: lw, height: lh } = libPage.getSize();
+      const vp = jsPage.getViewport({ scale: 1.0 });
+      const sx = lw / vp.width;
+      const sy = lh / vp.height;
+
+      for (const line of lines) {
+        let match;
+        expectedRegex.lastIndex = 0;
+        while ((match = expectedRegex.exec(line.text)) !== null) {
+          const fromWpt = match[1].toUpperCase();
+          const toWpt = match[2].toUpperCase();
+
+          const fromTime = wptTimeMap.get(fromWpt);
+          const toTime = wptTimeMap.get(toWpt);
+
+          if (fromTime && toTime) {
+            const badgeText = `${fromTime} ~ ${toTime}`;
+            const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+            const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+            const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
+            const annotBaseY = srcMidY - 9 * (0.72 - 0.19) / 2;
+
+            drawDutyTimeStyleBadge(libPage, {
+              text: badgeText,
+              x: (lineMaxX + 12) * sx,
+              y: annotBaseY,
+              font: stdFont,
+              fontSize: 9,
+              bgColor: [0.98, 0.50, 0.35],
+              textColor: [1.0, 1.0, 1.0],
+              bgOpacity: 0.85
+            });
+            totalHits++;
+          }
+        }
+      }
+    }
+
     outBytes=await pdfLibDoc.save();
     done=true;
     runBtn.className='action-btn dl-btn active';
     runBtn.innerHTML='DOWNLOAD PDF FILE';
-    
+
     setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${Object.keys(bmPages).length} bookmarks set.`);
     document.getElementById('previewCard').style.display='block';
-    
-    dlPDF();
 
+    dlPDF();
   } catch(err) {
     setStatus('error','Execution error: '+err.message);
     runBtn.className='action-btn run-btn active';

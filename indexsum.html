@@ -1220,6 +1220,25 @@ async function extractMetadata(pdfJsDoc) {
   }
 }
 
+/**
+ * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM 형식)을 매핑하는 함수
+ */
+function buildWptTimeMap(fullPdfText) {
+  const wptTimeMap = new Map();
+  if (!fullPdfText) return wptTimeMap;
+
+  // Waypoint 패턴 (예: 34E60, 35E50, ETP2, NOGUP 등)과 시간 추출 (예: 04.56, 05.57)
+  const re = /\b([A-Z0-9]{3,10})\b[^\/]*\/\s*[^\/]*?\b(\d{2}\.\d{2})\b\s+\d{4}\//gi;
+
+  let match;
+  while ((match = re.exec(fullPdfText)) !== null) {
+    const wptName = match[1].toUpperCase();
+    const timeVal = match[2];
+    wptTimeMap.set(wptName, timeVal);
+  }
+  return wptTimeMap;
+}
+
 async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
@@ -1887,6 +1906,7 @@ async function runHL(){
     let discFuel = '', discTime = '';
     let extractedEtd = '', extractedEta = '';
     let suitableMap = {};
+    let wptTimeMap = new Map();
 
     const cfpPageIdx = bmPages['CFP PLAN'];
     const resolvedCoaPageIdx = bmPages['COPY OF ATS'] !== undefined ? bmPages['COPY OF ATS'] : -1;
@@ -1915,21 +1935,53 @@ async function runHL(){
         return a.transform[4]-b.transform[4];
       });
       
-      let cfpFullTextWithNewlines = "";
+      let cfpFirstPageText = "";
       let lastY = null;
       for (const item of cfpItems) {
         const decodedStr = cleanAndDecodeItem(item.str, cfpOffset);
         if (lastY !== null && Math.abs(item.transform[5] - lastY) > 4.5) {
-          cfpFullTextWithNewlines += "\n";
+          cfpFirstPageText += "\n";
         }
-        cfpFullTextWithNewlines += decodedStr + " ";
+        cfpFirstPageText += decodedStr + " ";
         lastY = item.transform[5];
       }
+
+      // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
+      const cfpEndIdx = Math.min(
+        numPages,
+        resolvedCoaPageIdx !== -1 ? resolvedCoaPageIdx : numPages,
+        dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : numPages,
+        weatherBriefingIdx !== -1 ? weatherBriefingIdx : numPages,
+        pkg1PageIdx !== -1 ? pkg1PageIdx : numPages
+      );
+
+      let cfpFullSectionText = "";
+      for (let pi = cfpPageIdx; pi < cfpEndIdx; pi++) {
+        const p = await pdfJsDoc.getPage(pi + 1);
+        const tc = await p.getTextContent();
+        const raw = tc.items.map(it => it.str).join(' ');
+        const off = detectPageOffset(raw);
+        const sorted = tc.items.slice().sort((a,b)=>{
+          const ay=a.transform[5], by2=b.transform[5];
+          if(Math.abs(ay-by2)>2) return by2-ay;
+          return a.transform[4]-b.transform[4];
+        });
+        let pageLastY = null;
+        for (const item of sorted) {
+          const s = cleanAndDecodeItem(item.str, off);
+          if (pageLastY !== null && Math.abs(item.transform[5] - pageLastY) > 4.5) cfpFullSectionText += "\n";
+          cfpFullSectionText += s + " ";
+          pageLastY = item.transform[5];
+        }
+        cfpFullSectionText += "\n";
+      }
+
+      wptTimeMap = buildWptTimeMap(cfpFullSectionText);
 
       // =========================================================================
       // TRIP 비행시간 계산 로직 (7:30~11:30 미만: 2/3, 1/3 | 11:30 이상: 1/2)
       // =========================================================================
-      const tripMatch = cfpFullTextWithNewlines.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
+      const tripMatch = cfpFirstPageText.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
 
       if (tripMatch) {
         const hours = parseInt(tripMatch[2], 10);
@@ -2000,11 +2052,10 @@ async function runHL(){
       }
 
       let extractedRoute = "";
-
       {
-        const distIdx = cfpFullTextWithNewlines.search(/DIST\s+LATITUDE/i);
+        const distIdx = cfpFullSectionText.search(/DIST\s+LATITUDE/i);
         if (distIdx !== -1) {
-          const beforeDist = cfpFullTextWithNewlines.substring(0, distIdx);
+          const beforeDist = cfpFullSectionText.substring(0, distIdx);
           const lines = beforeDist.split('\n').map(l => l.trim()).filter(l => l);
           let routeStartLine = -1;
           for (let i = lines.length - 1; i >= 0; i--) {
@@ -2017,13 +2068,11 @@ async function runHL(){
       }
 
       if (!extractedRoute && detectedAirports.length === 2) {
-        const depCode = detectedAirports[0];
-        const arrCode = detectedAirports[1];
-        const escapeRegExp = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const depCode = detectedAirports[0], arrCode = detectedAirports[1];
+        const escapeRegExp = (str) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const routePattern1 = new RegExp(`${escapeRegExp(depCode)}\\.\\.[\\s\\S]{5,800}?\\.\\.${escapeRegExp(arrCode)}`, 'i');
         const routePattern2 = new RegExp(`\\b${escapeRegExp(depCode)}\\b[\\s\\S]{5,800}?\\b${escapeRegExp(arrCode)}\\b`, 'i');
-        let rMatch = cfpFullTextWithNewlines.match(routePattern1);
-        if (!rMatch) rMatch = cfpFullTextWithNewlines.match(routePattern2);
+        let rMatch = cfpFullSectionText.match(routePattern1) || cfpFullSectionText.match(routePattern2);
         if (rMatch) extractedRoute = rMatch[0].trim();
       }
 
@@ -2036,11 +2085,11 @@ async function runHL(){
             .filter(t => t.length >= 2 && !noiseWords.includes(t.toUpperCase()) && !/^\d+$/.test(t));
       }
 
-      const discMatch = cfpFullTextWithNewlines.match(/\bDISC\b\s+(\d{4})\s+(\d{2}\.\d{2})/i);
+      const discMatch = cfpFullSectionText.match(/\bDISC\b\s+(\d{4})\s+(\d{2}\.\d{2})/i);
       discFuel = discMatch ? discMatch[1] : '';
       discTime = discMatch ? discMatch[2] : '';
 
-      const etdEtaMatch = cfpFullTextWithNewlines.match(/\bETD\s+([A-Z]{3,4})\s+(\d{4}Z)\s+ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
+      const etdEtaMatch = cfpFullSectionText.match(/\bETD\s+([A-Z]{3,4})\s+(\d{4}Z)\s+ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
       if (etdEtaMatch) {
         extractedEtd = `${etdEtaMatch[1].toUpperCase()} ${etdEtaMatch[2].toUpperCase()}`;
         extractedEta = `${etdEtaMatch[3].toUpperCase()} ${etdEtaMatch[4].toUpperCase()}`;
@@ -2464,6 +2513,55 @@ async function runHL(){
           bgColor: [0.98, 0.50, 0.35],
           bgOpacity: 0.75
         });
+      }
+    }
+
+    // =========================================================================
+    // EXPECTED FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
+    // =========================================================================
+    const expectedRegex = /EXPECTED\s+FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
+    for (let pi = 0; pi < numPages; pi++) {
+      const jsPage = await pdfJsDoc.getPage(pi + 1);
+      const tc = await jsPage.getTextContent();
+      const rawText = tc.items.map(it => it.str).join(' ');
+      const offset = detectPageOffset(rawText);
+      const lines = groupTextItemsByLine(tc.items, offset);
+      const libPage = libPages[pi];
+      const { width: lw, height: lh } = libPage.getSize();
+      const vp = jsPage.getViewport({ scale: 1.0 });
+      const sx = lw / vp.width;
+      const sy = lh / vp.height;
+
+      for (const line of lines) {
+        let match;
+        expectedRegex.lastIndex = 0;
+        while ((match = expectedRegex.exec(line.text)) !== null) {
+          const fromWpt = match[1].toUpperCase();
+          const toWpt = match[2].toUpperCase();
+
+          const fromTime = wptTimeMap.get(fromWpt);
+          const toTime = wptTimeMap.get(toWpt);
+
+          if (fromTime && toTime) {
+            const badgeText = `${fromTime} ~ ${toTime}`;
+            const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+            const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+            const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
+            const annotBaseY = srcMidY - 9 * (0.72 - 0.19) / 2;
+
+            drawBadgeAnnotation(libPage, {
+              text: badgeText,
+              x: (lineMaxX + 12) * sx,
+              y: annotBaseY,
+              font: stdFont,
+              fontSize: 9,
+              bgColor: [0.98, 0.50, 0.35],
+              textColor: [1.0, 1.0, 1.0],
+              bgOpacity: 0.85
+            });
+            totalHits++;
+          }
+        }
       }
     }
 
