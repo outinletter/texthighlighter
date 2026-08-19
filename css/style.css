@@ -396,40 +396,20 @@ body{
 }
 
 .survey-btn {
-  display: flex;
-  flex-direction: column;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  width: 120px;
-  padding: 16px 10px;
+  padding: 10px 48px;
   background: #3b82f6;
   color: #fff;
   text-decoration: none;
   font-weight: 700;
-  border-radius: 12px;
+  border-radius: 8px;
+  font-size: 13px;
   transition: all 0.2s ease;
 }
 .survey-btn:hover {
   background: #2563eb;
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-}
-.survey-icon-box {
-  width: 48px;
-  height: 48px;
-  border: 2px solid rgba(255, 255, 255, 0.8);
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.survey-btn svg {
-  width: 28px;
-  height: 28px;
-  fill: #fff;
-}
-.survey-btn span {
-  font-size: 11px;
-  letter-spacing: 0.3px;
 }
