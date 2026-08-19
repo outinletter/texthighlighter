@@ -24,15 +24,15 @@ function drawDutyTimeStyleBadge(libPage, options) {
   } = options;
 
   const textWidth = font.widthOfTextAtSize(text, fontSize);
-  const ascent = fontSize * 0.72;
-  const descent = fontSize * 0.19;
-  const textBaseY = centerY === undefined ? y : centerY - (ascent - descent) / 2;
+  // Use the embedded font's actual glyph height so background padding is equal.
+  const textHeight = font.heightAtSize(fontSize, { descender: false });
+  const textBaseY = centerY === undefined ? y : centerY - textHeight / 2;
 
   libPage.drawRectangle({
     x: x - padH,
-    y: textBaseY - descent - padV,
+    y: textBaseY - padV,
     width: textWidth + padH * 2,
-    height: ascent + descent + padV * 2,
+    height: textHeight + padV * 2,
     color: PDFLib.rgb(...bgColor),
     opacity: bgOpacity
   });

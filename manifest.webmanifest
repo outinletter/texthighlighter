@@ -1,0 +1,16 @@
+{
+  "name": "NOTAM Highlighter",
+  "short_name": "NOTAM HL",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "icons": [
+    {
+      "src": "notamhighlighter.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
