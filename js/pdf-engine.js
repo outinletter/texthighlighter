@@ -440,7 +440,7 @@ async function runHL(){
     }
     if (notam2PageIdx !== undefined) {
       const notam2EndIdx = notam3PageIdx !== undefined ? notam3PageIdx : numPages;
-      notam2SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam2PageIdx, notam2EndIdx, '(?:\\d+\\s*%\\s*)?ERA|EDTO');
+      notam2SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam2PageIdx, notam2EndIdx, '(?:\\d+\\s*%\\s*)?ERA|EDTO|REFILE');
     }
     if (notam3PageIdx !== undefined) {
       const notam3EndIdx = numPages;
