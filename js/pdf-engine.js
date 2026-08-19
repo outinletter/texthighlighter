@@ -5,21 +5,28 @@
 const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE", "WEATHER", "AIR", "ROUTE", "ALTN", "INFO"];
 const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
 
-// 헬퍼: 배지 렌더링
-function drawBadgeAnnotation(libPage, options) {
+/**
+ * 'Duty Time' 스타일 배지 렌더링 공통 함수
+ */
+function drawDutyTimeStyleBadge(libPage, options) {
   const {
-    text, x, y, font,
+    text,
+    x,
+    y,
+    font,
     fontSize = 9,
-    bgColor = [0.98, 0.50, 0.35],
-    textColor = [1, 1, 1],
-    bgOpacity = 0.75,
-    padH = 4, padV = 2.5
+    bgColor = [1.0, 0.45, 0.65], // Soft Pink (기본 Duty time 스타일 색상)
+    textColor = [1.0, 1.0, 1.0], // White
+    bgOpacity = 0.85,
+    padH = 4,
+    padV = 2.5
   } = options;
 
   const textWidth = font.widthOfTextAtSize(text, fontSize);
   const ascent = fontSize * 0.72;
   const descent = fontSize * 0.19;
 
+  // 배경 상자 그리기
   libPage.drawRectangle({
     x: x - padH,
     y: y - descent - padV,
@@ -29,10 +36,12 @@ function drawBadgeAnnotation(libPage, options) {
     opacity: bgOpacity
   });
 
+  // 텍스트 출력
   libPage.drawText(text, {
-    x, y,
+    x: x,
+    y: y,
     size: fontSize,
-    font,
+    font: font,
     color: PDFLib.rgb(...textColor),
     opacity: 1.0
   });
@@ -994,7 +1003,9 @@ async function runHL(){
         lastY = item.transform[5];
       }
 
-      // TRIP 비행시간 계산 로직
+      // =========================================================================
+      // TRIP 비행시간 계산 및 (Duty time ...) 공통 헬퍼 적용
+      // =========================================================================
       const tripMatch = cfpFullTextWithNewlines.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
 
       if (tripMatch) {
@@ -1012,11 +1023,11 @@ async function runHL(){
 
         if (totalMinutes >= 690) { 
           const halfMin = Math.round(totalMinutes / 2);
-          formattedCalcText = `Duty time ${formatTime(halfMin)}`;
+          formattedCalcText = `(Duty time ${formatTime(halfMin)})`;
         } else if (totalMinutes >= 450) { 
           const twoThirdsMin = Math.round((totalMinutes * 2) / 3);
           const oneThirdMin = Math.round(totalMinutes / 3);
-          formattedCalcText = `Duty Time ${formatTime(twoThirdsMin)} (${formatTime(oneThirdMin)})`;
+          formattedCalcText = `(Duty Time ${formatTime(twoThirdsMin)} (${formatTime(oneThirdMin)}))`;
         }
 
         if (formattedCalcText) {
@@ -1042,12 +1053,17 @@ async function runHL(){
             const annotBaseY = (srcMidY - 9 * (0.72 - 0.19) / 2) * cfpSy;
             const drawX = (secondLineMaxX + 10) * cfpSx;
 
-            drawBadgeAnnotation(cfpLibPage, {
+            // 공통 함수(drawDutyTimeStyleBadge) 사용
+            drawDutyTimeStyleBadge(cfpLibPage, {
               text: formattedCalcText,
-              x: drawX, y: annotBaseY,
-              font: stdFont, fontSize: 9,
-              bgColor: [1.0, 0.45, 0.65], bgOpacity: 0.85
+              x: drawX,
+              y: annotBaseY,
+              font: stdFont,
+              fontSize: 9,
+              bgColor: [1.0, 0.45, 0.65], // Soft Pink
+              bgOpacity: 0.85
             });
+
             totalHits++;
           }
         }
@@ -1334,6 +1350,7 @@ async function runHL(){
       }
     }
 
+    // DISC FUEL 배지에도 공통 함수 사용
     if (discFuel && discTime && dispatchReleaseIdx !== -1) {
       const drJsPage = await pdfJsDoc.getPage(dispatchReleaseIdx + 1);
       const drContent = await drJsPage.getTextContent();
@@ -1367,11 +1384,14 @@ async function runHL(){
         const notesMidY = notesY + notesFS * (0.72 - 0.19) / 2;
         const annotBaseY = (notesMidY - 9 * (0.72 - 0.19) / 2) * drSy;
 
-        drawBadgeAnnotation(drLibPage, {
+        drawDutyTimeStyleBadge(drLibPage, {
           text: `DISC FUEL INFO  ${discFuel}  ${discTime}`,
-          x: (notesRightX + 10) * drSx, y: annotBaseY,
-          font: stdFont, fontSize: 9,
-          bgColor: [0.98, 0.50, 0.35], bgOpacity: 0.75
+          x: (notesRightX + 10) * drSx,
+          y: annotBaseY,
+          font: stdFont,
+          fontSize: 9,
+          bgColor: [0.98, 0.50, 0.35], // Orange-Red Accent
+          bgOpacity: 0.75
         });
       }
     }
@@ -1398,6 +1418,7 @@ async function runHL(){
       }
     }
 
+    // Suitable 시간 배지에도 공통 함수 사용
     if (Object.keys(suitableMap).length > 0 && notam1PageIdx !== undefined) {
       const tagRe = /\[\s*(ERA|EDTO|REFILE|\d+\s*%\s*ERA)\s*\]\s*([A-Z]{3,4})\b/gi;
 
@@ -1426,11 +1447,14 @@ async function runHL(){
             const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
             const annotBaseY = srcMidY - annotSize * (0.72 - 0.19) / 2;
 
-            drawBadgeAnnotation(libPage, {
+            drawDutyTimeStyleBadge(libPage, {
               text: fullText,
-              x: annotStartX, y: annotBaseY,
-              font: stdFont, fontSize: annotSize,
-              bgColor: [0.98, 0.50, 0.35], bgOpacity: 0.75
+              x: annotStartX,
+              y: annotBaseY,
+              font: stdFont,
+              fontSize: annotSize,
+              bgColor: [0.98, 0.50, 0.35],
+              bgOpacity: 0.75
             });
             totalHits++;
           }
@@ -1438,6 +1462,7 @@ async function runHL(){
       }
     }
 
+    // DEP/DEST 시간 배지에도 공통 함수 사용
     const tagTimeMap = {};
     if (extractedEtd) tagTimeMap['DEP'] = extractedEtd;
     if (extractedEta) tagTimeMap['DEST'] = extractedEta;
@@ -1461,11 +1486,14 @@ async function runHL(){
         const depSrcMidY = subAirport.y * sy + depSrcFS * sy * (0.72 - 0.19) / 2;
         const depBaseY = depSrcMidY - depAnnotSize * (0.72 - 0.19) / 2;
 
-        drawBadgeAnnotation(libPages[pi], {
+        drawDutyTimeStyleBadge(libPages[pi], {
           text: timeText,
-          x: (subAirport.maxX + 8) * sx, y: depBaseY,
-          font: stdFont, fontSize: depAnnotSize,
-          bgColor: [0.98, 0.50, 0.35], bgOpacity: 0.75
+          x: (subAirport.maxX + 8) * sx,
+          y: depBaseY,
+          font: stdFont,
+          fontSize: depAnnotSize,
+          bgColor: [0.98, 0.50, 0.35],
+          bgOpacity: 0.75
         });
       }
     }
