@@ -468,7 +468,7 @@ body{
 
     <div class="card">
       <div class="card-title">2. HIGHLIGHT SETTINGS</div>
-      <div class="hl-row" style="justify-content: space-between;">
+      <div class="hl-row" style="justify-space-between;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <label class="toggle"><input type="checkbox" id="hlEnabled"><span class="slider"></span></label>
           <span class="hl-label" style="font-size: 13px; font-weight: 700;">
@@ -566,6 +566,73 @@ body{
 <script>
 let resolvedWorkerUrl = '';
 let libsReady = false;
+
+// -----------------------------------------------------------------------------
+// [공통 헬퍼 모듈]
+// -----------------------------------------------------------------------------
+
+// 주석/배지 오버레이 렌더링 헬퍼 함수
+function drawBadgeAnnotation(libPage, options) {
+  const {
+    text, x, y, font,
+    fontSize = 9,
+    bgColor = [0.98, 0.50, 0.35],
+    textColor = [1, 1, 1],
+    bgOpacity = 0.75,
+    padH = 4, padV = 2.5
+  } = options;
+
+  const textWidth = font.widthOfTextAtSize(text, fontSize);
+  const ascent = fontSize * 0.72;
+  const descent = fontSize * 0.19;
+
+  libPage.drawRectangle({
+    x: x - padH,
+    y: y - descent - padV,
+    width: textWidth + padH * 2,
+    height: ascent + descent + padV * 2,
+    color: PDFLib.rgb(...bgColor),
+    opacity: bgOpacity
+  });
+
+  libPage.drawText(text, {
+    x, y,
+    size: fontSize,
+    font,
+    color: PDFLib.rgb(...textColor),
+    opacity: 1.0
+  });
+}
+
+// PDF Text Item들을 Y좌표 기준으로 그룹화하는 공통 함수
+function groupTextItemsByLine(items, offset) {
+  const decorated = items
+    .map(it => ({ item: it, text: decodeForTagScan(it.str, offset) }))
+    .filter(d => d.text && d.text.length > 0);
+
+  decorated.sort((a, b) => b.item.transform[5] - a.item.transform[5]);
+
+  const lines = [];
+  for (const d of decorated) {
+    const y = d.item.transform[5];
+    let joined = false;
+    for (const line of lines) {
+      if (Math.abs(line.y - y) < 4.0) {
+        line.parts.push(d);
+        joined = true;
+        break;
+      }
+    }
+    if (!joined) lines.push({ y, parts: [d] });
+  }
+
+  for (const line of lines) {
+    line.parts.sort((a, b) => a.item.transform[4] - b.item.transform[4]);
+    line.text = line.parts.map(p => p.text).join('');
+    line.items = line.parts.map(p => p.item);
+  }
+  return lines;
+}
 
 async function forceDownload(event, url, filename) {
   event.preventDefault();
@@ -719,16 +786,20 @@ function setStatus(cls,txt){
   document.getElementById('st').textContent=txt;
 }
 
-const pl=document.getElementById('presetList');
-PRESETS.forEach((w,i)=>{
-  const d=document.createElement('div');d.className='menu-item';
-  d.innerHTML=`<input type="checkbox" id="p${i}"><label for="p${i}" style="cursor:pointer;flex:1">${w}</label>`;
-  d.querySelector('input').addEventListener('change',e=>{
-    e.target.checked?sel.add(w):sel.delete(w);
-    updBadge();done=false;updRun();
+// DocumentFragment를 이용한 키워드 목록 배치 DOM 생성
+const pl = document.getElementById('presetList');
+const frag = document.createDocumentFragment();
+PRESETS.forEach((w, i) => {
+  const d = document.createElement('div');
+  d.className = 'menu-item';
+  d.innerHTML = `<input type="checkbox" id="p${i}"><label for="p${i}" style="cursor:pointer;flex:1">${w}</label>`;
+  d.querySelector('input').addEventListener('change', e => {
+    e.target.checked ? sel.add(w) : sel.delete(w);
+    updBadge(); done = false; updRun();
   });
-  pl.appendChild(d);
+  frag.appendChild(d);
 });
+pl.appendChild(frag);
 
 document.getElementById('hlEnabled').addEventListener('change',e=>{
   if(e.target.checked){
@@ -780,13 +851,15 @@ document.getElementById('cwInput').addEventListener('keydown',e=>{if(e.key==='En
 function renderTags(){
   const list=document.getElementById('tagList');list.innerHTML='';
   const tc=[['#ffe066','#1a1400'],['#5bde8a','#062210'],['#ff8fa3','#2a0008'],['#5bc8ff','#001a26'],['#ffa94d','#2a1000'],['#c084fc','#1a0030']];
+  const tagFrag = document.createDocumentFragment();
   custom.forEach((w,i)=>{
     const[bg,fg]=tc[i%tc.length];
     const t=document.createElement('div');t.className='tag';
     t.style.cssText=`background:${bg};color:${fg}`;
     t.innerHTML=`${w}<span class="tag-remove" onclick="rmCustom(${i})">✕</span>`;
-    list.appendChild(t);
+    tagFrag.appendChild(t);
   });
+  list.appendChild(tagFrag);
 }
 function rmCustom(i){sel.delete(custom[i]);custom.splice(i,1);renderTags();updBadge();done=false;updRun();}
 
@@ -1015,34 +1088,6 @@ function decodeForTagScan(str, offset) {
   return finalStr.replace(/[^\x20-\x7E]/g, ' ');
 }
 
-function groupItemsIntoLines(items, offset) {
-  const decorated = items
-    .map(it => ({ item: it, text: decodeForTagScan(it.str, offset) }))
-    .filter(d => d.text && d.text.length > 0);
-
-  decorated.sort((a, b) => b.item.transform[5] - a.item.transform[5]);
-
-  const lines = [];
-  for (const d of decorated) {
-    const y = d.item.transform[5];
-    let joined = false;
-    for (const line of lines) {
-      if (Math.abs(line.y - y) < 4.0) {
-        line.parts.push(d);
-        joined = true;
-        break;
-      }
-    }
-    if (!joined) lines.push({ y, parts: [d] });
-  }
-
-  for (const line of lines) {
-    line.parts.sort((a, b) => a.item.transform[4] - b.item.transform[4]);
-    line.text = line.parts.map(p => p.text).join('');
-  }
-  return lines;
-}
-
 async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
   const found = {};
   if (startPageIdx === undefined || startPageIdx === -1) return [];
@@ -1055,7 +1100,7 @@ async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusi
     const tc = await jsPage.getTextContent();
     const rawText = tc.items.map(it => it.str).join(' ');
     const offset = detectPageOffset(rawText);
-    const lines = groupItemsIntoLines(tc.items, offset);
+    const lines = groupTextItemsByLine(tc.items, offset);
 
     for (const line of lines) {
       if (Object.keys(found).length === tags.length) break;
@@ -1091,7 +1136,7 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
     const tc = await jsPage.getTextContent();
     const rawText = tc.items.map(it => it.str).join(' ');
     const offset = detectPageOffset(rawText);
-    const lines = groupItemsIntoLines(tc.items, offset);
+    const lines = groupTextItemsByLine(tc.items, offset);
 
     for (const line of lines) {
       re.lastIndex = 0;
@@ -1695,21 +1740,10 @@ async function runHL(){
         const aRaw = aContent.items.map(it => it.str).join(' ');
         const aOff = detectPageOffset(aRaw);
 
-        const aLines = [];
-        const aSorted = aContent.items
-          .filter(it => { const s = cleanAndDecodeItem(it.str, aOff); return s && s.trim(); })
-          .sort((a, b) => b.transform[5] - a.transform[5]);
-        for (const it of aSorted) {
-          const y = it.transform[5];
-          let joined = false;
-          for (const ln of aLines) {
-            if (Math.abs(ln.y - y) < 4.0) { ln.items.push(it); joined = true; break; }
-          }
-          if (!joined) aLines.push({ y, items: [it] });
-        }
+        const aLines = groupTextItemsByLine(aContent.items, aOff);
 
         for (const aLine of aLines) {
-          const lineItems = aLine.items.sort((a, b) => a.transform[4] - b.transform[4]);
+          const lineItems = aLine.items;
           const cm = [];
           for (let i = 0; i < lineItems.length; i++) {
             const dec = cleanAndDecodeItem(lineItems[i].str, aOff) || '';
@@ -1929,32 +1963,18 @@ async function runHL(){
               }
             }
 
-            const annotSize = 9;
-            const textWidth = stdFont.widthOfTextAtSize(formattedCalcText, annotSize);
-            const padH = 4, padV = 2.5;
-            const ascent = annotSize * 0.72;
-            const descent = annotSize * 0.19;
-
             const srcMidY = secondLineY + secondLineFS * (0.72 - 0.19) / 2;
-            const annotBaseY = (srcMidY - annotSize * (0.72 - 0.19) / 2) * cfpSy;
+            const annotBaseY = (srcMidY - 9 * (0.72 - 0.19) / 2) * cfpSy;
             const drawX = (secondLineMaxX + 10) * cfpSx;
 
-            cfpLibPage.drawRectangle({
-              x: drawX - padH,
-              y: annotBaseY - descent - padV,
-              width: textWidth + padH * 2,
-              height: ascent + descent + padV * 2,
-              color: PDFLib.rgb(1.0, 0.45, 0.65), // 분홍색 배경
-              opacity: 0.85
-            });
-
-            cfpLibPage.drawText(formattedCalcText, {
+            drawBadgeAnnotation(cfpLibPage, {
+              text: formattedCalcText,
               x: drawX,
               y: annotBaseY,
-              size: annotSize,
               font: stdFont,
-              color: PDFLib.rgb(1, 1, 1), // 흰색 글씨
-              opacity: 1.0
+              fontSize: 9,
+              bgColor: [1.0, 0.45, 0.65],
+              bgOpacity: 0.85
             });
 
             totalHits++;
@@ -2313,29 +2333,18 @@ async function runHL(){
       }
 
       if (notesY !== null) {
-        const annotSize9 = 9;
         const notesMidY = notesY + notesFS * (0.72 - 0.19) / 2;
-        const annotBaseY = (notesMidY - annotSize9 * (0.72 - 0.19) / 2) * drSy;
+        const annotBaseY = (notesMidY - 9 * (0.72 - 0.19) / 2) * drSy;
         const discText = `DISC FUEL INFO  ${discFuel}  ${discTime}`;
-        const discTextWidth = stdFont.widthOfTextAtSize(discText, annotSize9);
-        const discPadH = 4, discPadV = 2.5;
-        const discAscent = annotSize9 * 0.72;
-        const discDescent = annotSize9 * 0.19;
-        drLibPage.drawRectangle({
-          x: (notesRightX + 10) * drSx - discPadH,
-          y: annotBaseY - discDescent - discPadV,
-          width: discTextWidth + discPadH * 2,
-          height: discAscent + discDescent + discPadV * 2,
-          color: PDFLib.rgb(0.98, 0.50, 0.35),
-          opacity: 0.75
-        });
-        drLibPage.drawText(discText, {
+
+        drawBadgeAnnotation(drLibPage, {
+          text: discText,
           x: (notesRightX + 10) * drSx,
           y: annotBaseY,
-          size: annotSize9,
           font: stdFont,
-          color: PDFLib.rgb(1, 1, 1),
-          opacity: 1.0
+          fontSize: 9,
+          bgColor: [0.98, 0.50, 0.35],
+          bgOpacity: 0.75
         });
       }
     }
@@ -2370,11 +2379,10 @@ async function runHL(){
         const tc = await jsPage.getTextContent();
         const rawText = tc.items.map(it => it.str).join(' ');
         const offset = detectPageOffset(rawText);
-        const lines = groupItemsIntoLines(tc.items, offset);
+        const lines = groupTextItemsByLine(tc.items, offset);
         const libPage = libPages[pi];
         const { width: lw, height: lh } = libPage.getSize();
         const vp = jsPage.getViewport({ scale: 1.0 });
-        const sx = lw / vp.width;
         const sy = lh / vp.height;
 
         for (const line of lines) {
@@ -2388,29 +2396,18 @@ async function runHL(){
             const textWidth = stdFont.widthOfTextAtSize(fullText, annotSize);
             const rightMargin = 36;
             const annotStartX = lw - textWidth - rightMargin;
-            const padH = 4, padV = 2.5;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
             const annotBaseY = srcMidY - annotSize * (0.72 - 0.19) / 2;
-            const ascent  = annotSize * 0.72;
-            const descent = annotSize * 0.19;
-            const boxY = annotBaseY - descent - padV;
-            const boxH = ascent + descent + padV * 2;
-            libPage.drawRectangle({
-              x: annotStartX - padH,
-              y: boxY,
-              width: textWidth + padH * 2,
-              height: boxH,
-              color: PDFLib.rgb(0.98, 0.50, 0.35),
-              opacity: 0.75
-            });
-            libPage.drawText(fullText, {
+
+            drawBadgeAnnotation(libPage, {
+              text: fullText,
               x: annotStartX,
               y: annotBaseY,
-              size: annotSize,
               font: stdFont,
-              color: PDFLib.rgb(1, 1, 1),
-              opacity: 1.0
+              fontSize: annotSize,
+              bgColor: [0.98, 0.50, 0.35],
+              bgOpacity: 0.75
             });
             totalHits++;
           }
@@ -2437,28 +2434,18 @@ async function runHL(){
         }
         const { sx, sy } = pageScaleCache[pi];
         const depAnnotSize = 9;
-        const depTextWidth = stdFont.widthOfTextAtSize(timeText, depAnnotSize);
         const depSrcFS = subAirport.fontSize || 10;
         const depSrcMidY = subAirport.y * sy + depSrcFS * sy * (0.72 - 0.19) / 2;
         const depBaseY = depSrcMidY - depAnnotSize * (0.72 - 0.19) / 2;
-        const depPadH = 4, depPadV = 2.5;
-        const depAscent = depAnnotSize * 0.72;
-        const depDescent = depAnnotSize * 0.19;
-        libPages[pi].drawRectangle({
-          x: (subAirport.maxX + 8) * sx - depPadH,
-          y: depBaseY - depDescent - depPadV,
-          width: depTextWidth + depPadH * 2,
-          height: depAscent + depDescent + depPadV * 2,
-          color: PDFLib.rgb(0.98, 0.50, 0.35),
-          opacity: 0.75
-        });
-        libPages[pi].drawText(timeText, {
+
+        drawBadgeAnnotation(libPages[pi], {
+          text: timeText,
           x: (subAirport.maxX + 8) * sx,
           y: depBaseY,
-          size: depAnnotSize,
           font: stdFont,
-          color: PDFLib.rgb(1, 1, 1),
-          opacity: 1.0
+          fontSize: depAnnotSize,
+          bgColor: [0.98, 0.50, 0.35],
+          bgOpacity: 0.75
         });
       }
     }
