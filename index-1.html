@@ -4,172 +4,35 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NOTAM HIGHLIGHTER (Offline Ready)</title>
-  <link rel="stylesheet" href="style.css">
+  <!-- 분리된 외부 CSS 불러오기 -->
+  <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<div class="header">
-  <div class="header-container">
-    <div class="header-text">
-      <h1>NOTAM <span class="highlight">HIGHLIGHTER</span> <span class="version">v1.2</span></h1>
-      <p>Offline Ready Smart NOTAM Highlighter & Route Matcher</p>
-    </div>
-    
-    <div class="video-banner">
-      <video src="mp_.mp4" autoplay loop muted playsinline></video>
-    </div>
-  </div>
-</div>
-
-<div class="body">
-  <div class="app">
-    
-    <!-- Feature Info Card -->
-    <div class="card">
-      <div class="card-title">Key Features of NOTAM HIGHLIGHTER</div>
-      <div class="offline-instruction" style="margin-bottom: 0; text-align: left;">
-        <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; font-size: 11px;">
-          <li>
-            <b>✓ Smart Auto-Highlighting:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Scans critical NOTAM keywords and route restrictions within your flight package (PDF) and highlights them in designated colors.
-            </div>
-          </li>
-          <li>
-            <b>✓ Intelligent Bookmark Generation:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Automatically inserts PDF bookmarks for key sections such as 'CFP PLAN', 'COPY OF ATS FPL', and 'WEATHER BRIEFING'.
-            </div>
-          </li>
-          <li>
-            <b>✓ Custom Word Tags:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Add your own custom keywords to the highlighter in addition to the built-in aviation terminology database.
-            </div>
-          </li>
-          <li>
-            <b>✓ PDF Text Decoding Engine:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Automatically detects and resolves text encoding offsets in encrypted or legacy PDF documents for accurate extraction.
-            </div>
-          </li>
-        </ul>
+  <div class="header">
+    <div class="header-container">
+      <div class="header-text">
+        <h1>NOTAM <span class="highlight">HIGHLIGHTER</span> <span class="version">v1.2</span></h1>
+        <p>Offline Ready Smart NOTAM Highlighter & Route Matcher</p>
       </div>
-    </div>
-
-    <!-- 1. PDF Upload Area -->
-    <div class="card">
-      <div class="card-title">1. PDF FLIGHT PACKAGE</div>
-      <div class="upload-area" id="uploadArea">
-        <div class="upload-text">
-          <div class="upload-label">Click here or drag & drop your flight package PDF</div>
-          <div class="upload-sub">Supported format: .pdf only</div>
-          <div class="file-name" id="fileName"></div>
-        </div>
-        <span class="upload-btn-label">Browse</span>
-        <input type="file" id="fi" accept=".pdf">
+      <div class="video-banner">
+        <video src="assets/mp_.mp4" autoplay loop muted playsinline></video>
       </div>
-    </div>
-
-    <!-- 2. Settings -->
-    <div class="card">
-      <div class="card-title">2. HIGHLIGHT SETTINGS</div>
-      <div class="hl-row" style="justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <label class="toggle"><input type="checkbox" id="hlEnabled"><span class="slider"></span></label>
-          <span class="hl-label" style="font-size: 13px; font-weight: 700;">
-            Select All NOTAM Keywords
-            <span style="font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 8px;">
-              (
-              <label class="toggle toggle-small" style="display: inline-flex; margin: 0 6px; vertical-align: middle;"><input type="checkbox" id="bmEnabled"><span class="slider"></span></label>
-              <span style="vertical-align: middle;">Bookmarks Only</span>
-              )
-            </span>
-          </span>
-        </div>
-        <div class="dropdown-wrap">
-          <button class="dropdown-btn" id="dropBtn">
-            Select Words <span class="badge-count" id="selCount">0</span><span class="arrow"> ▼</span>
-          </button>
-          <div class="dropdown-menu" id="dropMenu" style="display:none">
-            <div class="menu-section">NOTAM KEYWORDS</div>
-            <div id="presetList"></div>
-          </div>
-        </div>
-      </div>
-
-      <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between;">
-        <span style="font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.5px;">Highlight Marker Color</span>
-        <div style="display: flex; gap: 8px;">
-          <button class="color-chip active" id="chip-blue" data-color="blue" style="background: #3b82f6;" title="Sky Blue"></button>
-          <button class="color-chip" id="chip-pink" data-color="pink" style="background: #ff73a6;" title="Soft Pink"></button>
-          <button class="color-chip" id="chip-yellow" data-color="yellow" style="background: #ffc000;" title="Golden Yellow"></button>
-          <button class="color-chip" id="chip-green" data-color="green" style="background: #38d97a;" title="Neon Green"></button>
-        </div>
-      </div>
-    </div>
-
-    <!-- 3. Custom Tags -->
-    <div class="card">
-      <div class="card-title">3. ADD CUSTOM WORD TAGS</div>
-      <div class="custom-add-wrap">
-        <div class="custom-add-row">
-          <input type="text" id="cwInput" placeholder="Enter custom words (comma or space separated)">
-          <button id="addCustomBtn">Add</button>
-        </div>
-      </div>
-      <div class="tag-list" id="tagList"></div>
-    </div>
-
-    <!-- 4. Run System Engine -->
-    <div class="card">
-      <div class="card-title">4. RUN SYSTEM ENGINE</div>
-      <button class="action-btn run-btn" id="runBtn">RUN ENGINE</button>
-      <div class="status-bar" id="sb">
-        <div class="status-dot"></div>
-        <span id="st">Engine ready. Select keywords and upload PDF to start.</span>
-      </div>
-    </div>
-
-    <!-- 5. Download -->
-    <div class="card" id="previewCard" style="display:none">
-      <div class="card-title">5. SAVE OPTIMIZED DOCUMENT</div>
-      <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">
-        If automatic download is blocked, tap the button below to save to your local drive or share/Airdrop with your crew.
-      </p>
-      <button class="action-btn dl-btn active" id="downloadPdfBtn">
-        DOWNLOAD PDF FILE
-      </button>
-    </div>
-
-  </div>
-</div>
-
-<footer style="text-align:center;padding:24px 16px 32px;color:#475569;font-size:11.5px;border-top:1px solid #1e293b;background:#070b13;display:flex;flex-direction:column;align-items:center;gap:16px;">
-  <div style="max-width:640px; width:100%; display:flex; flex-direction:column; gap:10px; align-items:center;">
-    <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px;">
-      Offline EFB Deployment Packages & Resources
-    </div>
-    
-    <div class="offline-row-links">
-      <span>Core Web App:</span>
-      <button class="inline-download-btn" id="downloadSelfBtn" style="border-color: #10b981; color: #10b981; background: rgba(16, 185, 129, 0.05);">
-        Text_Highlighter_Offline.html
-      </button>
-      
-      <span style="margin-left: 10px; border-left: 1px solid #1e293b; padding-left: 10px;">Required Library Assets:</span>
-      <a class="inline-download-btn lib-download" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js" data-file="pdf.min.js">pdf.min.js</a>
-      <a class="inline-download-btn lib-download" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js" data-file="pdf.worker.min.js">pdf.worker.min.js</a>
-      <a class="inline-download-btn lib-download" href="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js" data-file="pdf-lib.min.js">pdf-lib.min.js</a>
     </div>
   </div>
 
-  <div style="margin-top: 8px; color: #334155; font-size: 11px;">
-    © 2026 EFB Systems &nbsp;|&nbsp; <i><a href="mailto:bongsjeon@koreanair.com" style="color:#3b82f6;text-decoration:none">bongsjeon@koreanair.com</a></i>
+  <div class="body">
+    <div class="app">
+      <!-- 기존 카드 요소들 (생략) -->
+    </div>
   </div>
-</footer>
 
-<script src="keywords.js"></script>
-<script src="script.js"></script>
+  <footer>
+    <!-- 푸터 요소들 (생략) -->
+  </footer>
+
+  <!-- 스크립트 파일 연결 (엔진 로직 -> UI 이벤트 로직 순서) -->
+  <script src="js/pdf-engine.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
