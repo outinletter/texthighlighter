@@ -16,8 +16,8 @@ function drawDutyTimeStyleBadge(libPage, options) {
     centerY,
     font,
     fontSize = 9,
-    bgColor = [0.98, 0.50, 0.35], // Orange-Red Accent
-    textColor = [1.0, 1.0, 1.0], // White
+    bgColor = [0.88, 0.90, 0.93], // Pale gray
+    textColor = [0.08, 0.12, 0.18], // High-contrast navy
     bgOpacity = 0.75,
     padH = 4,
     padV = 2.5
@@ -1075,7 +1075,7 @@ async function runHL(){
               centerY: srcMidY * cfpSy,
               font: stdFont,
               fontSize: 9,
-              bgColor: [0.98, 0.50, 0.35],
+              bgColor: [0.88, 0.90, 0.93],
               bgOpacity: 0.75
             });
             totalHits++;
@@ -1387,7 +1387,7 @@ async function runHL(){
           centerY: notesMidY * drSy,
           font: stdFont,
           fontSize: 9,
-          bgColor: [0.98, 0.50, 0.35],
+          bgColor: [0.88, 0.90, 0.93],
           bgOpacity: 0.75
         });
       }
@@ -1447,7 +1447,7 @@ async function runHL(){
               centerY: srcMidY,
               font: stdFont,
               fontSize: annotSize,
-              bgColor: [0.98, 0.50, 0.35],
+              bgColor: [0.88, 0.90, 0.93],
               bgOpacity: 0.75
             });
             totalHits++;
@@ -1485,7 +1485,7 @@ async function runHL(){
           centerY: depSrcMidY,
           font: stdFont,
           fontSize: depAnnotSize,
-          bgColor: [0.98, 0.50, 0.35],
+          bgColor: [0.88, 0.90, 0.93],
           bgOpacity: 0.75
         });
       }
@@ -1547,8 +1547,7 @@ async function runHL(){
           centerY: badge.centerY,
           font: stdFont,
           fontSize: badge.size,
-          bgColor: [0.98, 0.50, 0.35],
-          textColor: [1.0, 1.0, 1.0],
+          bgColor: [0.88, 0.90, 0.93],
           bgOpacity: 0.85
         });
         totalHits++;
