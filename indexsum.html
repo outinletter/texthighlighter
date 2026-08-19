@@ -1930,13 +1930,13 @@ async function runHL(){
         if (totalMinutes >= 690) { // 11시간 30분(690분) 이상
           const halfMin = Math.round(totalMinutes / 2);
           const halfStr = formatTime(halfMin);
-          formattedCalcText = `(Duty time ${halfStr})`;
+          formattedCalcText = `Duty time ${halfStr}`;
         } else if (totalMinutes >= 450) { // 7시간 30분(450분) 이상 ~ 11시간 30분 미만
           const twoThirdsMin = Math.round((totalMinutes * 2) / 3);
           const oneThirdMin = Math.round(totalMinutes / 3);
           const twoThirdsStr = formatTime(twoThirdsMin);
           const oneThirdStr = formatTime(oneThirdMin);
-          formattedCalcText = `(Duty Time ${twoThirdsStr} (${oneThirdStr}))`;
+          formattedCalcText = `Duty Time ${twoThirdsStr} (${oneThirdStr})`;
         }
 
         if (formattedCalcText) {
@@ -1973,8 +1973,8 @@ async function runHL(){
               y: annotBaseY,
               font: stdFont,
               fontSize: 9,
-              bgColor: [1.0, 0.45, 0.65],
-              bgOpacity: 0.85
+              bgColor: [0.98, 0.50, 0.35],
+              bgOpacity: 0.75
             });
 
             totalHits++;
