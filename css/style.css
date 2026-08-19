@@ -394,3 +394,20 @@ body{
   color: #fff;
   border-color: #3b82f6;
 }
+
+.survey-btn {
+  font-size: 10px;
+  color: #64748b;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 4px 12px;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  background: #0f172a;
+  transition: all 0.2s;
+}
+.survey-btn:hover {
+  background: #1e293b;
+  color: #3b82f6;
+  border-color: #3b82f6;
+}
