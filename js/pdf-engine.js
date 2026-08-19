@@ -4,6 +4,7 @@
 
 const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE", "WEATHER", "AIR", "ROUTE", "ALTN", "INFO"];
 const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
+const SOURCE_TEXT_CENTER_RATIO = 0.36;
 
 /**
  * 'Duty Time' / Accent Style Badge Drawer
@@ -1066,7 +1067,7 @@ async function runHL(){
                 if (secondLineMaxX === null || itemRightX > secondLineMaxX) secondLineMaxX = itemRightX;
               }
             }
-            const srcMidY = secondLineY + secondLineFS * (0.72 - 0.19) / 2;
+            const srcMidY = secondLineY + secondLineFS * SOURCE_TEXT_CENTER_RATIO;
             const drawX = (secondLineMaxX + 10) * cfpSx;
 
             drawDutyTimeStyleBadge(cfpLibPage, {
@@ -1380,7 +1381,7 @@ async function runHL(){
       }
 
       if (notesY !== null) {
-        const notesMidY = notesY + notesFS * (0.72 - 0.19) / 2;
+        const notesMidY = notesY + notesFS * SOURCE_TEXT_CENTER_RATIO;
         drawDutyTimeStyleBadge(drLibPage, {
           text: `DISC FUEL INFO  ${discFuel}  ${discTime}`,
           x: (notesRightX + 10) * drSx,
@@ -1440,7 +1441,7 @@ async function runHL(){
             const textWidth = stdFont.widthOfTextAtSize(fullText, annotSize);
             const annotStartX = lw - textWidth - 36;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-            const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
+            const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
             drawDutyTimeStyleBadge(libPage, {
               text: fullText,
               x: annotStartX,
@@ -1477,7 +1478,7 @@ async function runHL(){
         const { sx, sy } = pageScaleCache[pi];
         const depAnnotSize = 9;
         const depSrcFS = subAirport.fontSize || 10;
-        const depSrcMidY = subAirport.y * sy + depSrcFS * sy * (0.72 - 0.19) / 2;
+        const depSrcMidY = subAirport.y * sy + depSrcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
         drawDutyTimeStyleBadge(libPages[pi], {
           text: timeText,
@@ -1524,7 +1525,7 @@ async function runHL(){
             const badgeText = `${fromTime} ~ ${toTime}`;
             const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-            const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
+            const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
             const badgeSize = 9;
             const textWidth = stdFont.widthOfTextAtSize(badgeText, badgeSize);
