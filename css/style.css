@@ -396,18 +396,26 @@ body{
 }
 
 .survey-btn {
-  font-size: 10px;
-  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #3b82f6;
   text-decoration: none;
-  font-weight: 600;
-  padding: 4px 12px;
-  border: 1px solid #1e293b;
-  border-radius: 6px;
-  background: #0f172a;
-  transition: all 0.2s;
+  font-weight: 700;
+  padding: 10px 24px;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 10px;
+  background: rgba(59, 130, 246, 0.05);
+  transition: all 0.2s ease;
 }
 .survey-btn:hover {
-  background: #1e293b;
-  color: #3b82f6;
+  background: rgba(59, 130, 246, 0.15);
   border-color: #3b82f6;
+  transform: translateY(-1px);
+}
+.survey-btn svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
 }
