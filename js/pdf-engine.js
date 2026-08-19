@@ -6,18 +6,18 @@ const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE"
 const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
 
 /**
- * 통합 주석 스타일 배지 렌더링 공통 함수
+ * 'Duty Time' 스타일 배지 렌더링 공통 함수
  */
-function drawBadgeAnnotation(libPage, options) {
+function drawDutyTimeStyleBadge(libPage, options) {
   const {
     text,
     x,
     y,
     font,
     fontSize = 9,
-    bgColor = [0.23, 0.51, 0.96], // 통합 기본 스타일 색상 (Sky Blue)
+    bgColor = [0.98, 0.50, 0.35], // Orange-Red Accent (DISC FUEL INFO 스타일 적용)
     textColor = [1.0, 1.0, 1.0], // White
-    bgOpacity = 0.85,
+    bgOpacity = 0.75,
     padH = 4,
     padV = 2.5
   } = options;
@@ -1004,7 +1004,7 @@ async function runHL(){
       }
 
       // =========================================================================
-      // TRIP 비행시간 계산 및 통합 주석 스타일 배지 적용
+      // TRIP 비행시간 계산 및 (Duty time ...) 공통 헬퍼 적용
       // =========================================================================
       const tripMatch = cfpFullTextWithNewlines.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
 
@@ -1023,11 +1023,11 @@ async function runHL(){
 
         if (totalMinutes >= 690) { 
           const halfMin = Math.round(totalMinutes / 2);
-          formattedCalcText = `(Duty time ${formatTime(halfMin)})`;
+          formattedCalcText = `Duty time ${formatTime(halfMin)}`;
         } else if (totalMinutes >= 450) { 
           const twoThirdsMin = Math.round((totalMinutes * 2) / 3);
           const oneThirdMin = Math.round(totalMinutes / 3);
-          formattedCalcText = `(Duty Time ${formatTime(twoThirdsMin)} (${formatTime(oneThirdMin)}))`;
+          formattedCalcText = `Duty Time ${formatTime(twoThirdsMin)} (${formatTime(oneThirdMin)})`;
         }
 
         if (formattedCalcText) {
@@ -1053,15 +1053,15 @@ async function runHL(){
             const annotBaseY = (srcMidY - 9 * (0.72 - 0.19) / 2) * cfpSy;
             const drawX = (secondLineMaxX + 10) * cfpSx;
 
-            // 통합 주석 함수(drawBadgeAnnotation) 적용 및 메인 선택 하이라이트 색상 사용
-            drawBadgeAnnotation(cfpLibPage, {
+            // 공통 함수(drawDutyTimeStyleBadge) 사용
+            drawDutyTimeStyleBadge(cfpLibPage, {
               text: formattedCalcText,
               x: drawX,
               y: annotBaseY,
               font: stdFont,
               fontSize: 9,
-              bgColor: hlRGB, // 선택된 시스템 메인 하이라이트 색상으로 통합
-              bgOpacity: 0.85
+              bgColor: [0.98, 0.50, 0.35], // Orange-Red Accent
+              bgOpacity: 0.75
             });
 
             totalHits++;
@@ -1350,7 +1350,7 @@ async function runHL(){
       }
     }
 
-    // DISC FUEL 배지 통합 함수 사용
+    // DISC FUEL 배지에도 공통 함수 사용
     if (discFuel && discTime && dispatchReleaseIdx !== -1) {
       const drJsPage = await pdfJsDoc.getPage(dispatchReleaseIdx + 1);
       const drContent = await drJsPage.getTextContent();
@@ -1384,7 +1384,7 @@ async function runHL(){
         const notesMidY = notesY + notesFS * (0.72 - 0.19) / 2;
         const annotBaseY = (notesMidY - 9 * (0.72 - 0.19) / 2) * drSy;
 
-        drawBadgeAnnotation(drLibPage, {
+        drawDutyTimeStyleBadge(drLibPage, {
           text: `DISC FUEL INFO  ${discFuel}  ${discTime}`,
           x: (notesRightX + 10) * drSx,
           y: annotBaseY,
@@ -1418,7 +1418,7 @@ async function runHL(){
       }
     }
 
-    // Suitable 시간 배지 통합 함수 사용
+    // Suitable 시간 배지에도 공통 함수 사용
     if (Object.keys(suitableMap).length > 0 && notam1PageIdx !== undefined) {
       const tagRe = /\[\s*(ERA|EDTO|REFILE|\d+\s*%\s*ERA)\s*\]\s*([A-Z]{3,4})\b/gi;
 
@@ -1447,7 +1447,7 @@ async function runHL(){
             const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
             const annotBaseY = srcMidY - annotSize * (0.72 - 0.19) / 2;
 
-            drawBadgeAnnotation(libPage, {
+            drawDutyTimeStyleBadge(libPage, {
               text: fullText,
               x: annotStartX,
               y: annotBaseY,
@@ -1462,7 +1462,7 @@ async function runHL(){
       }
     }
 
-    // DEP/DEST 시간 배지 통합 함수 사용
+    // DEP/DEST 시간 배지에도 공통 함수 사용
     const tagTimeMap = {};
     if (extractedEtd) tagTimeMap['DEP'] = extractedEtd;
     if (extractedEta) tagTimeMap['DEST'] = extractedEta;
@@ -1486,7 +1486,7 @@ async function runHL(){
         const depSrcMidY = subAirport.y * sy + depSrcFS * sy * (0.72 - 0.19) / 2;
         const depBaseY = depSrcMidY - depAnnotSize * (0.72 - 0.19) / 2;
 
-        drawBadgeAnnotation(libPages[pi], {
+        drawDutyTimeStyleBadge(libPages[pi], {
           text: timeText,
           x: (subAirport.maxX + 8) * sx,
           y: depBaseY,
