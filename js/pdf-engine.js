@@ -13,6 +13,7 @@ function drawDutyTimeStyleBadge(libPage, options) {
     text,
     x,
     y,
+    centerY,
     font,
     fontSize = 9,
     bgColor = [0.98, 0.50, 0.35], // Orange-Red Accent
@@ -25,10 +26,11 @@ function drawDutyTimeStyleBadge(libPage, options) {
   const textWidth = font.widthOfTextAtSize(text, fontSize);
   const ascent = fontSize * 0.72;
   const descent = fontSize * 0.19;
+  const textBaseY = centerY === undefined ? y : centerY - (ascent - descent) / 2;
 
   libPage.drawRectangle({
     x: x - padH,
-    y: y - descent - padV,
+    y: textBaseY - descent - padV,
     width: textWidth + padH * 2,
     height: ascent + descent + padV * 2,
     color: PDFLib.rgb(...bgColor),
@@ -37,7 +39,7 @@ function drawDutyTimeStyleBadge(libPage, options) {
 
   libPage.drawText(text, {
     x: x,
-    y: y,
+    y: textBaseY,
     size: fontSize,
     font: font,
     color: PDFLib.rgb(...textColor),
@@ -1065,13 +1067,12 @@ async function runHL(){
               }
             }
             const srcMidY = secondLineY + secondLineFS * (0.72 - 0.19) / 2;
-            const annotBaseY = (srcMidY - 9 * (0.72 - 0.19) / 2) * cfpSy;
             const drawX = (secondLineMaxX + 10) * cfpSx;
 
             drawDutyTimeStyleBadge(cfpLibPage, {
               text: formattedCalcText,
               x: drawX,
-              y: annotBaseY,
+              centerY: srcMidY * cfpSy,
               font: stdFont,
               fontSize: 9,
               bgColor: [0.98, 0.50, 0.35],
@@ -1380,11 +1381,10 @@ async function runHL(){
 
       if (notesY !== null) {
         const notesMidY = notesY + notesFS * (0.72 - 0.19) / 2;
-        const annotBaseY = (notesMidY - 9 * (0.72 - 0.19) / 2) * drSy;
         drawDutyTimeStyleBadge(drLibPage, {
           text: `DISC FUEL INFO  ${discFuel}  ${discTime}`,
           x: (notesRightX + 10) * drSx,
-          y: annotBaseY,
+          centerY: notesMidY * drSy,
           font: stdFont,
           fontSize: 9,
           bgColor: [0.98, 0.50, 0.35],
@@ -1441,11 +1441,10 @@ async function runHL(){
             const annotStartX = lw - textWidth - 36;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
-            const annotBaseY = srcMidY - annotSize * (0.72 - 0.19) / 2;
             drawDutyTimeStyleBadge(libPage, {
               text: fullText,
               x: annotStartX,
-              y: annotBaseY,
+              centerY: srcMidY,
               font: stdFont,
               fontSize: annotSize,
               bgColor: [0.98, 0.50, 0.35],
@@ -1479,12 +1478,11 @@ async function runHL(){
         const depAnnotSize = 9;
         const depSrcFS = subAirport.fontSize || 10;
         const depSrcMidY = subAirport.y * sy + depSrcFS * sy * (0.72 - 0.19) / 2;
-        const depBaseY = depSrcMidY - depAnnotSize * (0.72 - 0.19) / 2;
 
         drawDutyTimeStyleBadge(libPages[pi], {
           text: timeText,
           x: (subAirport.maxX + 8) * sx,
-          y: depBaseY,
+          centerY: depSrcMidY,
           font: stdFont,
           fontSize: depAnnotSize,
           bgColor: [0.98, 0.50, 0.35],
@@ -1527,13 +1525,12 @@ async function runHL(){
             const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
-            const annotBaseY = srcMidY - 9 * (0.72 - 0.19) / 2;
 
             const badgeSize = 9;
             const textWidth = stdFont.widthOfTextAtSize(badgeText, badgeSize);
             expectedBadges.push({
               text: badgeText,
-              y: annotBaseY,
+              centerY: srcMidY,
               size: badgeSize,
               textWidth,
               naturalRightX: (lineMaxX + 12) * sx + textWidth + 4
@@ -1547,7 +1544,7 @@ async function runHL(){
         drawDutyTimeStyleBadge(libPage, {
           text: badge.text,
           x: rightEdge - badge.textWidth - 4,
-          y: badge.y,
+          centerY: badge.centerY,
           font: stdFont,
           fontSize: badge.size,
           bgColor: [0.98, 0.50, 0.35],
