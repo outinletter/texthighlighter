@@ -1510,6 +1510,7 @@ async function runHL(){
       const vp = jsPage.getViewport({ scale: 1.0 });
       const sx = lw / vp.width;
       const sy = lh / vp.height;
+      const expectedBadges = [];
 
       for (const line of lines) {
         let match;
@@ -1523,27 +1524,37 @@ async function runHL(){
 
           if (fromTime && toTime) {
             const badgeText = `${fromTime} ~ ${toTime}`;
+            const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
             const annotBaseY = srcMidY - 9 * (0.72 - 0.19) / 2;
 
             const badgeSize = 9;
-            const badgeWidth = stdFont.widthOfTextAtSize(badgeText, badgeSize) + 8;
-            // 모든 turbulence 시간 배지의 오른쪽 끝을 같은 여백에 정렬한다.
-            const badgeX = lw - badgeWidth - 24;
-            drawDutyTimeStyleBadge(libPage, {
+            const textWidth = stdFont.widthOfTextAtSize(badgeText, badgeSize);
+            expectedBadges.push({
               text: badgeText,
-              x: badgeX,
               y: annotBaseY,
-              font: stdFont,
-              fontSize: badgeSize,
-              bgColor: [0.98, 0.50, 0.35],
-              textColor: [1.0, 1.0, 1.0],
-              bgOpacity: 0.85
+              size: badgeSize,
+              textWidth,
+              naturalRightX: (lineMaxX + 12) * sx + textWidth + 4
             });
-            totalHits++;
           }
         }
+      }
+
+      const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
+      for (const badge of expectedBadges) {
+        drawDutyTimeStyleBadge(libPage, {
+          text: badge.text,
+          x: rightEdge - badge.textWidth - 4,
+          y: badge.y,
+          font: stdFont,
+          fontSize: badge.size,
+          bgColor: [0.98, 0.50, 0.35],
+          textColor: [1.0, 1.0, 1.0],
+          bgOpacity: 0.85
+        });
+        totalHits++;
       }
     }
 
