@@ -1523,14 +1523,14 @@ async function runHL(){
 
           if (fromTime && toTime) {
             const badgeText = `${fromTime} ~ ${toTime}`;
-            const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * (0.72 - 0.19) / 2;
             const annotBaseY = srcMidY - 9 * (0.72 - 0.19) / 2;
 
             const badgeSize = 9;
             const badgeWidth = stdFont.widthOfTextAtSize(badgeText, badgeSize) + 8;
-            const badgeX = Math.min((lineMaxX + 12) * sx, lw - badgeWidth - 24);
+            // 모든 turbulence 시간 배지의 오른쪽 끝을 같은 여백에 정렬한다.
+            const badgeX = lw - badgeWidth - 24;
             drawDutyTimeStyleBadge(libPage, {
               text: badgeText,
               x: badgeX,
