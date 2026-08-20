@@ -366,7 +366,7 @@ async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
 
-  const SENTENCE_KW = ['CLSD', 'CLOSED', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
+  const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
     'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS'];
 
   const runBtn=document.getElementById('runBtn');
