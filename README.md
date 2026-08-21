@@ -21,9 +21,9 @@ NOTAM HIGHLIGHTER detects important operational and weather information in fligh
 *   **색상 변경:** 하단 컬러 칩을 클릭하여 하이라이트 마커의 색상(Blue, Pink, Yellow, Green)을 변경할 수 있습니다.
     
     **Color selection:** Choose Blue, Pink, Yellow, or Green from the color chips.
-*   **전체 선택:** 'Select All NOTAM Keywords' 스위치를 통해 모든 프리셋을 한 번에 활성화할 수 있습니다.
+*   **전체 선택:** 'Select Keywords & Function' 스위치를 통해 모든 프리셋을 한 번에 활성화할 수 있습니다.
     
-    **Select all:** Enable every preset at once with **Select All NOTAM Keywords**.
+    **Select all:** Enable every preset at once with **Select Keywords & Function**.
 *   **기본 동작:** 선택한 프리셋 및 사용자 키워드와 일치하는 단어 범위만 하이라이트합니다.
     
     **Default behavior:** Only the matching word range is highlighted for selected presets and custom words.
