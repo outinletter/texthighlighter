@@ -372,6 +372,10 @@ async function runHL(){
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
   'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS',
   'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF'];
+<<<<<<< HEAD
+=======
+
+>>>>>>> 2d50570 (Apply bold font (Helvetica-Bold) to all annotations and badges across the application)
 
   
   const runBtn=document.getElementById('runBtn');
@@ -407,6 +411,7 @@ async function runHL(){
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
     const libPages=pdfLibDoc.getPages();
     const stdFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+    const boldFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
 
     const BOOKMARK_PATTERNS=[
       {label:'CFP PLAN',pattern:/CFP\s+PLAN/i},
@@ -1020,7 +1025,7 @@ async function runHL(){
               text: formattedCalcText,
               x: drawX,
               centerY: srcMidY * cfpSy,
-              font: stdFont,
+              font: boldFont,
               fontSize: 9,
               bgColor: [0.88, 0.90, 0.93],
               bgOpacity: 0.75
@@ -1280,7 +1285,7 @@ async function runHL(){
             let cur = '';
             for (const w of words) {
               const test = cur ? cur + ' ' + w : w;
-              if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
+              if (boldFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
               else { if (cur) rLines.push(cur); cur = w; }
             }
             if (cur) rLines.push(cur);
@@ -1288,7 +1293,7 @@ async function runHL(){
             for (let li = 0; li < rLines.length; li++) {
               coaLibPage.drawText(rLines[li], {
                 x: rStartX, y: rStartY - li * lineH,
-                size: rSize, font: stdFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
+                size: rSize, font: boldFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
               });
             }
           }
@@ -1332,7 +1337,7 @@ async function runHL(){
           text: `DISC FUEL INFO  ${discFuel}  ${discTime}`,
           x: (notesRightX + 10) * drSx,
           centerY: notesMidY * drSy,
-          font: stdFont,
+          font: boldFont,
           fontSize: 9,
           bgColor: [0.88, 0.90, 0.93],
           bgOpacity: 0.75
@@ -1384,7 +1389,7 @@ async function runHL(){
             if (!suitableMap[airport]) continue;
             const annotSize = 9;
             const fullText = `${airport} ${suitableMap[airport]}`;
-            const textWidth = stdFont.widthOfTextAtSize(fullText, annotSize);
+            const textWidth = boldFont.widthOfTextAtSize(fullText, annotSize);
             const annotStartX = lw - textWidth - 36;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
@@ -1392,7 +1397,7 @@ async function runHL(){
               text: fullText,
               x: annotStartX,
               centerY: srcMidY,
-              font: stdFont,
+              font: boldFont,
               fontSize: annotSize,
               bgColor: [0.88, 0.90, 0.93],
               bgOpacity: 0.75
@@ -1430,7 +1435,7 @@ async function runHL(){
           text: timeText,
           x: (subAirport.maxX + 8) * sx,
           centerY: depSrcMidY,
-          font: stdFont,
+          font: boldFont,
           fontSize: depAnnotSize,
           bgColor: [0.88, 0.90, 0.93],
           bgOpacity: 0.75
@@ -1474,7 +1479,7 @@ async function runHL(){
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
             const badgeSize = 9;
-            const textWidth = stdFont.widthOfTextAtSize(badgeText, badgeSize);
+            const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
             expectedBadges.push({
               text: badgeText,
               centerY: srcMidY,
@@ -1492,7 +1497,7 @@ async function runHL(){
           text: badge.text,
           x: rightEdge - badge.textWidth - 4,
           centerY: badge.centerY,
-          font: stdFont,
+          font: boldFont,
           fontSize: badge.size,
           bgColor: [0.88, 0.90, 0.93],
           bgOpacity: 0.85
