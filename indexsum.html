@@ -1170,7 +1170,7 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
 
 async function extractMetadata(pdfJsDoc) {
   try {
-    const scanPages = Math.min(5, pdfJsDoc.numPages);
+    const scanPages = Math.min(10, pdfJsDoc.numPages);
     let combinedText = '';
     for (let p = 1; p <= scanPages; p++) {
       const pg = await pdfJsDoc.getPage(p);
@@ -1188,7 +1188,7 @@ async function extractMetadata(pdfJsDoc) {
       extractedFlightNum = carrier + num;
     }
 
-    const acRegMatch = decodedText.match(/\bHL\d{4}\b/i);
+    const acRegMatch = decodedText.match(/\bHL[0-9]{4,5}\b/i);
     if (acRegMatch) {
       extractedAcReg = acRegMatch[0].toUpperCase();
     }

@@ -303,7 +303,7 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
 
 async function extractMetadata(pdfJsDoc) {
   try {
-    const scanPages = Math.min(5, pdfJsDoc.numPages);
+    const scanPages = Math.min(10, pdfJsDoc.numPages);
     let combinedText = '';
     for (let p = 1; p <= scanPages; p++) {
       const pg = await pdfJsDoc.getPage(p);
@@ -317,8 +317,11 @@ async function extractMetadata(pdfJsDoc) {
     const flightMatch = decodedText.match(/\b(KAL|KE|KAL\s+|KE\s*)(\d{3,4})\b/i);
     if (flightMatch) extractedFlightNum = flightMatch[1].trim().toUpperCase() + flightMatch[2];
 
-    const acRegMatch = decodedText.match(/\bHL\d{4}\b/i);
-    if (acRegMatch) extractedAcReg = acRegMatch[0].toUpperCase();
+    // 기번 패턴 검색 강화: HL + 4자리 숫자 (또는 경우에 따라 5자리)
+    const acRegMatch = decodedText.match(/\bHL[0-9]{4,5}\b/i);
+    if (acRegMatch) {
+      extractedAcReg = acRegMatch[0].toUpperCase();
+    }
 
     const monthsMap = {
       jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
