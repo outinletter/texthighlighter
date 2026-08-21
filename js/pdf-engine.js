@@ -470,7 +470,8 @@ async function runHL(){
 
     let totalHits=0;
 
-    if(sel.size>0 || bmEnabled){
+    // 하이라이트 레이어 및 검색 레이어 생성 (키워드 선택 시에만 동작)
+    if(sel.size > 0){
       setStatus('processing','Calculating highlight positions and drawing...');
       for(let pi=0;pi<numPages;pi++){
         const jsPage=await pdfJsDoc.getPage(pi+1);
@@ -811,69 +812,6 @@ async function runHL(){
                   totalHits++;
                 }
               }
-            }
-          }
-        }
-      }
-    }
-
-    // 기번 하이라이트 추가 로직도 키워드 선택 시에만 동작하도록 제한
-    if (sel.size > 0 && extractedAcReg) {
-      const regAlnum = extractedAcReg ? extractedAcReg.replace(/[^A-Z0-9]/g, '') : '';
-      const regEsc = regAlnum ? regAlnum.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
-      for (let pi = 0; pi < numPages; pi++) {
-        const aJsPage = await pdfJsDoc.getPage(pi + 1);
-        const aVp = aJsPage.getViewport({ scale: 1.0 });
-        const aLibPage = libPages[pi];
-        const { width: aLw, height: aLh } = aLibPage.getSize();
-        const aSx = aLw / aVp.width;
-        const aSy = aLh / aVp.height;
-        const aContent = await aJsPage.getTextContent();
-        const aRaw = aContent.items.map(it => it.str).join(' ');
-        const aOff = detectPageOffset(aRaw);
-        const aLines = groupTextItemsByLine(aContent.items, aOff);
-        for (const aLine of aLines) {
-          const lineItems = aLine.items;
-          const cm = [];
-          for (let i = 0; i < lineItems.length; i++) {
-            const dec = cleanAndDecodeItem(lineItems[i].str, aOff) || '';
-            if (i > 0) cm.push({ sep: true });
-            for (let ci = 0; ci < dec.length; ci++) cm.push({ ii: i, ci, ch: dec[ci] });
-          }
-          const lineRaw = cm.map(m => m.sep ? ' ' : m.ch).join('');
-          const clean = lineRaw.replace(/[^A-Za-z0-9]/g, ' ');
-          const applyHl = (s, e, color, opacity) => {
-            const buckets = {};
-            for (let c = s; c < e; c++) {
-              const m = cm[c];
-              if (m && !m.sep) { if (!buckets[m.ii]) buckets[m.ii] = []; buckets[m.ii].push(m.ci); }
-            }
-            for (const [iiStr, cis] of Object.entries(buckets)) {
-              const ii = +iiStr;
-              const minC = Math.min(...cis), maxC = Math.max(...cis);
-              const it = lineItems[ii];
-              drawCharRangeHighlight(aLibPage, it, minC, maxC, aSx, aSy, aOff, color, opacity);
-              totalHits++;
-            }
-          };
-          if (regEsc) {
-            const lineUpper = lineRaw.toUpperCase().replace(/\s+/g, '');
-            let isRouteLine = false;
-            for (const pair of [detectedAirports, iataAirports]) {
-              if (pair.length === 2) {
-                const a = pair[0].toUpperCase(), b = pair[1].toUpperCase();
-                if (lineUpper.includes(`${a}/${b}`) || lineUpper.includes(`${a}-${b}`) ||
-                    lineUpper.includes(`${a}TO${b}`) || lineUpper.includes(`${a}${b}`)) {
-                  isRouteLine = true;
-                  break;
-                }
-              }
-            }
-            if (!isRouteLine) {
-              let re; try { re = new RegExp(`\\b${regEsc}\\b`, 'gi'); } catch(e) { re = new RegExp(regEsc, 'gi'); }
-              let m;
-              while ((m = re.exec(clean)) !== null)
-                applyHl(m.index, m.index + m[0].length, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
             }
           }
         }
