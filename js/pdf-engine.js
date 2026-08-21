@@ -469,7 +469,7 @@ async function runHL(){
 
     let totalHits=0;
 
-    if(sel.size>0){
+    if(sel.size>0 || bmEnabled){
       setStatus('processing','Calculating highlight positions and drawing...');
       for(let pi=0;pi<numPages;pi++){
         const jsPage=await pdfJsDoc.getPage(pi+1);

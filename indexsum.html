@@ -494,7 +494,7 @@ body{
             <span style="font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 8px;">
               (
               <label class="toggle toggle-small" style="display: inline-flex; margin: 0 6px; vertical-align: middle;"><input type="checkbox" id="bmEnabled"><span class="slider"></span></label>
-              <span style="vertical-align: middle;">Bookmarks Only</span>
+              <span style="vertical-align: middle;">Only Bookmark & Annotation</span>
               )
             </span>
           </span>
@@ -1343,7 +1343,7 @@ async function runHL(){
 
     let totalHits=0;
 
-    if(sel.size>0){
+    if(sel.size>0 || bmEnabled){
       setStatus('processing','Calculating highlight positions and drawing...');
 
     for(let pi=0;pi<numPages;pi++){
