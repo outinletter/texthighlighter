@@ -1278,6 +1278,7 @@ async function runHL(){
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
     const libPages=pdfLibDoc.getPages();
     const stdFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+    const boldFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
 
     const BOOKMARK_PATTERNS=[
       {label:'CFP PLAN',pattern:/CFP\s+PLAN/i},
@@ -1379,7 +1380,7 @@ async function runHL(){
                 x: rx,
                 y: ry,
                 size: itemH * sy,
-                font: stdFont,
+                font: boldFont,
                 color: PDFLib.rgb(0, 0, 0),
                 opacity: 0.0 
               });
@@ -1975,7 +1976,7 @@ async function runHL(){
               text: formattedCalcText,
               x: drawX,
               y: annotBaseY,
-              font: stdFont,
+              font: boldFont,
               fontSize: 9,
               bgColor: [0.98, 0.50, 0.35],
               bgOpacity: 0.75
@@ -2278,7 +2279,7 @@ async function runHL(){
             let cur = '';
             for (const w of words) {
               const test = cur ? cur + ' ' + w : w;
-              if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) {
+              if (boldFont.widthOfTextAtSize(test, rSize) <= rMaxW) {
                 cur = test;
               } else {
                 if (cur) rLines.push(cur);
@@ -2293,7 +2294,7 @@ async function runHL(){
                 x: rStartX,
                 y: rStartY - li * lineH,
                 size: rSize,
-                font: stdFont,
+                font: boldFont,
                 color: PDFLib.rgb(1, 0, 0),
                 opacity: 0.7
               });
@@ -2342,7 +2343,7 @@ async function runHL(){
           text: discText,
           x: (notesRightX + 10) * drSx,
           y: annotBaseY,
-          font: stdFont,
+          font: boldFont,
           fontSize: 9,
           bgColor: [0.98, 0.50, 0.35],
           bgOpacity: 0.75
@@ -2394,7 +2395,7 @@ async function runHL(){
             if (!suitableMap[airport]) continue;
             const annotSize = 9;
             const fullText = `${airport} ${suitableMap[airport]}`;
-            const textWidth = stdFont.widthOfTextAtSize(fullText, annotSize);
+            const textWidth = boldFont.widthOfTextAtSize(fullText, annotSize);
             const rightMargin = 36;
             const annotStartX = lw - textWidth - rightMargin;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
@@ -2405,7 +2406,7 @@ async function runHL(){
               text: fullText,
               x: annotStartX,
               y: annotBaseY,
-              font: stdFont,
+              font: boldFont,
               fontSize: annotSize,
               bgColor: [0.98, 0.50, 0.35],
               bgOpacity: 0.75
@@ -2443,7 +2444,7 @@ async function runHL(){
           text: timeText,
           x: (subAirport.maxX + 8) * sx,
           y: depBaseY,
-          font: stdFont,
+          font: boldFont,
           fontSize: depAnnotSize,
           bgColor: [0.98, 0.50, 0.35],
           bgOpacity: 0.75
@@ -2488,7 +2489,7 @@ async function runHL(){
               text: badgeText,
               x: (lineMaxX + 12) * sx,
               y: annotBaseY,
-              font: stdFont,
+              font: boldFont,
               fontSize: 9,
               bgColor: [0.98, 0.50, 0.35],
               textColor: [1.0, 1.0, 1.0],
