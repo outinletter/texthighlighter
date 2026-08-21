@@ -381,7 +381,8 @@ async function runHL(){
 
   try {
     const extraKws = [];
-    if (extractedAcReg) extraKws.push(extractedAcReg);
+    // 기번(AcReg) 하이라이트는 키워드 하이라이트가 활성화된 경우에만 포함
+    if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
     const keywords=[...sel, ...extraKws].sort((a,b)=>b.length-a.length);
     const hlRGB = activeHlColorRGB;
 
@@ -816,7 +817,8 @@ async function runHL(){
       }
     }
 
-    if (extractedAcReg) {
+    // 기번 하이라이트 추가 로직도 키워드 선택 시에만 동작하도록 제한
+    if (sel.size > 0 && extractedAcReg) {
       const regAlnum = extractedAcReg ? extractedAcReg.replace(/[^A-Z0-9]/g, '') : '';
       const regEsc = regAlnum ? regAlnum.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
       for (let pi = 0; pi < numPages; pi++) {
