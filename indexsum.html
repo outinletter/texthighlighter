@@ -1256,12 +1256,6 @@ async function runHL(){
   await new Promise(r=>setTimeout(r,50));
 
   try {
-    const extraKws = [];
-    // 기번(AcReg) 하이라이트는 키워드 하이라이트가 활성화된 경우에만 포함
-    if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
-    const keywords=[...sel, ...extraKws].sort((a,b)=>b.length-a.length);
-    const hlRGB = activeHlColorRGB;
-
     let pdfJsDoc;
     try {
       pdfJsDoc = await pdfjsLib.getDocument({data:pdfBytes.buffer.slice(0)}).promise;
@@ -1269,14 +1263,21 @@ async function runHL(){
       pdfjsLib.GlobalWorkerOptions.workerSrc = '';
       pdfJsDoc = await pdfjsLib.getDocument({data:pdfBytes.buffer.slice(0)}).promise;
     }
-    
+
+    // 메타데이터(기번 등)를 먼저 추출해야 하이라이트 키워드 목록에 포함 가능
+    detectedAirports = await extractReleaseAirportsByRule2(pdfJsDoc);
+    await extractMetadata(pdfJsDoc);
+
+    const extraKws = [];
+    // 기번(AcReg) 하이라이트는 키워드 하이라이트가 활성화된 경우에만 포함
+    if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
+    const keywords=[...sel, ...extraKws].sort((a,b)=>b.length-a.length);
+    const hlRGB = activeHlColorRGB;
+
     const numPages=pdfJsDoc.numPages;
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
     const libPages=pdfLibDoc.getPages();
     const stdFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-
-    detectedAirports = await extractReleaseAirportsByRule2(pdfJsDoc);
-    await extractMetadata(pdfJsDoc);
 
     const BOOKMARK_PATTERNS=[
       {label:'CFP PLAN',pattern:/CFP\s+PLAN/i},
