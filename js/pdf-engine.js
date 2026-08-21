@@ -17,7 +17,7 @@ function drawDutyTimeStyleBadge(libPage, options) {
     centerY,
     font,
     fontSize = 8.5,
-    bgColor = [0.88, 0.90, 0.93], // Pale gray
+    bgColor = [0.75, 0.77, 0.80], // Moderate gray (Slightly darker than before)
     textColor = [0.15, 0.20, 0.25], // Slightly softened navy
     bgOpacity = 0.75,
     padH = 4,
