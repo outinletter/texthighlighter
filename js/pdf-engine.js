@@ -370,8 +370,10 @@ async function runHL(){
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
 
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
-    'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS'];
+  'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS',
+  'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXPECT', 'EXP', 'CAUTION', 'AWARE OF'];
 
+  
   const runBtn=document.getElementById('runBtn');
   runBtn.className='action-btn run-btn';
   runBtn.innerHTML='Processing locally...';
