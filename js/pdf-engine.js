@@ -162,42 +162,38 @@ function cleanAndDecodeItem(str, offset) {
   return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
 }
 
-// 비례폭 폰트(POM 등 일반 매뉴얼) 대응: 문자별 상대폭 근사 테이블 (Helvetica 계열 기준)
-const CHAR_WIDTH_TABLE = {
-  'i':0.28,'l':0.28,'I':0.28,'j':0.28,'f':0.33,'t':0.33,'r':0.35,
-  '.':0.28,',':0.28,"'":0.28,':':0.28,';':0.28,'!':0.28,' ':0.28,
-  'm':0.83,'w':0.72,'M':0.83,'W':1.0
-};
-const DEFAULT_CHAR_WIDTH = 0.56;
-
-function computeCharWeights(str){
-  const weights = [];
-  let sum = 0;
-  for (let i = 0; i < str.length; i++) {
-    const w = CHAR_WIDTH_TABLE[str[i]] !== undefined ? CHAR_WIDTH_TABLE[str[i]] : DEFAULT_CHAR_WIDTH;
-    weights.push(w);
-    sum += w;
-  }
-  return { weights, sum: sum || Math.max(str.length, 1) };
-}
-
-function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity) {
+function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity, font) {
   const s = cleanAndDecodeItem(item.str, pageOffset) || '';
   const tx = item.transform;
-  const itemW = item.width || 0;
-  const itemH = Math.abs(tx[3]) || 10;
-  const { weights, sum } = computeCharWeights(s);
-  let beforeW = 0;
-  for (let i = 0; i < minCharIdx; i++) beforeW += weights[i] || DEFAULT_CHAR_WIDTH;
-  let matchW = 0;
-  for (let i = minCharIdx; i <= maxCharIdx; i++) matchW += weights[i] || DEFAULT_CHAR_WIDTH;
-  const startX = tx[4] + (beforeW / sum) * itemW;
-  const rectW = (matchW / sum) * itemW;
+  const fontSize = Math.abs(tx[3]) || 10;
+  const itemWidth = item.width || 0;
+
+  // Use font metrics if available, fallback to average width
+  let startXOffset = 0;
+  let actualHlWidth = 0;
+
+  if (font && s.length > 0) {
+    const fullMeasuredW = font.widthOfTextAtSize(s, fontSize);
+    const prefixMeasuredW = font.widthOfTextAtSize(s.substring(0, minCharIdx), fontSize);
+    const matchMeasuredW = font.widthOfTextAtSize(s.substring(minCharIdx, maxCharIdx + 1), fontSize);
+
+    if (fullMeasuredW > 0) {
+      startXOffset = (prefixMeasuredW / fullMeasuredW) * itemWidth;
+      actualHlWidth = (matchMeasuredW / fullMeasuredW) * itemWidth;
+    } else {
+      startXOffset = (itemWidth / s.length) * minCharIdx;
+      actualHlWidth = (itemWidth / s.length) * (maxCharIdx - minCharIdx + 1);
+    }
+  } else {
+    startXOffset = (itemWidth / Math.max(s.length, 1)) * minCharIdx;
+    actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
+  }
+
   page.drawRectangle({
-    x: startX * sx,
-    y: tx[5] * sy - itemH * sy * 0.2,
-    width: Math.max(rectW * sx, 4),
-    height: Math.max(itemH * sy * 1.2, 8),
+    x: (tx[4] + startXOffset) * sx - 1,
+    y: (tx[5] * sy) - (fontSize * sy * 0.15),
+    width: Math.max(actualHlWidth * sx + 2, 4),
+    height: Math.max(fontSize * sy * 1.15, 8),
     color, opacity
   });
 }
@@ -640,24 +636,29 @@ async function runHL(){
                   const itemX = tx[4], itemY = tx[5];
                   const itemW = item.width || 0;
                   const itemH = Math.abs(tx[3]) || 10;
-                  const { weights, sum } = computeCharWeights(s);
 
-                  const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
-                  if (idx !== -1) {
-                    let beforeW = 0;
-                    for (let i = 0; i < idx; i++) beforeW += weights[i] || DEFAULT_CHAR_WIDTH;
-                    let matchW = 0;
-                    for (let i = idx; i < idx + targetWord.length; i++) matchW += weights[i] || DEFAULT_CHAR_WIDTH;
-                    const rx = (itemX + (beforeW / sum) * itemW) * sx;
-                    const ry = itemY * sy;
-                    const rw = (matchW / sum) * itemW * sx;
-                    const rh = itemH * sy;
+                const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
+                if (idx !== -1) {
+                  const fullMeasuredW = stdFont.widthOfTextAtSize(s, itemH);
+                  const prefixMeasuredW = stdFont.widthOfTextAtSize(s.substring(0, idx), itemH);
+                  const matchMeasuredW = stdFont.widthOfTextAtSize(s.substring(idx, idx + targetWord.length), itemH);
 
-                    libPage.drawRectangle({
-                      x: rx, y: ry - (rh * 0.2),
-                      width: Math.max(rw, 4), height: Math.max(rh * 1.2, 8),
-                      color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                      opacity: 0.25
+                  const startXOffset = fullMeasuredW > 0 ? (prefixMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * idx;
+                  const actualHlWidth = fullMeasuredW > 0 ? (matchMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * targetWord.length;
+
+                  const rx = (itemX + startXOffset) * sx;
+                  const ry = itemY * sy;
+                  const rw = actualHlWidth * sx;
+                  const rh = itemH * sy;
+
+                  libPage.drawRectangle({
+                    x: rx - 1, y: ry - (rh * 0.15),
+                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.15, 8),
+                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                    opacity: 0.25
+                  });
+                  totalHits++;
+                }
                     });
                     totalHits++;
                   }
@@ -732,7 +733,7 @@ async function runHL(){
                 const maxCharIdx = Math.max(...charIndices);
                 const item = lineItems[itemIdx];
                 drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
                 totalHits++;
               }
             }
@@ -761,7 +762,7 @@ async function runHL(){
                 const maxCharIdx = Math.max(...charIndices);
                 const item = lineItems[itemIdx];
                 drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
                 totalHits++;
               }
             }
