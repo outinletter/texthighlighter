@@ -1527,16 +1527,21 @@ async function runHL(){
                 
                 const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
                 if (idx !== -1) {
-                  const rx = (itemX + idx * charW) * sx;
+                  const fullMeasuredW = stdFont.widthOfTextAtSize(s, itemH);
+                  const prefixMeasuredW = stdFont.widthOfTextAtSize(s.substring(0, idx), itemH);
+                  const matchMeasuredW = stdFont.widthOfTextAtSize(s.substring(idx, idx + targetWord.length), itemH);
+
+                  const startXOffset = fullMeasuredW > 0 ? (prefixMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * idx;
+                  const actualHlWidth = fullMeasuredW > 0 ? (matchMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * targetWord.length;
+
+                  const rx = (itemX + startXOffset) * sx;
                   const ry = itemY * sy;
-                  const rw = targetWord.length * charW * sx;
+                  const rw = actualHlWidth * sx;
                   const rh = itemH * sy;
-                  
+
                   libPage.drawRectangle({
-                    x: rx,
-                    y: ry - (rh * 0.2), 
-                    width: Math.max(rw, 4),
-                    height: Math.max(rh * 1.2, 8), 
+                    x: rx - 1, y: ry - (rh * 0.15),
+                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.15, 8),
                     color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
                     opacity: 0.25
                   });

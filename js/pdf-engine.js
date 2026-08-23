@@ -659,9 +659,6 @@ async function runHL(){
                   });
                   totalHits++;
                 }
-                    });
-                    totalHits++;
-                  }
                 }
               }
             }
