@@ -1595,6 +1595,13 @@ async function runHL(){
               }
             }
 
+            if (kw.toUpperCase() === 'MAY') {
+              const beforeCtx = cleanLineText.slice(Math.max(0, startIdx - 6), startIdx);
+              const afterCtx = cleanLineText.slice(endIdx, endIdx + 6);
+              const isDateCtx = /\d\s*[A-Z]{0,2}\s*$/i.test(beforeCtx) || /^\s*\d/.test(afterCtx);
+              if (isDateCtx) continue;
+            }
+
             const itemMatches = {};
             for (let c = startIdx; c < endIdx; c++) {
               const map = charMapping[c];

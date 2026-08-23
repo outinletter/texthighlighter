@@ -168,7 +168,7 @@ function toggleDD(){
 
 function addCustom(){
   const inp=document.getElementById('cwInput');
-  const words = inp.value.split(/[\s,]+/).map(w=>w.trim().toUpperCase()).filter(w=>w);
+  const words = inp.value.split(/,+/).map(w=>w.trim().toUpperCase()).filter(w=>w);
 
   words.forEach(w => {
     // custom 배열에 없으면 추가 (화면 태그 표시용)

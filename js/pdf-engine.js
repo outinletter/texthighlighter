@@ -162,19 +162,46 @@ function cleanAndDecodeItem(str, offset) {
   return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
 }
 
+// 비례폭 폰트(POM 등 일반 매뉴얼) 대응: 문자별 상대폭 근사 테이블 (Helvetica 계열 기준)
+const CHAR_WIDTH_TABLE = {
+  'i':0.28,'l':0.28,'I':0.28,'j':0.28,'f':0.33,'t':0.33,'r':0.35,
+  '.':0.28,',':0.28,"'":0.28,':':0.28,';':0.28,'!':0.28,' ':0.28,
+  'm':0.83,'w':0.72,'M':0.83,'W':1.0
+};
+const DEFAULT_CHAR_WIDTH = 0.56;
+
+function computeCharWeights(str){
+  const weights = [];
+  let sum = 0;
+  for (let i = 0; i < str.length; i++) {
+    const w = CHAR_WIDTH_TABLE[str[i]] !== undefined ? CHAR_WIDTH_TABLE[str[i]] : DEFAULT_CHAR_WIDTH;
+    weights.push(w);
+    sum += w;
+  }
+  return { weights, sum: sum || Math.max(str.length, 1) };
+}
+
 function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity) {
   const s = cleanAndDecodeItem(item.str, pageOffset) || '';
   const tx = item.transform;
-  const charW = (item.width || 0) / Math.max(s.length, 1);
+  const itemW = item.width || 0;
   const itemH = Math.abs(tx[3]) || 10;
+  const { weights, sum } = computeCharWeights(s);
+  let beforeW = 0;
+  for (let i = 0; i < minCharIdx; i++) beforeW += weights[i] || DEFAULT_CHAR_WIDTH;
+  let matchW = 0;
+  for (let i = minCharIdx; i <= maxCharIdx; i++) matchW += weights[i] || DEFAULT_CHAR_WIDTH;
+  const startX = tx[4] + (beforeW / sum) * itemW;
+  const rectW = (matchW / sum) * itemW;
   page.drawRectangle({
-    x: (tx[4] + minCharIdx * charW) * sx,
+    x: startX * sx,
     y: tx[5] * sy - itemH * sy * 0.2,
-    width: Math.max((maxCharIdx - minCharIdx + 1) * charW * sx, 4),
+    width: Math.max(rectW * sx, 4),
     height: Math.max(itemH * sy * 1.2, 8),
     color, opacity
   });
 }
+
 
 async function extractReleaseAirportsByRule2(pdfJsDoc) {
   const airports = [];
@@ -613,13 +640,17 @@ async function runHL(){
                   const itemX = tx[4], itemY = tx[5];
                   const itemW = item.width || 0;
                   const itemH = Math.abs(tx[3]) || 10;
-                  const charW = itemW / Math.max(s.length, 1);
+                  const { weights, sum } = computeCharWeights(s);
 
                   const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
                   if (idx !== -1) {
-                    const rx = (itemX + idx * charW) * sx;
+                    let beforeW = 0;
+                    for (let i = 0; i < idx; i++) beforeW += weights[i] || DEFAULT_CHAR_WIDTH;
+                    let matchW = 0;
+                    for (let i = idx; i < idx + targetWord.length; i++) matchW += weights[i] || DEFAULT_CHAR_WIDTH;
+                    const rx = (itemX + (beforeW / sum) * itemW) * sx;
                     const ry = itemY * sy;
-                    const rw = targetWord.length * charW * sx;
+                    const rw = (matchW / sum) * itemW * sx;
                     const rh = itemH * sy;
 
                     libPage.drawRectangle({
@@ -679,6 +710,12 @@ async function runHL(){
               if (kw.toUpperCase() === 'MEL' || kw.toUpperCase() === 'CDL') {
                 if (lineTextFromMapping[startIdx - 1] === '/' || lineTextFromMapping[endIdx] === '/') continue;
               }
+            if (kw.toUpperCase() === 'MAY') {
+                const beforeCtx = cleanLineText.slice(Math.max(0, startIdx - 6), startIdx);
+                const afterCtx = cleanLineText.slice(endIdx, endIdx + 6);
+                const isDateCtx = /\d\s*[A-Z]{0,2}\s*$/i.test(beforeCtx) || /^\s*\d/.test(afterCtx);
+                if (isDateCtx) continue;
+            }
               const itemMatches = {};
               for (let c = startIdx; c < endIdx; c++) {
                 const map = charMapping[c];
