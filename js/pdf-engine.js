@@ -388,6 +388,86 @@ function buildWptTimeMap(fullPdfText) {
   return wptTimeMap;
 }
 
+async function generateAIBriefing(fullText) {
+  const card = document.getElementById('briefingCard');
+  const content = document.getElementById('briefingContent');
+  card.style.display = 'block';
+  content.innerHTML = `
+    <div class="loading-briefing">
+      <div class="spinner"></div>
+      <span>Analyzing documents for safety threats...</span>
+    </div>
+  `;
+
+  try {
+    const response = await fetch('/api/briefing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ofpText: fullText })
+    });
+
+    if (!response.ok) throw new Error('Failed to fetch AI briefing');
+
+    const data = await response.json();
+    const briefingText = data.briefingText;
+
+    // Parse the card-based markdown
+    const sections = briefingText.split(/---+\n?/).filter(s => s.trim());
+    let html = '';
+
+    sections.forEach(section => {
+      const lines = section.trim().split('\n');
+      const titleLine = lines[0].trim();
+      const bodyLines = lines.slice(1);
+
+      // Check for Overall Risk to apply specific styling
+      let riskClass = '';
+      if (section.includes('🔴')) riskClass = 'briefing-risk-critical';
+      else if (section.includes('🟠')) riskClass = 'briefing-risk-high';
+      else if (section.includes('🟡')) riskClass = 'briefing-risk-medium';
+      else if (section.includes('🟢')) riskClass = 'briefing-risk-low';
+      else if (section.includes('🟣')) riskClass = 'briefing-risk-info';
+
+      if (titleLine.startsWith('## ') || titleLine.startsWith('### ')) {
+        const cleanTitle = titleLine.replace(/^#+\s*/, '');
+        html += `
+          <div class="briefing-card-item ${riskClass}">
+            <div class="briefing-card-header">${cleanTitle}</div>
+            <div class="briefing-card-body">
+              ${bodyLines.map(line => {
+                line = line.trim();
+                if (line.startsWith('> ')) {
+                  return `<div style="margin-top:8px; font-weight:700; color:#fff;">${line.substring(2)}</div>`;
+                }
+                if (line.startsWith('- ')) {
+                  return `<div style="margin-left:12px; margin-top:4px;">• ${line.substring(2)}</div>`;
+                }
+                if (line.match(/^\d+\./)) {
+                  return `<div style="margin-top:6px;">${line}</div>`;
+                }
+                return `<div>${line}</div>`;
+              }).join('')}
+            </div>
+          </div>
+        `;
+      } else {
+        // Fallback for sections without clear header line
+         html += `
+          <div class="briefing-card-item ${riskClass}">
+            <div class="briefing-card-body">
+              ${lines.map(line => `<div>${line.trim()}</div>`).join('')}
+            </div>
+          </div>
+        `;
+      }
+    });
+
+    content.innerHTML = html;
+  } catch (err) {
+    content.innerHTML = `<div style="color:#ef4444; padding:20px; text-align:center;">Briefing Error: ${err.message}</div>`;
+  }
+}
+
 async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
@@ -444,21 +524,33 @@ async function runHL(){
 
     const bmPages={};
     let edtoBookmarkY = null;
+    let coaAnnotIdx = -1; // Added to track page with SUBMITTED AT for COPY OF ATS FPL
 
+    let allExtractedText = "";
     for(let pi=0;pi<numPages;pi++){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
       const tc=await jsPage2.getTextContent();
       const rawText=tc.items.map(it=>it.str).join(' ');
       const offset = detectPageOffset(rawText);
       const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
+      allExtractedText += `\n--- PAGE ${pi+1} ---\n` + pageText;
 
       for(const bm of BOOKMARK_PATTERNS){
-        if(bmPages[bm.label]!==undefined)continue;
+        if(bmPages[bm.label]!==undefined) {
+            // Special handling for COPY OF ATS FPL to find the page with SUBMITTED AT
+            if (bm.label === 'COPY OF ATS' && coaAnnotIdx === -1) {
+                if (/SUBMITTED\s+AT/i.test(pageText)) coaAnnotIdx = pi;
+            }
+            continue;
+        }
         if(bm.pattern.test(pageText)){
           bmPages[bm.label]=pi;
           if (bm.label === 'EQUAL TIME POINT DATA') {
             const matchItem = tc.items.find(it => /EQUAL/i.test(cleanAndDecodeItem(it.str, offset)));
             if (matchItem) edtoBookmarkY = matchItem.transform[5];
+          }
+          if (bm.label === 'COPY OF ATS') {
+            if (/SUBMITTED\s+AT/i.test(pageText)) coaAnnotIdx = pi;
           }
         }
       }
@@ -940,9 +1032,13 @@ async function runHL(){
 
     const cfpPageIdx = bmPages['CFP PLAN'];
     const resolvedCoaPageIdx = bmPages['COPY OF ATS'] !== undefined ? bmPages['COPY OF ATS'] : -1;
+
+    // Final target page for COA annotations (where SUBMITTED AT is)
+    const finalCoaAnnotIdx = coaAnnotIdx !== -1 ? coaAnnotIdx : resolvedCoaPageIdx;
+
     let foundCoaPageOffset = 0;
-    if (resolvedCoaPageIdx !== -1) {
-      const coaRawPage = await pdfJsDoc.getPage(resolvedCoaPageIdx + 1);
+    if (finalCoaAnnotIdx !== -1) {
+      const coaRawPage = await pdfJsDoc.getPage(finalCoaAnnotIdx + 1);
       const coaRawContent = await coaRawPage.getTextContent();
       foundCoaPageOffset = detectPageOffset(coaRawContent.items.map(it => it.str).join(' '));
     }
@@ -982,9 +1078,11 @@ async function runHL(){
         ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
           .filter(idx => idx !== -1 && idx > cfpPageIdx)
       );
+      // Fallback: If no other section found after CFP, scan at most 20 pages
+      const safeCfpEndIdx = (cfpEndIdx === numPages || cfpEndIdx <= cfpPageIdx) ? Math.min(numPages, cfpPageIdx + 20) : cfpEndIdx;
 
       let cfpFullSectionText = "";
-      for (let pi = cfpPageIdx; pi < cfpEndIdx; pi++) {
+      for (let pi = cfpPageIdx; pi < safeCfpEndIdx; pi++) {
         const p = await pdfJsDoc.getPage(pi + 1);
         const tc = await p.getTextContent();
         const raw = tc.items.map(it => it.str).join(' ');
@@ -1109,10 +1207,10 @@ async function runHL(){
         extractedEta = `${etdEtaMatch[3].toUpperCase()} ${etdEtaMatch[4].toUpperCase()}`;
       }
 
-      if (resolvedCoaPageIdx !== -1) {
-        const coaJsPage=await pdfJsDoc.getPage(resolvedCoaPageIdx+1);
+      if (finalCoaAnnotIdx !== -1) {
+        const coaJsPage=await pdfJsDoc.getPage(finalCoaAnnotIdx+1);
         const coaContent=await coaJsPage.getTextContent();
-        const coaLibPage = libPages[resolvedCoaPageIdx];
+        const coaLibPage = libPages[finalCoaAnnotIdx];
         const {width:coaW,height:coaH}=coaLibPage.getSize();
         const coaVp=coaJsPage.getViewport({scale:1.0});
         const coaSx=coaW/coaVp.width;
@@ -1315,7 +1413,7 @@ async function runHL(){
             let cur = '';
             for (const w of words) {
               const test = cur ? cur + ' ' + w : w;
-              if (boldFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
+              if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
               else { if (cur) rLines.push(cur); cur = w; }
             }
             if (cur) rLines.push(cur);
@@ -1323,7 +1421,7 @@ async function runHL(){
             for (let li = 0; li < rLines.length; li++) {
               coaLibPage.drawText(rLines[li], {
                 x: rStartX, y: rStartY - li * lineH,
-                size: rSize, font: boldFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
+                size: rSize, font: stdFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
               });
             }
           }
@@ -1545,6 +1643,11 @@ async function runHL(){
     document.getElementById('previewCard').style.display='block';
 
     dlPDF();
+
+    // Trigger AI Briefing in background
+    if (allExtractedText.trim()) {
+      generateAIBriefing(allExtractedText);
+    }
   } catch(err) {
     setStatus('error','Execution error: '+err.message);
     runBtn.className='action-btn run-btn active';
