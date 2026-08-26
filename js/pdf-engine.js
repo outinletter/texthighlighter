@@ -468,9 +468,14 @@ function extractSubstantiveFlightData(fullText) {
   const airports = [data.info.dep, data.info.dest, ...data.suitability.map(s => s.apt)];
   airports.forEach(apt => {
     if (!apt) return;
-    const regex = new RegExp(`\\[\\s*${apt}\\s*\\][\\s\\S]{1,2000}?(?=\\[|$)`, "i");
+    const regex = new RegExp(`\\[\\s*${apt}\\s*\\][\\s\\S]{1,5000}?(?=\\[|$)`, "i");
     const block = fullText.match(regex);
-    if (block) data.airport_blocks[apt] = block[0].replace(/\s+/g, ' ').slice(0, 1500);
+    if (block) {
+      const substantiveLines = block[0].split('\n').filter(line =>
+        /CLSD|CLOSED|RESTRICT|NOT AVBL|ILS|RWY|TAXI|U\/S|OFFLINE|MINIMA|CAT|RVR|VIS|WIND|GUST|TS|FG|DZ|SN|RA|BLSN|DS|SS|MAX|MIN|LIMIT/i.test(line)
+      ).join(' ');
+      data.airport_blocks[apt] = substantiveLines || block[0].slice(0, 2000);
+    }
   });
 
   return data;
