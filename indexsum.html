@@ -1364,7 +1364,7 @@ async function generateAIBriefing(fullText) {
   card.style.display = 'block';
   content.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>Analyzing documents for safety threats...</span></div>';
   try {
-    const response = await fetch('/api/briefing', {
+    const response = await fetch('api/briefing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ofpText: fullText })

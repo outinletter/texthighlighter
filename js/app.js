@@ -110,37 +110,14 @@ function loadScript(src) {
 
 async function initLibraries() {
   try {
-    await loadScript('./pdf.min.js');
-  } catch (e) {
-    try {
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js');
-    } catch (err) {
-      setStatus('error', 'Failed to load main PDF.js core. Verify local guide or connection.');
-      return;
-    }
-  }
-
-  try {
-    await loadScript('./pdf.worker.min.js');
-    resolvedWorkerUrl = './pdf.worker.min.js';
-  } catch (e) {
-    try {
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js');
-      resolvedWorkerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-    } catch (err) {
-      console.warn('Worker script pre-load skipped.');
-    }
-  }
-
-  try {
-    await loadScript('./pdf-lib.min.js');
-  } catch (e) {
-    try {
-      await loadScript('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js');
-    } catch (err) {
-      setStatus('error', 'Failed to load PDF-Lib engine. Verify local guide or connection.');
-      return;
-    }
+    // CDN을 우선적으로 사용하여 MIME Type 에러 및 파일 누락 방지
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js');
+    resolvedWorkerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    await loadScript('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js');
+  } catch (err) {
+    setStatus('error', 'Failed to load PDF libraries from CDN.');
+    return;
   }
 
   if (window.location.protocol === 'file:') {

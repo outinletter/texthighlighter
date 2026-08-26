@@ -1,6 +1,6 @@
 /**
  * Cloudflare Worker - AI Flight Safety Analysis
- * Improved routing and CORS support to fix HTTP 405.
+ * Priority routing for API endpoints.
  */
 
 const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (CF-OPTIMIZED)
@@ -12,11 +12,10 @@ const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (CF-OPTIM
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const path = url.pathname.replace(/\/$/, ''); // 끝에 붙은 / 제거하여 통일
 
-    // API Endpoint: /api/briefing
-    if (path === '/api/briefing') {
-      // OPTIONS 요청 처리 (CORS)
+    // 1. API 요청을 최우선으로 처리
+    if (url.pathname.endsWith('/api/briefing')) {
+      // CORS 및 OPTIONS 처리
       if (request.method === 'OPTIONS') {
         return new Response(null, {
           headers: {
@@ -27,53 +26,38 @@ export default {
         });
       }
 
-      if (request.method !== 'POST') {
-        return new Response(JSON.stringify({ error: `Method ${request.method} Not Allowed. Please use POST.` }), {
-          status: 405,
-          headers: { 'Content-Type': 'application/json' }
-        });
-      }
+      if (request.method === 'POST') {
+        try {
+          if (!env.AI) throw new Error('AI Binding missing.');
+          const body = await request.json();
+          const ofpText = body.ofpText || '';
 
-      try {
-        if (!env.AI) {
-          throw new Error('Worker AI binding is missing in Cloudflare Dashboard.');
+          const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+            messages: [
+              { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
+              { role: 'user', content: `Analyze document:\n\n${ofpText.slice(0, 25000)}` }
+            ]
+          });
+
+          const briefingText = response.response || response;
+          return new Response(JSON.stringify({ briefingText }), {
+            headers: {
+              'Content-Type': 'application/json',
+              'Access-Control-Allow-Origin': '*'
+            }
+          });
+        } catch (err) {
+          return new Response(JSON.stringify({ error: 'AI Error', details: err.message }), {
+            status: 500, headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+          });
         }
-
-        const body = await request.json();
-        const ofpText = body.ofpText || '';
-        if (!ofpText.trim()) throw new Error('No flight document text provided.');
-
-        const trimmedText = ofpText.slice(0, 25000);
-
-        const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-          messages: [
-            { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
-            { role: 'user', content: `Analyze document and output in CARD VIEW format:\n\n${trimmedText}` }
-          ]
-        });
-
-        let briefingText = response.response || response;
-        if (typeof briefingText !== 'string') briefingText = JSON.stringify(briefingText);
-
-        return new Response(JSON.stringify({ briefingText }), {
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*'
-          }
-        });
-
-      } catch (err) {
-        return new Response(JSON.stringify({
-          error: 'AI Analysis Failed',
-          details: err.message
-        }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
-        });
       }
+
+      // POST가 아닐 경우 405 반환
+      return new Response('Method Not Allowed', { status: 405 });
     }
 
-    // Default: Serve static assets
+    // 2. 그 외 요청은 정적 자산(index.html 등) 서빙
     return env.ASSETS.fetch(request);
   }
 };
