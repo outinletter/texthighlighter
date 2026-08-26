@@ -536,7 +536,10 @@ async function runHL(){
       const rawText=tc.items.map(it=>it.str).join(' ');
       const offset = detectPageOffset(rawText);
       const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
-      allExtractedText += `\n--- PAGE ${pi+1} ---\n` + pageText;
+
+      // 불필요한 연속 공백 제거 및 줄바꿈 정리로 토큰 절약
+      const cleanedPageText = pageText.replace(/\s+/g, ' ').trim();
+      allExtractedText += `\n[P${pi+1}] ` + cleanedPageText;
 
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined) {
