@@ -444,6 +444,7 @@ async function runHL(){
 
     const bmPages={};
     let edtoBookmarkY = null;
+    let coaAnnotIdx = -1; // Added to track page with SUBMITTED AT for COPY OF ATS FPL
 
     for(let pi=0;pi<numPages;pi++){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
@@ -453,12 +454,20 @@ async function runHL(){
       const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
 
       for(const bm of BOOKMARK_PATTERNS){
-        if(bmPages[bm.label]!==undefined)continue;
+        if(bmPages[bm.label]!==undefined) {
+            if (bm.label === 'COPY OF ATS' && coaAnnotIdx === -1) {
+                if (/SUBMITTED\s+AT/i.test(pageText)) coaAnnotIdx = pi;
+            }
+            continue;
+        }
         if(bm.pattern.test(pageText)){
           bmPages[bm.label]=pi;
           if (bm.label === 'EQUAL TIME POINT DATA') {
             const matchItem = tc.items.find(it => /EQUAL/i.test(cleanAndDecodeItem(it.str, offset)));
             if (matchItem) edtoBookmarkY = matchItem.transform[5];
+          }
+          if (bm.label === 'COPY OF ATS') {
+            if (/SUBMITTED\s+AT/i.test(pageText)) coaAnnotIdx = pi;
           }
         }
       }
@@ -940,9 +949,11 @@ async function runHL(){
 
     const cfpPageIdx = bmPages['CFP PLAN'];
     const resolvedCoaPageIdx = bmPages['COPY OF ATS'] !== undefined ? bmPages['COPY OF ATS'] : -1;
+    const finalCoaAnnotIdx = coaAnnotIdx !== -1 ? coaAnnotIdx : resolvedCoaPageIdx;
+
     let foundCoaPageOffset = 0;
-    if (resolvedCoaPageIdx !== -1) {
-      const coaRawPage = await pdfJsDoc.getPage(resolvedCoaPageIdx + 1);
+    if (finalCoaAnnotIdx !== -1) {
+      const coaRawPage = await pdfJsDoc.getPage(finalCoaAnnotIdx + 1);
       const coaRawContent = await coaRawPage.getTextContent();
       foundCoaPageOffset = detectPageOffset(coaRawContent.items.map(it => it.str).join(' '));
     }
@@ -976,15 +987,15 @@ async function runHL(){
       }
 
       // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
-      // CFP보다 뒤에 있는 다음 섹션만 종료 지점으로 사용한다.
       const cfpEndIdx = Math.min(
         numPages,
         ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
           .filter(idx => idx !== -1 && idx > cfpPageIdx)
       );
+      const safeCfpEndIdx = (cfpEndIdx === numPages || cfpEndIdx <= cfpPageIdx) ? Math.min(numPages, cfpPageIdx + 20) : cfpEndIdx;
 
       let cfpFullSectionText = "";
-      for (let pi = cfpPageIdx; pi < cfpEndIdx; pi++) {
+      for (let pi = cfpPageIdx; pi < safeCfpEndIdx; pi++) {
         const p = await pdfJsDoc.getPage(pi + 1);
         const tc = await p.getTextContent();
         const raw = tc.items.map(it => it.str).join(' ');
@@ -1109,10 +1120,10 @@ async function runHL(){
         extractedEta = `${etdEtaMatch[3].toUpperCase()} ${etdEtaMatch[4].toUpperCase()}`;
       }
 
-      if (resolvedCoaPageIdx !== -1) {
-        const coaJsPage=await pdfJsDoc.getPage(resolvedCoaPageIdx+1);
+      if (finalCoaAnnotIdx !== -1) {
+        const coaJsPage=await pdfJsDoc.getPage(finalCoaAnnotIdx+1);
         const coaContent=await coaJsPage.getTextContent();
-        const coaLibPage = libPages[resolvedCoaPageIdx];
+        const coaLibPage = libPages[finalCoaAnnotIdx];
         const {width:coaW,height:coaH}=coaLibPage.getSize();
         const coaVp=coaJsPage.getViewport({scale:1.0});
         const coaSx=coaW/coaVp.width;
@@ -1315,7 +1326,7 @@ async function runHL(){
             let cur = '';
             for (const w of words) {
               const test = cur ? cur + ' ' + w : w;
-              if (boldFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
+              if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
               else { if (cur) rLines.push(cur); cur = w; }
             }
             if (cur) rLines.push(cur);
@@ -1323,7 +1334,7 @@ async function runHL(){
             for (let li = 0; li < rLines.length; li++) {
               coaLibPage.drawText(rLines[li], {
                 x: rStartX, y: rStartY - li * lineH,
-                size: rSize, font: boldFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
+                size: rSize, font: stdFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
               });
             }
           }
