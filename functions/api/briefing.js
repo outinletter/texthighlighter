@@ -1,5 +1,5 @@
 /**
- * Cloudflare Pages Function - AI Briefing (Updated Model)
+ * Cloudflare Pages Function - AI Briefing (Updated to Llama 3.1)
  */
 
 const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (CF-OPTIMIZED)
@@ -25,8 +25,8 @@ export async function onRequestPost(context) {
     const ofpText = body.ofpText || '';
     if (!ofpText.trim()) throw new Error('입력 데이터가 없습니다.');
 
-    // 모델을 안정적인 Llama 3 8B로 교체 (infire 계열 제외)
-    const response = await env.AI.run('@cf/meta/llama-3-8b-instruct', {
+    // 최신 표준 모델인 Llama 3.1 8B Instruct 사용
+    const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
       messages: [
         { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
         { role: 'user', content: `Analyze document and output in CARD VIEW:\n\n${ofpText.slice(0, 20000)}` }
