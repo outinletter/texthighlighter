@@ -402,72 +402,83 @@ function extractSubstantiveFlightData(fullText) {
     edto: [],
     suitability: [],
     mel_cdl: [],
-    route_details: {},
+    route: "",
     airport_blocks: {}
   };
 
-  // 1. 비행 기본 정보 및 시간 축
+  // 1. 기본 정보 및 시간 축 (Flight Information)
+  const flightM = fullText.match(/\b(KAL|KE)\s*(\d{3,4})\b/i);
   const etdEtaM = fullText.match(/ETD\s+([A-Z]{3,4})\s+(\d{4}Z).*?ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
+  const typeM = fullText.match(/\b787-\d\b/i) || fullText.match(/\bB78[19]\b/i);
+  if (flightM) data.info.flight = flightM[0];
   if (etdEtaM) {
     data.info.dep = etdEtaM[1]; data.info.etd = etdEtaM[2];
     data.info.dest = etdEtaM[3]; data.info.eta = etdEtaM[4];
   }
   const regM = fullText.match(/\bHL[0-9]{4,5}\b/i);
   if (regM) data.info.reg = regM[0];
+  if (typeM) data.info.type = typeM[0];
 
-  // 2. 중량 분석 (Planned vs Max)
-  const towM = fullText.match(/TOW\s+(\d+)\s*\/\s*(\d+)/i);
-  const ldwM = fullText.match(/LDW\s+(\d+)\s*\/\s*(\d+)/i);
-  if (towM) data.weights.tow = { planned: towM[1], max: towM[2], margin: towM[2] - towM[1] };
-  if (ldwM) data.weights.ldw = { planned: ldwM[1], max: ldwM[2], margin: ldwM[2] - ldwM[1] };
-
-  // 3. 연료 분석 (통계 오차 상관관계 포함)
-  const tripM = fullText.match(/TRIP\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const fodM = fullText.match(/FOD\s+(\d{2}\.\d{2})/i);
-  const statM = fullText.match(/90%\s+([+-]\d+).*?99%\s+([+-]\d+)/i);
-  if (tripM) data.fuel.trip = tripM[1];
-  if (fodM) data.fuel.fod = fodM[1];
-  if (statM) {
-    data.fuel.variance = { p90: statM[1], p99: statM[2] };
-    // 위험 추론: FOD 마진이 99% 통계적 오차보다 작은지 체크
-    data.fuel.is_risky = (parseFloat(fodM[1]) * 60) < Math.abs(parseInt(statM[2]));
+  // 2. 항로 분석 (Route Analysis)
+  const routeStart = fullText.indexOf("2ND");
+  const routeEnd = fullText.indexOf("DIST LATITUDE");
+  if (routeStart !== -1 && routeEnd > routeStart) {
+    data.route = fullText.substring(routeStart, routeEnd).replace(/\s+/g, ' ').trim();
   }
 
-  // 4. EDTO / ETP 마진 분석
+  // 3. 중량 분석 (Weights - lbs)
+  const towM = fullText.match(/TOW\s+(\d+)\s*\/\s*(\d+)/i);
+  const ldwM = fullText.match(/LDW\s+(\d+)\s*\/\s*(\d+)/i);
+  const mzfwM = fullText.match(/MZFW\s+(\d+)\s*\/\s*(\d+)/i);
+  if (towM) data.weights.tow = { planned: towM[1], max: towM[2], margin: towM[2] - towM[1] };
+  if (ldwM) data.weights.ldw = { planned: ldwM[1], max: ldwM[2], margin: ldwM[2] - ldwM[1] };
+  if (mzfwM) data.weights.mzfw = { planned: mzfwM[1], max: mzfwM[2], margin: mzfwM[2] - mzfwM[1] };
+
+  // 4. 연료 분석 (Fuel Analysis - lbs)
+  const tripM = fullText.match(/TRIP\s+(\d+)\s+(\d{2}\.\d{2})/i);
+  const contM = fullText.match(/CONT\s+(\d+)\s+(\d{2}\.\d{2})/i);
+  const resM = fullText.match(/RESERVE\s+(\d+)\s+(\d{2}\.\d{2})/i);
+  const altnM = fullText.match(/ALTN\s+(\d+)\s+(\d{2}\.\d{2})/i);
+  const fodM = fullText.match(/FOD\s+(\d{2}\.\d{2})/i);
+  const enduranceM = fullText.match(/ENDUR\s+(\d{2}\.\d{2})/i);
+
+  if (tripM) data.fuel.trip = { amount: tripM[1], time: tripM[2] };
+  if (contM) data.fuel.cont = { amount: contM[1], time: contM[2] };
+  if (resM) data.fuel.reserve = { amount: resM[1], time: resM[2] };
+  if (altnM) data.fuel.altn = { amount: altnM[1], time: altnM[2] };
+  if (fodM) data.fuel.fod = { amount: fodM[1], time: fodM[2] };
+  if (enduranceM) data.fuel.endurance = enduranceM[1];
+
+  const statM = fullText.match(/90%\s+([+-]\d+).*?99%\s+([+-]\d+)/i);
+  if (statM) data.fuel.variance = { p90: statM[1], p99: statM[2] };
+
+  // 5. EDTO / ETP 마진 분석 (EDTO Analysis)
   const etpRegex = /ETP\s*([1-5])\s+([A-Z]{3,4})\/([A-Z]{3,4}).*?(\d{4})Z.*?CRIT\s*FUEL\s*(\d+).*?FOB\s*(\d+)/gi;
   let m;
   while ((m = etpRegex.exec(fullText)) !== null) {
-    const timeZ = m[4];
     data.edto.push({
-      id: m[1], airports: [m[2], m[3]], eta_etp: timeZ,
+      id: m[1], airports: [m[2], m[3]], time: m[4],
       crit_fuel: m[5], fob: m[6], margin: parseInt(m[6]) - parseInt(m[5])
     });
   }
 
-  // 5. 공항별 가용 시간대 (Suitability Window)
   const suitRe = /\b([A-Z]{3,4})\s+SUITABLE\s+FROM\s+(\d{4})\s+UTC\s*\/\s*TO\s+(\d{4})\s+UTC/gi;
   while ((m = suitRe.exec(fullText)) !== null) {
-    const apt = m[1]; const from = m[2]; const to = m[3];
-    data.suitability.push({ apt, from, to });
-
-    // 로컬 타임라인 매칭: 해당 공항을 사용하는 ETP가 Window 내에 있는지 확인
-    const targetEtp = data.edto.find(e => e.airports.includes(apt));
-    if (targetEtp) {
-      const isWithin = (targetEtp.eta_etp >= from && targetEtp.eta_etp <= to);
-      targetEtp.time_status = isWithin ? "OK" : "⚠️ WINDOW MISMATCH";
-    }
+    data.suitability.push({ apt: m[1], from: m[2], to: m[3] });
   }
 
-  // 6. MEL / CDL 항목 파싱
+  // 6. MEL / CDL 항목 파싱 (MEL/CDL Analysis)
   const melRegex = /(MEL|CDL)\s+(\d{2}-\d{2}-\d{2}[A-Z]?)\s+([^\n]+)/gi;
   while ((m = melRegex.exec(fullText)) !== null) {
     data.mel_cdl.push({ type: m[1], id: m[2], desc: m[3].trim() });
   }
 
-  // 7. 공항별 핵심 블록 (Weather/NOTAM Context)
+  // 7. 공항별 핵심 블록 (Weather & NOTAM Analysis)
   const airports = [data.info.dep, data.info.dest, ...data.suitability.map(s => s.apt)];
+  const seenApts = new Set();
   airports.forEach(apt => {
-    if (!apt) return;
+    if (!apt || seenApts.has(apt)) return;
+    seenApts.add(apt);
     const regex = new RegExp(`\\[\\s*${apt}\\s*\\][\\s\\S]{1,5000}?(?=\\[|$)`, "i");
     const block = fullText.match(regex);
     if (block) {
