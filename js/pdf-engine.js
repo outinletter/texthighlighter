@@ -537,10 +537,13 @@ async function generateAIBriefing(fullText) {
                 if (line.startsWith('> ')) {
                   return `<div style="margin-top:8px; font-weight:700; color:#fff;">${line.substring(2)}</div>`;
                 }
-                if (line.startsWith('- ')) {
-                  return `<div style="margin-left:12px; margin-top:4px;">• ${line.substring(2)}</div>`;
+                if (line.startsWith('- ') || line.startsWith('• ')) {
+                  return `<div style="margin-left:12px; margin-top:6px; font-weight:500;">• ${line.substring(2)}</div>`;
                 }
-                return `<div>${line}</div>`;
+                if (line.startsWith('(') && line.endsWith(')')) {
+                  return `<div style="margin-left:24px; font-size:11.5px; color:#94a3b8; font-style:italic; margin-bottom:4px;">${line}</div>`;
+                }
+                return `<div style="margin-bottom:2px;">${line}</div>`;
               }).join('')}
             </div>
           </div>
