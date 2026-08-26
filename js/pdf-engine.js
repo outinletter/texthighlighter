@@ -388,6 +388,61 @@ function buildWptTimeMap(fullPdfText) {
   return wptTimeMap;
 }
 
+/**
+ * 19단계 분석을 위한 고도화된 데이터 추출 엔진
+ */
+function extractSubstantiveFlightData(fullText) {
+  const data = {
+    info: {},
+    fuel: {},
+    edto: [],
+    weather: {},
+    notams: {},
+    mel_cdl: []
+  };
+
+  // 1. 기본 정보 추출 (ETD, ETA, AC Reg 등)
+  const etdEtaM = fullText.match(/ETD\s+([A-Z]{3,4})\s+(\d{4}Z).*?ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
+  if (etdEtaM) {
+    data.info.dep = etdEtaM[1]; data.info.etd = etdEtaM[2];
+    data.info.dest = etdEtaM[3]; data.info.eta = etdEtaM[4];
+  }
+  const regM = fullText.match(/\bHL[0-9]{4,5}\b/i);
+  if (regM) data.info.reg = regM[0];
+
+  // 2. 연료 정보 추출
+  const tripM = fullText.match(/TRIP\s+(\d+)\s+(\d{2}\.\d{2})/i);
+  const fodM = fullText.match(/FOD\s+(\d{2}\.\d{2})/i);
+  if (tripM) data.fuel.trip_burn = tripM[1];
+  if (fodM) data.fuel.fod_endurance = fodM[1];
+
+  // 연료 통계 (90%, 99% 차이)
+  const statM = fullText.match(/90%\s+([+-]\d+).*?99%\s+([+-]\d+)/i);
+  if (statM) { data.fuel.stats_90 = statM[1]; data.fuel.stats_99 = statM[2]; }
+
+  // 3. EDTO / ETP 데이터 추출
+  const etpRegex = /ETP\s*([1-5])\s+([A-Z]{3,4})\/([A-Z]{3,4}).*?(\d{4})Z.*?CRIT\s*FUEL\s*(\d+).*?FOB\s*(\d+)/gi;
+  let m;
+  while ((m = etpRegex.exec(fullText)) !== null) {
+    data.edto.push({
+      id: m[1], airports: `${m[2]}/${m[3]}`, time: m[4],
+      crit_fuel: m[5], fob: m[6], margin: parseInt(m[6]) - parseInt(m[5])
+    });
+  }
+
+  // 4. EDTO Suitability Window 추출
+  const suitRe = /\b([A-Z]{3,4})\s+SUITABLE\s+FROM\s+(\d{4})\s+UTC\s*\/\s*TO\s+(\d{4})\s+UTC/gi;
+  data.suitability = [];
+  while ((m = suitRe.exec(fullText)) !== null) {
+    data.suitability.push({ apt: m[1], from: m[2], to: m[3] });
+  }
+
+  // 5. 공항별 핵심 NOTAM/기상 필터링 (분량 축소)
+  // [구현 생략 - 전체 텍스트 중 공항 코드가 포함된 문단 위주로 AI에게 전달]
+
+  return data;
+}
+
 async function generateAIBriefing(fullText) {
   const card = document.getElementById('briefingCard');
   const content = document.getElementById('briefingContent');
@@ -395,15 +450,21 @@ async function generateAIBriefing(fullText) {
   content.innerHTML = `
     <div class="loading-briefing">
       <div class="spinner"></div>
-      <span>Analyzing documents for safety threats...</span>
+      <span>Extracting substantive data and reasoning...</span>
     </div>
   `;
+
+  // 로컬 전처리 수행
+  const structuredData = extractSubstantiveFlightData(fullText);
 
   try {
     const response = await fetch('/api/briefing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ofpText: fullText })
+      body: JSON.stringify({
+        flightData: structuredData,
+        rawTextSubset: fullText.slice(0, 15000) // 핵심 텍스트 보조 데이터
+      })
     });
 
     if (!response.ok) {
