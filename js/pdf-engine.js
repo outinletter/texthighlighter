@@ -391,17 +391,22 @@ function buildWptTimeMap(fullPdfText) {
 /**
  * 19단계 분석을 위한 고도화된 데이터 추출 엔진
  */
+/**
+ * 19단계 분석을 위한 초정밀 데이터 추출 엔진 (Advanced Parser)
+ */
 function extractSubstantiveFlightData(fullText) {
   const data = {
     info: {},
     fuel: {},
+    weights: {},
     edto: [],
-    weather: {},
-    notams: {},
-    mel_cdl: []
+    suitability: [],
+    mel_cdl: [],
+    route_details: {},
+    airport_blocks: {}
   };
 
-  // 1. 기본 정보 추출 (ETD, ETA, AC Reg 등)
+  // 1. 비행 기본 정보 및 시간 축
   const etdEtaM = fullText.match(/ETD\s+([A-Z]{3,4})\s+(\d{4}Z).*?ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
   if (etdEtaM) {
     data.info.dep = etdEtaM[1]; data.info.etd = etdEtaM[2];
@@ -410,35 +415,63 @@ function extractSubstantiveFlightData(fullText) {
   const regM = fullText.match(/\bHL[0-9]{4,5}\b/i);
   if (regM) data.info.reg = regM[0];
 
-  // 2. 연료 정보 추출
+  // 2. 중량 분석 (Planned vs Max)
+  const towM = fullText.match(/TOW\s+(\d+)\s*\/\s*(\d+)/i);
+  const ldwM = fullText.match(/LDW\s+(\d+)\s*\/\s*(\d+)/i);
+  if (towM) data.weights.tow = { planned: towM[1], max: towM[2], margin: towM[2] - towM[1] };
+  if (ldwM) data.weights.ldw = { planned: ldwM[1], max: ldwM[2], margin: ldwM[2] - ldwM[1] };
+
+  // 3. 연료 분석 (통계 오차 상관관계 포함)
   const tripM = fullText.match(/TRIP\s+(\d+)\s+(\d{2}\.\d{2})/i);
   const fodM = fullText.match(/FOD\s+(\d{2}\.\d{2})/i);
-  if (tripM) data.fuel.trip_burn = tripM[1];
-  if (fodM) data.fuel.fod_endurance = fodM[1];
-
-  // 연료 통계 (90%, 99% 차이)
   const statM = fullText.match(/90%\s+([+-]\d+).*?99%\s+([+-]\d+)/i);
-  if (statM) { data.fuel.stats_90 = statM[1]; data.fuel.stats_99 = statM[2]; }
+  if (tripM) data.fuel.trip = tripM[1];
+  if (fodM) data.fuel.fod = fodM[1];
+  if (statM) {
+    data.fuel.variance = { p90: statM[1], p99: statM[2] };
+    // 위험 추론: FOD 마진이 99% 통계적 오차보다 작은지 체크
+    data.fuel.is_risky = (parseFloat(fodM[1]) * 60) < Math.abs(parseInt(statM[2]));
+  }
 
-  // 3. EDTO / ETP 데이터 추출
+  // 4. EDTO / ETP 마진 분석
   const etpRegex = /ETP\s*([1-5])\s+([A-Z]{3,4})\/([A-Z]{3,4}).*?(\d{4})Z.*?CRIT\s*FUEL\s*(\d+).*?FOB\s*(\d+)/gi;
   let m;
   while ((m = etpRegex.exec(fullText)) !== null) {
+    const timeZ = m[4];
     data.edto.push({
-      id: m[1], airports: `${m[2]}/${m[3]}`, time: m[4],
+      id: m[1], airports: [m[2], m[3]], eta_etp: timeZ,
       crit_fuel: m[5], fob: m[6], margin: parseInt(m[6]) - parseInt(m[5])
     });
   }
 
-  // 4. EDTO Suitability Window 추출
+  // 5. 공항별 가용 시간대 (Suitability Window)
   const suitRe = /\b([A-Z]{3,4})\s+SUITABLE\s+FROM\s+(\d{4})\s+UTC\s*\/\s*TO\s+(\d{4})\s+UTC/gi;
-  data.suitability = [];
   while ((m = suitRe.exec(fullText)) !== null) {
-    data.suitability.push({ apt: m[1], from: m[2], to: m[3] });
+    const apt = m[1]; const from = m[2]; const to = m[3];
+    data.suitability.push({ apt, from, to });
+
+    // 로컬 타임라인 매칭: 해당 공항을 사용하는 ETP가 Window 내에 있는지 확인
+    const targetEtp = data.edto.find(e => e.airports.includes(apt));
+    if (targetEtp) {
+      const isWithin = (targetEtp.eta_etp >= from && targetEtp.eta_etp <= to);
+      targetEtp.time_status = isWithin ? "OK" : "⚠️ WINDOW MISMATCH";
+    }
   }
 
-  // 5. 공항별 핵심 NOTAM/기상 필터링 (분량 축소)
-  // [구현 생략 - 전체 텍스트 중 공항 코드가 포함된 문단 위주로 AI에게 전달]
+  // 6. MEL / CDL 항목 파싱
+  const melRegex = /(MEL|CDL)\s+(\d{2}-\d{2}-\d{2}[A-Z]?)\s+([^\n]+)/gi;
+  while ((m = melRegex.exec(fullText)) !== null) {
+    data.mel_cdl.push({ type: m[1], id: m[2], desc: m[3].trim() });
+  }
+
+  // 7. 공항별 핵심 블록 (Weather/NOTAM Context)
+  const airports = [data.info.dep, data.info.dest, ...data.suitability.map(s => s.apt)];
+  airports.forEach(apt => {
+    if (!apt) return;
+    const regex = new RegExp(`\\[\\s*${apt}\\s*\\][\\s\\S]{1,2000}?(?=\\[|$)`, "i");
+    const block = fullText.match(regex);
+    if (block) data.airport_blocks[apt] = block[0].replace(/\s+/g, ' ').slice(0, 1500);
+  });
 
   return data;
 }
