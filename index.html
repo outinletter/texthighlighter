@@ -28,35 +28,13 @@
 <div class="body">
   <div class="app">
     
-    <div class="card">
-      <div class="card-title">Key Features of NOTAM HIGHLIGHTER</div>
-      <div class="offline-instruction" style="margin-bottom: 0; text-align: left;">
-        <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; font-size: 11px;">
-          <li>
-            <b>✓ Smart Auto-Highlighting:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Scans critical NOTAM keywords and route restrictions within your flight package (PDF) and highlights them in designated colors.
-            </div>
-          </li>
-          <li>
-            <b>✓ Intelligent Bookmark Generation:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Automatically inserts PDF bookmarks for key sections such as 'CFP PLAN', 'COPY OF ATS FPL', and 'WEATHER BRIEFING'.
-            </div>
-          </li>
-          <li>
-            <b>✓ Custom Word Tags:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Add your own custom keywords to the highlighter in addition to the built-in aviation terminology database.
-            </div>
-          </li>
-          <li>
-            <b>✓ PDF Text Decoding Engine:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Automatically detects and resolves text encoding offsets in encrypted or legacy PDF documents for accurate extraction.
-            </div>
-          </li>
-        </ul>
+    <div class="card" id="briefingCard" style="display:none">
+      <div class="card-title">✨ FLIGHT SAFETY AI BRIEFING</div>
+      <div id="briefingContent" class="briefing-content">
+        <div class="loading-briefing">
+          <div class="spinner"></div>
+          <span>Analyzing documents for safety threats...</span>
+        </div>
       </div>
     </div>
 
@@ -133,15 +111,6 @@
       </div>
     </div>
 
-    <div class="card" id="briefingCard" style="display:none">
-      <div class="card-title">✨ FLIGHT SAFETY AI BRIEFING</div>
-      <div id="briefingContent" class="briefing-content">
-        <div class="loading-briefing">
-          <div class="spinner"></div>
-          <span>Analyzing documents for safety threats...</span>
-        </div>
-      </div>
-    </div>
 
     <div class="card" id="previewCard" style="display:none">
       <div class="card-title">5. SAVE OPTIMIZED DOCUMENT</div>
