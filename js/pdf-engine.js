@@ -480,14 +480,8 @@ async function generateAIBriefing(fullText) {
   const card = document.getElementById('briefingCard');
   const content = document.getElementById('briefingContent');
   card.style.display = 'block';
-  content.innerHTML = `
-    <div class="loading-briefing">
-      <div class="spinner"></div>
-      <span>Extracting substantive data and reasoning...</span>
-    </div>
-  `;
+  content.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>AI가 실시간으로 데이터를 분석 중입니다...</span></div>';
 
-  // 로컬 전처리 수행
   const structuredData = extractSubstantiveFlightData(fullText);
 
   try {
@@ -496,74 +490,62 @@ async function generateAIBriefing(fullText) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         flightData: structuredData,
-        rawTextSubset: fullText.slice(0, 15000) // 핵심 텍스트 보조 데이터
+        rawTextSubset: fullText.slice(0, 15000)
       })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.details || errorData.error || `HTTP ${response.status}`);
+    if (!response.ok) throw new Error('Network response was not ok');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedText = "";
+    content.innerHTML = ""; // 로딩 제거
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      // Cloudflare stream은 보통 SSE 형식이 아니므로 바로 텍스트로 처리 가능
+      accumulatedText += chunk;
+
+      // 실시간 마크다운 파싱 및 렌더링
+      renderBriefingToHTML(accumulatedText, content);
     }
-
-    const data = await response.json();
-    const briefingText = data.briefingText;
-
-    // Parse the card-based markdown
-    const sections = briefingText.split(/---+\n?/).filter(s => s.trim());
-    let html = '';
-
-    sections.forEach(section => {
-      const lines = section.trim().split('\n');
-      const titleLine = lines[0].trim();
-      const bodyLines = lines.slice(1);
-
-      // Check for Overall Risk to apply specific styling
-      let riskClass = '';
-      if (section.includes('🔴')) riskClass = 'briefing-risk-critical';
-      else if (section.includes('🟠')) riskClass = 'briefing-risk-high';
-      else if (section.includes('🟡')) riskClass = 'briefing-risk-medium';
-      else if (section.includes('🟢')) riskClass = 'briefing-risk-low';
-      else if (section.includes('🟣')) riskClass = 'briefing-risk-info';
-
-      if (titleLine.startsWith('## ') || titleLine.startsWith('### ') || titleLine.startsWith('**')) {
-        const cleanTitle = titleLine.replace(/^[#*\s]+/, '').replace(/[\[\]]/g, '');
-        html += `
-          <div class="briefing-card-item ${riskClass}">
-            <div class="briefing-card-header">${cleanTitle}</div>
-            <div class="briefing-card-body">
-              ${bodyLines.map(line => {
-                line = line.trim();
-                if (!line) return '';
-                if (line.startsWith('> ')) {
-                  return `<div style="margin-top:8px; font-weight:700; color:#fff;">${line.substring(2)}</div>`;
-                }
-                if (line.startsWith('- ') || line.startsWith('• ')) {
-                  return `<div style="margin-left:12px; margin-top:6px; font-weight:500;">• ${line.substring(2)}</div>`;
-                }
-                if (line.startsWith('(') && line.endsWith(')')) {
-                  return `<div style="margin-left:24px; font-size:11.5px; color:#94a3b8; font-style:italic; margin-bottom:4px;">${line}</div>`;
-                }
-                return `<div style="margin-bottom:2px;">${line}</div>`;
-              }).join('')}
-            </div>
-          </div>
-        `;
-      } else {
-        // Fallback for sections without clear header line
-         html += `
-          <div class="briefing-card-item ${riskClass}">
-            <div class="briefing-card-body">
-              ${lines.map(line => `<div>${line.trim()}</div>`).join('')}
-            </div>
-          </div>
-        `;
-      }
-    });
-
-    content.innerHTML = html;
   } catch (err) {
-    content.innerHTML = `<div style="color:#ef4444; padding:20px; text-align:center;">Briefing Error: ${err.message}</div>`;
+    content.innerHTML = `<div style="color:#ef4444; padding:20px;">Analysis Failed: ${err.message}</div>`;
   }
+}
+
+function renderBriefingToHTML(markdown, container) {
+  const sections = markdown.split(/---+\n?/).filter(s => s.trim());
+  let html = '';
+
+  sections.forEach(section => {
+    const lines = section.trim().split('\n');
+    const titleLine = lines[0].trim();
+    const bodyLines = lines.slice(1);
+
+    let riskClass = section.includes('🔴') ? 'briefing-risk-critical' :
+                    section.includes('🟠') ? 'briefing-risk-high' : '';
+
+    const cleanTitle = titleLine.replace(/^[#*\s]+/, '').replace(/[\[\]]/g, '');
+    html += `
+      <div class="briefing-card-item ${riskClass}">
+        <div class="briefing-card-header">${cleanTitle}</div>
+        <div class="briefing-card-body">
+          ${bodyLines.map(line => {
+            line = line.trim();
+            if (!line) return '';
+            if (line.startsWith('- ') || line.startsWith('• ')) return `<div style="margin-top:6px;">• ${line.substring(2)}</div>`;
+            if (line.startsWith('(') && line.endsWith(')')) return `<div style="margin-left:16px; font-size:11.5px; color:#94a3b8; font-style:italic;">${line}</div>`;
+            return `<div>${line}</div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
 }
 
 async function runHL(){

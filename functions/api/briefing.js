@@ -1,45 +1,30 @@
 /**
- * Cloudflare Pages Function - Professional Reasoning Engine (Bilingual & Formatted)
+ * Cloudflare Pages Function - AI Briefing V4 (Streaming & Precise)
  */
 
-const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (V3 - BILINGUAL)
+const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (V4)
 
-## ROLE
-당신은 베테랑 항공운항 AI 코파일럿입니다. 구조화된 비행 데이터를 19단계 지침에 따라 분석하여 브리핑을 생성하십시오.
+## 1. 절대 규칙 (CRITICAL RULES)
+- **모호한 표현 금지**: '주의가 필요함', '일부 구간', '제한 사항 있음' 등 구체적 근거 없는 문장은 절대 쓰지 마십시오.
+- **수치 중심 서술**: 모든 위협 문장에는 반드시 **공항 코드(예: RKSI), 웨이포인트(예: KEOLA), 시각(예: 2305Z), 연료량(예: 1.25)** 중 하나 이상의 구체적 데이터가 포함되어야 합니다.
+- **한-영 병기**: [한국어 문장] 바로 다음 줄에 [(English Translation)]을 배치하십시오.
+- **단순한 구조**: 불필요한 마크다운 장식(**)을 최소화하여 가독성과 파싱 속도를 높이십시오.
 
-## 출력 규정 (MUST FOLLOW)
-1. **언어**: 모든 분석 문장은 한국어로 먼저 작성하고, **바로 다음 줄에 괄호 ( )를 사용하여 해당 문장의 영어 번역**을 추가하십시오.
-2. **형식**:
-   - 불릿 포인트(-, •)를 사용하여 정보를 계층적으로 나열하십시오.
-   - 들여쓰기를 통해 정보의 연관 관계를 명확히 하십시오.
-   - 각 섹션은 '---'로 구분하여 카드 형태로 렌더링되게 하십시오.
-3. **내용**:
-   - [FACT], [INFERENCE], [INFO GAP]을 엄격히 구분하여 기술하십시오.
-   - 수치 데이터(연료, 시간, 중량)를 근거로 사용하십시오.
+## 2. 분석 가이드라인
+- [FACT], [INFERENCE]를 수치 기반으로 도출하십시오.
+- 데이터가 불충분하여 추론이 불가능한 섹션은 제목만 남기지 말고 아예 출력에서 제외하십시오.
 
-## 출력 예시 (Formatting Example)
-- 연료 마진이 통계적 오차 범위 내에 있어 주의가 필요합니다.
-  (Fuel margin is within statistical error range, requiring caution.)
-  - 99% 오차 확률 수치가 현재 FOD보다 높습니다.
-    (The 99% statistical variance figure is higher than the current FOD.)
-
-## 분석 섹션 구조
+## 3. 출력 섹션 (카드 구분: ---)
 ---
-## ✈️ [THREAT BRIEFING]
+## [THREAT BRIEFING]
 ---
-## 🚨 TOP OPERATIONAL THREATS
+## TOP OPERATIONAL THREATS
 ---
-## 🌦️ WEATHER & NOTAM ANALYSIS
+## WEATHER & NOTAM ANALYSIS
 ---
-## ⛽ EDTO & FUEL STRATEGY
+## EDTO & FUEL STRATEGY
 ---
-## 🔗 THREAT INTERACTIONS
----
-## 🧐 POTENTIAL OVERSIGHTS
----
-## ❓ CREW CHALLENGE QUESTIONS
----
-## ✅ BEFORE DEPARTURE - VERIFY
+## CREW CHALLENGE QUESTIONS
 `;
 
 export async function onRequestPost(context) {
@@ -48,39 +33,26 @@ export async function onRequestPost(context) {
   try {
     const { flightData, rawTextSubset } = await request.json();
 
-    const response = await env.AI.run('@cf/meta/llama-3.1-70b-instruct', {
+    // 스트리밍 모드로 AI 실행 (응답 속도 극대화)
+    const stream = await env.AI.run('@cf/meta/llama-3.1-70b-instruct', {
       messages: [
         { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `
-            [STRUCTURED DATA]: ${JSON.stringify(flightData)}
-            [SUPPLEMENTAL TEXT]: ${rawTextSubset}
-
-            위 데이터를 바탕으로 한-영 병기 및 불릿 포인트 형식을 준수하여 전문 브리핑을 생성하라.
-            (Generate professional briefing adhering to bilingual and bullet-point formats.)
-          `
+          content: `Data: ${JSON.stringify(flightData)}\nText: ${rawTextSubset}\n위 데이터를 바탕으로 수치 중심의 정밀 브리핑을 생성하라.`
         }
       ],
-      max_tokens: 2500 // 병기 및 상세 분석을 위해 토큰 확장
+      stream: true // 스트리밍 활성화
     });
 
-    const briefingText = response.response || response;
-    return new Response(JSON.stringify({ briefingText }), {
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Access-Control-Allow-Origin': '*'
+      }
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ error: 'Reasoning Failed', details: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'Engine Error', details: err.message }), { status: 500 });
   }
-}
-
-export async function onRequestOptions() {
-  return new Response(null, {
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-    }
-  });
 }
