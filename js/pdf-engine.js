@@ -480,6 +480,10 @@ async function generateAIBriefing(fullText) {
   const card = document.getElementById('briefingCard');
   const content = document.getElementById('briefingContent');
   card.style.display = 'block';
+
+  // 브리핑 카드로 부드럽게 스크롤 이동
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
   content.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>AI가 실시간으로 데이터를 분석 중입니다...</span></div>';
 
   const structuredData = extractSubstantiveFlightData(fullText);
@@ -499,18 +503,34 @@ async function generateAIBriefing(fullText) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let accumulatedText = "";
-    content.innerHTML = ""; // 로딩 제거
+    content.innerHTML = "";
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
       const chunk = decoder.decode(value, { stream: true });
-      // Cloudflare stream은 보통 SSE 형식이 아니므로 바로 텍스트로 처리 가능
-      accumulatedText += chunk;
 
-      // 실시간 마크다운 파싱 및 렌더링
-      renderBriefingToHTML(accumulatedText, content);
+      // SSE 형식(data: {JSON}) 파싱 로직
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const dataStr = line.replace('data: ', '').trim();
+          if (dataStr === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.response) {
+              accumulatedText += parsed.response;
+              renderBriefingToHTML(accumulatedText, content);
+            }
+          } catch (e) {
+            // 파싱 실패 시 일반 텍스트로 시도 (일부 모델 호환성)
+            if (dataStr.startsWith('{')) continue;
+            accumulatedText += dataStr;
+            renderBriefingToHTML(accumulatedText, content);
+          }
+        }
+      }
     }
   } catch (err) {
     content.innerHTML = `<div style="color:#ef4444; padding:20px;">Analysis Failed: ${err.message}</div>`;
