@@ -431,22 +431,20 @@ async function generateAIBriefing(fullText) {
       else if (section.includes('🟢')) riskClass = 'briefing-risk-low';
       else if (section.includes('🟣')) riskClass = 'briefing-risk-info';
 
-      if (titleLine.startsWith('## ') || titleLine.startsWith('### ')) {
-        const cleanTitle = titleLine.replace(/^#+\s*/, '');
+      if (titleLine.startsWith('## ') || titleLine.startsWith('### ') || titleLine.startsWith('**')) {
+        const cleanTitle = titleLine.replace(/^[#*\s]+/, '').replace(/[\[\]]/g, '');
         html += `
           <div class="briefing-card-item ${riskClass}">
             <div class="briefing-card-header">${cleanTitle}</div>
             <div class="briefing-card-body">
               ${bodyLines.map(line => {
                 line = line.trim();
+                if (!line) return '';
                 if (line.startsWith('> ')) {
                   return `<div style="margin-top:8px; font-weight:700; color:#fff;">${line.substring(2)}</div>`;
                 }
                 if (line.startsWith('- ')) {
                   return `<div style="margin-left:12px; margin-top:4px;">• ${line.substring(2)}</div>`;
-                }
-                if (line.match(/^\d+\./)) {
-                  return `<div style="margin-top:6px;">${line}</div>`;
                 }
                 return `<div>${line}</div>`;
               }).join('')}
