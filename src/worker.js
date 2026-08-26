@@ -1,6 +1,6 @@
 /**
  * Cloudflare Worker - AI Flight Safety Analysis
- * Robust version with better error reporting.
+ * Improved routing and CORS support to fix HTTP 405.
  */
 
 const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (CF-OPTIMIZED)
@@ -12,23 +12,39 @@ const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (CF-OPTIM
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const path = url.pathname.replace(/\/$/, ''); // 끝에 붙은 / 제거하여 통일
 
-    if (url.pathname === '/api/briefing' && request.method === 'POST') {
+    // API Endpoint: /api/briefing
+    if (path === '/api/briefing') {
+      // OPTIONS 요청 처리 (CORS)
+      if (request.method === 'OPTIONS') {
+        return new Response(null, {
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type',
+          }
+        });
+      }
+
+      if (request.method !== 'POST') {
+        return new Response(JSON.stringify({ error: `Method ${request.method} Not Allowed. Please use POST.` }), {
+          status: 405,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
       try {
         if (!env.AI) {
-          return new Response(JSON.stringify({ error: 'Worker AI binding is missing. Please check Dashboard.' }), {
-            status: 500, headers: { 'Content-Type': 'application/json' }
-          });
+          throw new Error('Worker AI binding is missing in Cloudflare Dashboard.');
         }
 
         const body = await request.json();
         const ofpText = body.ofpText || '';
-        if (!ofpText.trim()) return new Response(JSON.stringify({ error: 'No text provided' }), { status: 400 });
+        if (!ofpText.trim()) throw new Error('No flight document text provided.');
 
-        // 텍스트 길이를 안전하게 25,000자로 제한 (컨텍스트 윈도우 고려)
         const trimmedText = ofpText.slice(0, 25000);
 
-        // 가장 최신의 안정적인 8B 모델 사용
         const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
           messages: [
             { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
@@ -36,26 +52,28 @@ export default {
           ]
         });
 
-        // 결과 추출 (모델마다 응답 객체 구조가 다를 수 있음)
-        let briefingText = "";
-        if (typeof response === 'string') briefingText = response;
-        else if (response.response) briefingText = response.response;
-        else briefingText = JSON.stringify(response);
+        let briefingText = response.response || response;
+        if (typeof briefingText !== 'string') briefingText = JSON.stringify(briefingText);
 
         return new Response(JSON.stringify({ briefingText }), {
-          headers: { 'Content-Type': 'application/json' }
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
         });
 
       } catch (err) {
         return new Response(JSON.stringify({
           error: 'AI Analysis Failed',
-          details: err.message,
-          stack: err.stack
+          details: err.message
         }), {
-          status: 500, headers: { 'Content-Type': 'application/json' }
+          status: 500,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       }
     }
+
+    // Default: Serve static assets
     return env.ASSETS.fetch(request);
   }
 };
