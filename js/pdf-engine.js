@@ -547,7 +547,8 @@ function renderBriefingToHTML(markdown, container) {
     const bodyLines = lines.slice(1);
 
     let riskClass = section.includes('🔴') ? 'briefing-risk-critical' :
-                    section.includes('🟠') ? 'briefing-risk-high' : '';
+                    section.includes('🟠') ? 'briefing-risk-high' :
+                    section.includes('🟡') ? 'briefing-risk-medium' : '';
 
     const cleanTitle = titleLine.replace(/^[#*\s]+/, '').replace(/[\[\]]/g, '');
     html += `
@@ -557,9 +558,23 @@ function renderBriefingToHTML(markdown, container) {
           ${bodyLines.map(line => {
             line = line.trim();
             if (!line) return '';
-            if (line.startsWith('- ') || line.startsWith('• ')) return `<div style="margin-top:6px;">• ${line.substring(2)}</div>`;
-            if (line.startsWith('(') && line.endsWith(')')) return `<div style="margin-left:16px; font-size:11.5px; color:#94a3b8; font-style:italic;">${line}</div>`;
-            return `<div>${line}</div>`;
+
+            // 한-영 병기 스타일 (괄호 안 영어)
+            if (line.startsWith('(') && line.endsWith(')')) {
+              return `<div style="margin-left:18px; font-size:11.5px; color:#94a3b8; font-style:italic; margin-bottom:8px; line-height:1.2;">${line}</div>`;
+            }
+
+            // 불릿 포인트 및 들여쓰기
+            if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
+              return `<div style="margin-top:8px; display:flex; gap:6px;"><span>•</span><span>${line.substring(2)}</span></div>`;
+            }
+
+            // 인용문 스타일
+            if (line.startsWith('> ')) {
+              return `<div style="border-left:2px solid #3b82f6; padding-left:8px; margin:8px 0; color:#cbd5e1; font-weight:600;">${line.substring(2)}</div>`;
+            }
+
+            return `<div style="margin-top:4px;">${line}</div>`;
           }).join('')}
         </div>
       </div>
