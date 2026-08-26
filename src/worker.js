@@ -1,11 +1,6 @@
-```javascript
 /**
- * Cloudflare Worker
- * - 정적 자산(HTML/JS/CSS/폰트 등)은 Assets 바인딩으로 그대로 서빙
- * - POST /api/briefing 요청만 Gemini API를 호출해 한국어 비행 안전 브리핑(Critical Threat)을 생성
- *
- * 배포 전 필요 작업 (직접 실행):
- *   wrangler secret put GEMINI_API_KEY
+ * Cloudflare Worker - AI Flight Safety Analysis
+ * Uses Cloudflare Workers AI directly for analysis.
  */
 
 const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (CF-OPTIMIZED)
@@ -98,7 +93,6 @@ const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (CF-OPTIM
 
 ---
 ### ❓ CARD 7: CREW CHALLENGE QUESTIONS
-*(승무원 간 상호 확인용 퀴즈)*
 Q1: [Specific Question]?
 > A: [Possible Answer/Evidence]
 
@@ -116,101 +110,42 @@ Q2: [Specific Question]?
 - 승무원의 판단을 대체하는 것이 아니라 의사결정을 지원하는 도구임을 명심하십시오.
 - 문서에 없는 내용을 추측하지 마십시오.`;
 
-async function handleBriefing(request, env) {
-  if (request.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'POST only' }), {
-      status: 405,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  if (!env.GEMINI_API_KEY) {
-    return new Response(JSON.stringify({ error: 'Server not configured (missing GEMINI_API_KEY)' }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  let body;
-  try {
-    body = await request.json();
-  } catch (e) {
-    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  const ofpText = (body && typeof body.ofpText === 'string') ? body.ofpText : '';
-  if (!ofpText.trim()) {
-    return new Response(JSON.stringify({ error: 'ofpText is required' }), {
-      status: 400,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-
-  // 비용/지연 제어를 위해 입력 텍스트 길이 제한 (약 4만자 ≈ 대형 OFP+WX+NOTAM 커버 가능한 수준)
-  const MAX_CHARS = 40000;
-  const trimmedText = ofpText.length > MAX_CHARS ? ofpText.slice(0, MAX_CHARS) : ofpText;
-
-  try {
-    const geminiRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${env.GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: BRIEFING_SYSTEM_PROMPT }] },
-        contents: [
-          { role: 'user', parts: [{ text: `아래는 오늘 비행의 OFP/WX/NOTAM 원문 텍스트입니다:\n\n${trimmedText}` }] }
-        ],
-        generationConfig: { maxOutputTokens: 1500 }
-      })
-    });
-
-    if (!geminiRes.ok) {
-      const errText = await geminiRes.text();
-      return new Response(JSON.stringify({ error: 'Gemini API error', detail: errText }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    const data = await geminiRes.json();
-    const briefingText = ((data.candidates || [])[0]?.content?.parts || [])
-      .map(p => p.text || '')
-      .join('\n')
-      .trim();
-
-    if (!briefingText) {
-      return new Response(JSON.stringify({ error: 'Empty response from model' }), {
-        status: 502,
-        headers: { 'Content-Type': 'application/json' }
-      });
-    }
-
-    return new Response(JSON.stringify({ briefingText }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  } catch (e) {
-    return new Response(JSON.stringify({ error: 'Request failed', detail: String(e) }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' }
-    });
-  }
-}
-
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    if (url.pathname === '/api/briefing') {
-      return handleBriefing(request, env);
+    // API Endpoint for AI Briefing
+    if (url.pathname === '/api/briefing' && request.method === 'POST') {
+      try {
+        const body = await request.json();
+        const ofpText = body.ofpText || '';
+
+        if (!ofpText.trim()) {
+          return new Response(JSON.stringify({ error: 'No text provided' }), { status: 400 });
+        }
+
+        // Limit text length for AI context window (approx 40k chars)
+        const trimmedText = ofpText.slice(0, 40000);
+
+        // Run Cloudflare Workers AI
+        const response = await env.AI.run('@cf/meta/llama-3.1-70b-instruct', {
+          messages: [
+            { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
+            { role: 'user', content: `Analyze this flight document and generate the Card View briefing:\n\n${trimmedText}` }
+          ]
+        });
+
+        const briefingText = response.response || response;
+
+        return new Response(JSON.stringify({ briefingText }), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (err) {
+        return new Response(JSON.stringify({ error: 'AI Analysis Failed', details: err.message }), { status: 500 });
+      }
     }
 
-    // 그 외 모든 요청은 정적 자산으로 서빙 (기존 Cloudflare Pages/Workers Assets 동작 유지)
+    // Default: Serve static assets
     return env.ASSETS.fetch(request);
   }
 };
-```

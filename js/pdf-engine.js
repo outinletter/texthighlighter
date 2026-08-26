@@ -475,6 +475,10 @@ async function runHL(){
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
   'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS',
   'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF'];
+<<<<<<< HEAD
+=======
+
+>>>>>>> main
 
   const runBtn=document.getElementById('runBtn');
   runBtn.className='action-btn run-btn';
@@ -1413,7 +1417,7 @@ async function runHL(){
             let cur = '';
             for (const w of words) {
               const test = cur ? cur + ' ' + w : w;
-              if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
+              if (boldFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
               else { if (cur) rLines.push(cur); cur = w; }
             }
             if (cur) rLines.push(cur);
@@ -1421,7 +1425,7 @@ async function runHL(){
             for (let li = 0; li < rLines.length; li++) {
               coaLibPage.drawText(rLines[li], {
                 x: rStartX, y: rStartY - li * lineH,
-                size: rSize, font: stdFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
+                size: rSize, font: boldFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
               });
             }
           }
