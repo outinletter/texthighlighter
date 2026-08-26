@@ -32,7 +32,7 @@ export default {
           const body = await request.json();
           const ofpText = body.ofpText || '';
 
-          const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+          const response = await env.AI.run('@cf/mistral/mistral-7b-instruct-v0.1', {
             messages: [
               { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
               { role: 'user', content: `Analyze document:\n\n${ofpText.slice(0, 25000)}` }

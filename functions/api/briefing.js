@@ -25,8 +25,8 @@ export async function onRequestPost(context) {
     const ofpText = body.ofpText || '';
     if (!ofpText.trim()) throw new Error('입력 데이터가 없습니다.');
 
-    // 최신 표준 모델인 Llama 3.1 8B Instruct 사용
-    const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    // 서비스 중단된 Llama 3 대신 안정적인 Mistral 7B 모델 사용
+    const response = await env.AI.run('@cf/mistral/mistral-7b-instruct-v0.1', {
       messages: [
         { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
         { role: 'user', content: `Analyze document and output in CARD VIEW:\n\n${ofpText.slice(0, 20000)}` }
