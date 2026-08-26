@@ -419,6 +419,92 @@ body{
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
+
+/* AI Briefing Card Styles */
+.briefing-content {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e2e8f0;
+}
+.loading-briefing {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 16px;
+  color: #94a3b8;
+}
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(59, 130, 246, 0.1);
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.briefing-card-item {
+  background: #1e293b;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  border-left: 4px solid #3b82f6;
+}
+.briefing-card-item:last-child {
+  margin-bottom: 0;
+}
+.briefing-card-header {
+  font-weight: 700;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.briefing-card-body {
+  font-size: 12.5px;
+  color: #cbd5e1;
+}
+.briefing-risk-critical { border-left-color: #ef4444; }
+.briefing-risk-high { border-left-color: #f59e0b; }
+.briefing-risk-medium { border-left-color: #eab308; }
+.briefing-risk-low { border-left-color: #10b981; }
+.briefing-risk-info { border-left-color: #8b5cf6; }
+
+.briefing-section-divider {
+  height: 1px;
+  background: #334155;
+  margin: 20px 0;
+  position: relative;
+}
+.briefing-section-divider::after {
+  content: '---';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #111827;
+  padding: 0 10px;
+  color: #475569;
+  font-size: 10px;
+  letter-spacing: 2px;
+}
+/* AI Briefing Card Styles */
+.briefing-content { font-size: 13px; line-height: 1.6; color: #e2e8f0; }
+.loading-briefing { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 20px; gap: 16px; color: #94a3b8; }
+.spinner { width: 32px; height: 32px; border: 3px solid rgba(59, 130, 246, 0.1); border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.briefing-card-item { background: #1e293b; border-radius: 10px; padding: 16px; margin-bottom: 12px; border-left: 4px solid #3b82f6; }
+.briefing-card-header { font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.briefing-card-body { font-size: 12.5px; color: #cbd5e1; }
+.briefing-risk-critical { border-left-color: #ef4444; }
+.briefing-risk-high { border-left-color: #f59e0b; }
+.briefing-risk-medium { border-left-color: #eab308; }
+.briefing-risk-low { border-left-color: #10b981; }
+.briefing-risk-info { border-left-color: #8b5cf6; }
 </style>
 </head>
 <body>
@@ -426,7 +512,7 @@ body{
 <div class="header">
   <div class="header-container">
     <div class="header-text">
-      <h1>NOTAM <span class="highlight">HIGHLIGHTER</span> <span class="version">v1.2</span></h1>
+      <h1>NOTAM <span class="highlight">HIGHLIGHTER</span> <span class="version">v2.0</span></h1>
       <p>Offline Ready Smart NOTAM Highlighter & Route Matcher</p>
     </div>
     
@@ -486,7 +572,7 @@ body{
 
     <div class="card">
       <div class="card-title">2. HIGHLIGHT SETTINGS</div>
-      <div class="hl-row" style="justify-space-between;">
+      <div class="hl-row" style="justify-content: space-between;">
         <div style="display: flex; align-items: center; gap: 12px;">
           <label class="toggle"><input type="checkbox" id="hlEnabled"><span class="slider"></span></label>
           <span class="hl-label" style="font-size: 13px; font-weight: 400;">
@@ -543,6 +629,16 @@ body{
       </div>
       <div style="margin-top: 14px; display: flex; justify-content: center;">
         <a href="https://forms.gle/rNLY3WBZeRrvBzCc7" target="_blank" class="survey-btn">Feedback Survey</a>
+      </div>
+    </div>
+
+    <div class="card" id="briefingCard" style="display:none">
+      <div class="card-title">✨ FLIGHT SAFETY AI BRIEFING</div>
+      <div id="briefingContent" class="briefing-content">
+        <div class="loading-briefing">
+          <div class="spinner"></div>
+          <span>Analyzing documents for safety threats...</span>
+        </div>
       </div>
     </div>
 
@@ -1261,6 +1357,56 @@ function buildWptTimeMap(fullPdfText) {
   return wptTimeMap;
 }
 
+async function generateAIBriefing(fullText) {
+  const card = document.getElementById('briefingCard');
+  const content = document.getElementById('briefingContent');
+  if (!card || !content) return;
+  card.style.display = 'block';
+  content.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>Analyzing documents for safety threats...</span></div>';
+  try {
+    const response = await fetch('/api/briefing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ofpText: fullText })
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.details || errorData.error || `HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    const briefingText = data.briefingText;
+    const sections = briefingText.split(/---+\n?/).filter(s => s.trim());
+    let html = '';
+    sections.forEach(section => {
+      const lines = section.trim().split('\n');
+      const titleLine = lines[0].trim();
+      const bodyLines = lines.slice(1);
+      let riskClass = '';
+      if (section.includes('🔴')) riskClass = 'briefing-risk-critical';
+      else if (section.includes('🟠')) riskClass = 'briefing-risk-high';
+      else if (section.includes('🟡')) riskClass = 'briefing-risk-medium';
+      else if (section.includes('🟢')) riskClass = 'briefing-risk-low';
+      else if (section.includes('🟣')) riskClass = 'briefing-risk-info';
+      if (titleLine.startsWith('## ') || titleLine.startsWith('### ')) {
+        const cleanTitle = titleLine.replace(/^#+\s*/, '');
+        html += `<div class="briefing-card-item ${riskClass}"><div class="briefing-card-header">${cleanTitle}</div><div class="briefing-card-body">` +
+          bodyLines.map(line => {
+            line = line.trim();
+            if (line.startsWith('> ')) return `<div style="margin-top:8px; font-weight:700; color:#fff;">${line.substring(2)}</div>`;
+            if (line.startsWith('- ')) return `<div style="margin-left:12px; margin-top:4px;">• ${line.substring(2)}</div>`;
+            if (line.match(/^\d+\./)) return `<div style="margin-top:6px;">${line}</div>`;
+            return `<div>${line}</div>`;
+          }).join('') + `</div></div>`;
+      } else {
+        html += `<div class="briefing-card-item ${riskClass}"><div class="briefing-card-body">${lines.map(line => `<div>${line.trim()}</div>`).join('')}</div></div>`;
+      }
+    });
+    content.innerHTML = html;
+  } catch (err) {
+    content.innerHTML = `<div style="color:#ef4444; padding:20px; text-align:center;">Briefing Error: ${err.message}</div>`;
+  }
+}
+
 async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
@@ -1315,13 +1461,15 @@ async function runHL(){
     
     const bmPages={};
     let edtoBookmarkY = null;
+    let allExtractedText = "";
     for(let pi=0;pi<numPages;pi++){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
       const tc=await jsPage2.getTextContent();
       const rawText=tc.items.map(it=>it.str).join(' ');
       const offset = detectPageOffset(rawText);
       const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
-      
+      allExtractedText += `\n--- PAGE ${pi+1} ---\n` + pageText;
+
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined)continue;
         if(bm.pattern.test(pageText)){
@@ -2546,6 +2694,9 @@ async function runHL(){
     
     dlPDF();
 
+    if (allExtractedText.trim()) {
+      generateAIBriefing(allExtractedText);
+    }
   } catch(err) {
     setStatus('error','Execution error: '+err.message);
     runBtn.className='action-btn run-btn active';

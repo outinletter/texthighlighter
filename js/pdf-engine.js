@@ -406,7 +406,10 @@ async function generateAIBriefing(fullText) {
       body: JSON.stringify({ ofpText: fullText })
     });
 
-    if (!response.ok) throw new Error('Failed to fetch AI briefing');
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.details || errorData.error || `HTTP ${response.status}`);
+    }
 
     const data = await response.json();
     const briefingText = data.briefingText;
