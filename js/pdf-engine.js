@@ -393,7 +393,8 @@ function buildWptTimeMap(fullPdfText) {
  */
 /**
  * 19단계 분석을 위한 초정밀 데이터 추출 엔진 (Advanced Parser)
- function extractSubstantiveFlightData(fullText) {
+ */
+function extractSubstantiveFlightData(fullText) {
   const data = {
     info: {},
     fuel: {},
