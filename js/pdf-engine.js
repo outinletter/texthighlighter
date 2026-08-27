@@ -393,8 +393,7 @@ function buildWptTimeMap(fullPdfText) {
  */
 /**
  * 19단계 분석을 위한 초정밀 데이터 추출 엔진 (Advanced Parser)
- */
-function extractSubstantiveFlightData(fullText) {
+ function extractSubstantiveFlightData(fullText) {
   const data = {
     info: {},
     fuel: {},
@@ -442,15 +441,15 @@ function extractSubstantiveFlightData(fullText) {
   const fodM = fullText.match(/FOD\s+(\d{2}\.\d{2})/i);
   const enduranceM = fullText.match(/ENDUR\s+(\d{2}\.\d{2})/i);
 
-  if (tripM) data.fuel.trip = { amount: tripM[1], time: tripM[2] };
-  if (contM) data.fuel.cont = { amount: contM[1], time: contM[2] };
-  if (resM) data.fuel.reserve = { amount: resM[1], time: resM[2] };
-  if (altnM) data.fuel.altn = { amount: altnM[1], time: altnM[2] };
-  if (fodM) data.fuel.fod = { amount: fodM[1], time: fodM[2] };
+  if (tripM) data.fuel.trip = { amount: tripM[1] + " lbs", time: tripM[2] };
+  if (contM) data.fuel.cont = { amount: contM[1] + " lbs", time: contM[2] };
+  if (resM) data.fuel.reserve = { amount: resM[1] + " lbs", time: resM[2] };
+  if (altnM) data.fuel.altn = { amount: altnM[1] + " lbs", time: altnM[2] };
+  if (fodM) data.fuel.fod = { amount: fodM[1] + " lbs", time: fodM[2] };
   if (enduranceM) data.fuel.endurance = enduranceM[1];
 
   const statM = fullText.match(/90%\s+([+-]\d+).*?99%\s+([+-]\d+)/i);
-  if (statM) data.fuel.variance = { p90: statM[1], p99: statM[2] };
+  if (statM) data.fuel.variance = { p90: statM[1] + " lbs", p99: statM[2] + " lbs" };
 
   // 5. EDTO / ETP 마진 분석 (EDTO Analysis)
   const etpRegex = /ETP\s*([1-5])\s+([A-Z]{3,4})\/([A-Z]{3,4}).*?(\d{4})Z.*?CRIT\s*FUEL\s*(\d+).*?FOB\s*(\d+)/gi;
