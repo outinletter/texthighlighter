@@ -373,7 +373,7 @@ async function extractMetadata(pdfJsDoc) {
 }
 
 /**
- * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM 형식)을 매핑하는 함수
+ * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM)을 매핑하는 함수
  */
 function buildWptTimeMap(fullPdfText) {
   const wptTimeMap = new Map();
@@ -406,10 +406,10 @@ function extractSubstantiveFlightData(fullText) {
     airport_blocks: {}
   };
 
-  // 1. 기본 정보 및 시간 축 (Flight Information)
+  // 1. FLIGHT INFORMATION (Step A, 1 대응)
   const flightM = fullText.match(/\b(KAL|KE)\s*(\d{3,4})\b/i);
   const etdEtaM = fullText.match(/ETD\s+([A-Z]{3,4})\s+(\d{4}Z).*?ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
-  const typeM = fullText.match(/\b787-\d\b/i) || fullText.match(/\bB78[19]\b/i);
+  const typeM = fullText.match(/\b(787-\d|B78[19])\b/i);
   if (flightM) data.info.flight = flightM[0];
   if (etdEtaM) {
     data.info.dep = etdEtaM[1]; data.info.etd = etdEtaM[2];
@@ -419,55 +419,75 @@ function extractSubstantiveFlightData(fullText) {
   if (regM) data.info.reg = regM[0];
   if (typeM) data.info.type = typeM[0];
 
-  // 2. 항로 분석 (Route Analysis)
+  // 2. ROUTE ANALYSIS (Step 3 대응)
   const routeStart = fullText.indexOf("2ND");
   const routeEnd = fullText.indexOf("DIST LATITUDE");
   if (routeStart !== -1 && routeEnd > routeStart) {
     data.route = fullText.substring(routeStart, routeEnd).replace(/\s+/g, ' ').trim();
   }
 
-  // 3. 중량 분석 (Weights - lbs)
+  // 3. WEIGHT ANALYSIS (Step A, 1 대응) - Margin 계산 추가
   const towM = fullText.match(/TOW\s+(\d+)\s*\/\s*(\d+)/i);
   const ldwM = fullText.match(/LDW\s+(\d+)\s*\/\s*(\d+)/i);
   const mzfwM = fullText.match(/MZFW\s+(\d+)\s*\/\s*(\d+)/i);
-  if (towM) data.weights.tow = { planned: towM[1], max: towM[2], margin: towM[2] - towM[1] };
-  if (ldwM) data.weights.ldw = { planned: ldwM[1], max: ldwM[2], margin: ldwM[2] - ldwM[1] };
-  if (mzfwM) data.weights.mzfw = { planned: mzfwM[1], max: mzfwM[2], margin: mzfwM[2] - mzfwM[1] };
+  if (towM) {
+    const planned = parseInt(towM[1], 10) * 100;
+    const max = parseInt(towM[2], 10) * 100;
+    data.weights.tow = { planned: planned.toLocaleString() + " lbs", max: max.toLocaleString() + " lbs", margin: (max - planned).toLocaleString() + " lbs" };
+  }
+  if (ldwM) {
+    const planned = parseInt(ldwM[1], 10) * 100;
+    const max = parseInt(ldwM[2], 10) * 100;
+    data.weights.ldw = { planned: planned.toLocaleString() + " lbs", max: max.toLocaleString() + " lbs", margin: (max - planned).toLocaleString() + " lbs" };
+  }
+  if (mzfwM) {
+    const planned = parseInt(mzfwM[1], 10) * 100;
+    const max = parseInt(mzfwM[2], 10) * 100;
+    data.weights.mzfw = { planned: planned.toLocaleString() + " lbs", max: max.toLocaleString() + " lbs", margin: (max - planned).toLocaleString() + " lbs" };
+  }
 
-  // 4. 연료 분석 (Fuel Analysis - lbs)
-  // 연료 정보는 4자리 코드(x100 lbs)와 시간(HH.MM)으로 구성됨
+  // 4. FUEL ANALYSIS (Step 5, 1 대응) - lbs 단위 변환 (x100) 및 세부 항목 추출
   const formatFuel = (raw) => raw ? (parseInt(raw, 10) * 100).toLocaleString() + " lbs" : "";
 
   const rampM = fullText.match(/RAMP\s+OUT\s+(\d+)\s+(\d{2}\.\d{2})/i);
   const tripM = fullText.match(/TRIP\s+(\d+)\s+(\d{2}\.\d{2})/i);
   const contM = fullText.match(/CONT\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const resM = fullText.match(/RESERVE\s+(\d+)\s+(\d{2}\.\d{2})/i);
+  const resM = fullText.match(/(?:RESERVE|FINAL\s*RES)\s+(\d+)\s+(\d{2}\.\d{2})/i);
   const altnM = fullText.match(/ALTN\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const fodM = fullText.match(/FOD\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const enduranceM = fullText.match(/ENDUR\s+(\d{2}\.\d{2})/i);
+  const fodM = fullText.match(/FOD\s+(\d+)?\s*(\d{2}\.\d{2})/i);
+  const endurM = fullText.match(/ENDUR\s+(\d+)?\s*(\d{2}\.\d{2})/i);
 
   if (rampM) data.fuel.ramp_out = { amount: formatFuel(rampM[1]), time: rampM[2] };
   if (tripM) data.fuel.trip = { amount: formatFuel(tripM[1]), time: tripM[2] };
   if (contM) data.fuel.cont = { amount: formatFuel(contM[1]), time: contM[2] };
-  if (resM) data.fuel.reserve = { amount: formatFuel(resM[1]), time: resM[2] };
+  if (resM) data.fuel.final_reserve = { amount: formatFuel(resM[1]), time: resM[2] };
   if (altnM) data.fuel.altn = { amount: formatFuel(altnM[1]), time: altnM[2] };
-  if (fodM) data.fuel.fod = { amount: formatFuel(fodM[1]), time: fodM[2] };
-  if (enduranceM) data.fuel.endurance = enduranceM[1];
+  if (fodM) data.fuel.fod = { amount: formatFuel(fodM[1] || ""), time: fodM[2] };
+  if (endurM) data.fuel.endurance = { amount: formatFuel(endurM[1] || ""), time: endurM[2] };
 
+  // 4.1 Statistical Fuel (90% / 99%) & Contingency %
   const statM = fullText.match(/90%\s+([+-]\d+).*?99%\s+([+-]\d+)/i);
-  if (statM) data.fuel.variance = { p90: statM[1] + " lbs", p99: statM[2] + " lbs" };
+  if (statM) {
+    data.fuel.statistical_margin = {
+      "90%": statM[1],
+      "99%": statM[2],
+      "note": "Statistical deviation coverage"
+    };
+  }
+  const contPercentM = fullText.match(/(\d+)\s*%\s*(?:CONT|CONTINGENCY)/i);
+  if (contPercentM) data.fuel.contingency_policy = contPercentM[1] + "%";
 
-  // 5. EDTO / ETP 마진 분석 (EDTO Analysis)
-  const etpRegex = /ETP\s*([1-5])\s+([A-Z]{3,4})\/([A-Z]{3,4}).*?(\d{4})Z.*?CRIT\s*FUEL\s*(\d+).*?FOB\s*(\d+)/gi;
+  // 5. EDTO ANALYSIS (Step 4 대응) - ETP 마진 및 시간 분석
+  const etpRegex = /ETP\s*([1-5])\s+([A-Z]{3,4})\/([A-Z]{3,4}).*?(\d{4})Z.*?DIST\s+(\d+).*?WIND\s+([PM]\d+).*?TIME\s+(\d{2}\.\d{2}).*?CRIT\s*FUEL\s*(\d+).*?FOB\s*(\d+)/gi;
   let m;
   while ((m = etpRegex.exec(fullText)) !== null) {
-    const crit = parseInt(m[5], 10) * 100;
-    const fob = parseInt(m[6], 10) * 100;
+    const crit = parseInt(m[8], 10) * 100;
+    const fob = parseInt(m[9], 10) * 100;
     data.edto.push({
-      id: m[1], airports: [m[2], m[3]], time: m[4],
-      crit_fuel: crit.toLocaleString() + " lbs",
-      fob: fob.toLocaleString() + " lbs",
-      margin: (fob - crit).toLocaleString() + " lbs"
+      id: m[1], airports: [m[2], m[3]], time_z: m[4], dist: m[5], wind: m[6],
+      diversion_time: m[7], crit_fuel: crit.toLocaleString() + " lbs",
+      fob: fob.toLocaleString() + " lbs", margin: (fob - crit).toLocaleString() + " lbs",
+      is_critical: (fob - crit < 5000) ? "⚠️ LOW MARGIN" : "OK"
     });
   }
 
@@ -476,25 +496,31 @@ function extractSubstantiveFlightData(fullText) {
     data.suitability.push({ apt: m[1], from: m[2], to: m[3] });
   }
 
-  // 6. MEL / CDL 항목 파싱 (MEL/CDL Analysis)
+  // 6. MEL / CDL ANALYSIS (Step 6 대응)
   const melRegex = /(MEL|CDL)\s+(\d{2}-\d{2}-\d{2}[A-Z]?)\s+([^\n]+)/gi;
   while ((m = melRegex.exec(fullText)) !== null) {
     data.mel_cdl.push({ type: m[1], id: m[2], desc: m[3].trim() });
   }
 
-  // 7. 공항별 핵심 블록 (Weather & NOTAM Analysis)
-  const airports = [data.info.dep, data.info.dest, ...data.suitability.map(s => s.apt)];
+  // 7. WEATHER & NOTAM ANALYSIS (Step 7, 8 대응) - 핵심 위험 키워드 추출 강화
+  const airportCodesM = fullText.match(/\[\s*([A-Z]{4})\s*\]/gi);
+  const potentialApts = airportCodesM ? airportCodesM.map(m => m.match(/[A-Z]{4}/)[0]) : [];
+  const airports = [...new Set([data.info.dep, data.info.dest, ...data.suitability.map(s => s.apt), ...potentialApts])];
+
   const seenApts = new Set();
   airports.forEach(apt => {
     if (!apt || seenApts.has(apt)) return;
     seenApts.add(apt);
-    const regex = new RegExp(`\\[\\s*${apt}\\s*\\][\\s\\S]{1,5000}?(?=\\[|$)`, "i");
+    const regex = new RegExp(`\\[\\s*${apt}\\s*\\][\\s\\S]{1,6000}?(?=\\[|$)`, "i");
     const block = fullText.match(regex);
     if (block) {
+      // 19단계 지침의 핵심 위험 키워드를 필터링하여 압축 전달
       const substantiveLines = block[0].split('\n').filter(line =>
-        /CLSD|CLOSED|RESTRICT|NOT AVBL|ILS|RWY|TAXI|U\/S|OFFLINE|MINIMA|CAT|RVR|VIS|WIND|GUST|TS|FG|DZ|SN|RA|BLSN|DS|SS|MAX|MIN|LIMIT/i.test(line)
+        /CLSD|CLOSED|RESTRICT|NOT AVBL|ILS|RWY|TAXI|U\/S|OFFLINE|MINIMA|CAT|RVR|VIS|WIND|GUST|TS|FG|DZ|SN|RA|BLSN|DS|SS|MAX|MIN|LIMIT|SHEAR|SHER|FOG|ASH|GR|FC|FZ|FIR|OCEANIC/i.test(line)
       ).join(' ');
-      data.airport_blocks[apt] = substantiveLines || block[0].slice(0, 2000);
+      if (substantiveLines.length > 5) {
+        data.airport_blocks[apt] = substantiveLines.slice(0, 2500);
+      }
     }
   });
 
@@ -528,16 +554,17 @@ async function generateAIBriefing(fullText) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let accumulatedText = "";
+    let buffer = "";
     content.innerHTML = "";
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
-      const chunk = decoder.decode(value, { stream: true });
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop(); // 마지막 불완전한 라인은 버퍼에 유지
 
-      // SSE 형식(data: {JSON}) 파싱 로직
-      const lines = chunk.split('\n');
       for (const line of lines) {
         if (line.startsWith('data: ')) {
           const dataStr = line.replace('data: ', '').trim();
@@ -549,10 +576,11 @@ async function generateAIBriefing(fullText) {
               renderBriefingToHTML(accumulatedText, content);
             }
           } catch (e) {
-            // 파싱 실패 시 일반 텍스트로 시도 (일부 모델 호환성)
-            if (dataStr.startsWith('{')) continue;
-            accumulatedText += dataStr;
-            renderBriefingToHTML(accumulatedText, content);
+            // JSON 파싱 실패 시 원본 텍스트가 data 부분인 경우 고려
+            if (!dataStr.startsWith('{') && dataStr.length > 0) {
+              accumulatedText += dataStr;
+              renderBriefingToHTML(accumulatedText, content);
+            }
           }
         }
       }
@@ -1556,7 +1584,7 @@ async function runHL(){
             let cur = '';
             for (const w of words) {
               const test = cur ? cur + ' ' + w : w;
-              if (boldFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
+              if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
               else { if (cur) rLines.push(cur); cur = w; }
             }
             if (cur) rLines.push(cur);
@@ -1564,7 +1592,7 @@ async function runHL(){
             for (let li = 0; li < rLines.length; li++) {
               coaLibPage.drawText(rLines[li], {
                 x: rStartX, y: rStartY - li * lineH,
-                size: rSize, font: boldFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
+                size: rSize, font: stdFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
               });
             }
           }
