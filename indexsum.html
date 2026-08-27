@@ -1330,49 +1330,107 @@ async function generateAIBriefing(fullText) {
   const content = document.getElementById('briefingContent');
   if (!card || !content) return;
   card.style.display = 'block';
-  content.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>Analyzing documents for safety threats...</span></div>';
+
+  // 화면 최상단으로 부드럽게 이동
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+
+  content.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>AI가 실시간으로 데이터를 분석 중입니다...</span></div>';
+
+  const structuredData = extractSubstantiveFlightData(fullText);
+
   try {
-    const response = await fetch('api/briefing', {
+    const response = await fetch('/api/briefing', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ofpText: fullText })
+      body: JSON.stringify({
+        flightData: structuredData,
+        rawTextSubset: fullText.slice(0, 15000)
+      })
     });
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.details || errorData.error || `HTTP ${response.status}`);
-    }
-    const data = await response.json();
-    const briefingText = data.briefingText;
-    const sections = briefingText.split(/---+\n?/).filter(s => s.trim());
-    let html = '';
-    sections.forEach(section => {
-      const lines = section.trim().split('\n');
-      const titleLine = lines[0].trim();
-      const bodyLines = lines.slice(1);
-      let riskClass = '';
-      if (section.includes('🔴')) riskClass = 'briefing-risk-critical';
-      else if (section.includes('🟠')) riskClass = 'briefing-risk-high';
-      else if (section.includes('🟡')) riskClass = 'briefing-risk-medium';
-      else if (section.includes('🟢')) riskClass = 'briefing-risk-low';
-      else if (section.includes('🟣')) riskClass = 'briefing-risk-info';
-      if (titleLine.startsWith('## ') || titleLine.startsWith('### ')) {
-        const cleanTitle = titleLine.replace(/^#+\s*/, '');
-        html += `<div class="briefing-card-item ${riskClass}"><div class="briefing-card-header">${cleanTitle}</div><div class="briefing-card-body">` +
-          bodyLines.map(line => {
-            line = line.trim();
-            if (line.startsWith('> ')) return `<div style="margin-top:8px; font-weight:700; color:#fff;">${line.substring(2)}</div>`;
-            if (line.startsWith('- ')) return `<div style="margin-left:12px; margin-top:4px;">• ${line.substring(2)}</div>`;
-            if (line.match(/^\d+\./)) return `<div style="margin-top:6px;">${line}</div>`;
-            return `<div>${line}</div>`;
-          }).join('') + `</div></div>`;
-      } else {
-        html += `<div class="briefing-card-item ${riskClass}"><div class="briefing-card-body">${lines.map(line => `<div>${line.trim()}</div>`).join('')}</div></div>`;
+
+    if (!response.ok) throw new Error('Network response was not ok');
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedText = "";
+    content.innerHTML = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+
+      // SSE 형식(data: {JSON}) 파싱 로직
+      const lines = chunk.split('\n');
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const dataStr = line.replace('data: ', '').trim();
+          if (dataStr === '[DONE]') break;
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.response) {
+              accumulatedText += parsed.response;
+              renderBriefingToHTML(accumulatedText, content);
+            }
+          } catch (e) {
+            // 파싱 실패 시 일반 텍스트로 시도 (일부 모델 호환성)
+            if (dataStr.startsWith('{')) continue;
+            accumulatedText += dataStr;
+            renderBriefingToHTML(accumulatedText, content);
+          }
+        }
       }
-    });
-    content.innerHTML = html;
+    }
   } catch (err) {
-    content.innerHTML = `<div style="color:#ef4444; padding:20px; text-align:center;">Briefing Error: ${err.message}</div>`;
+    content.innerHTML = `<div style="color:#ef4444; padding:20px;">Analysis Failed: ${err.message}</div>`;
   }
+}
+
+function renderBriefingToHTML(markdown, container) {
+  const sections = markdown.split(/---+\n?/).filter(s => s.trim());
+  let html = '';
+
+  sections.forEach(section => {
+    const lines = section.trim().split('\n');
+    const titleLine = lines[0].trim();
+    const bodyLines = lines.slice(1);
+
+    let riskClass = section.includes('🔴') ? 'briefing-risk-critical' :
+                    section.includes('🟠') ? 'briefing-risk-high' :
+                    section.includes('🟡') ? 'briefing-risk-medium' : '';
+
+    const cleanTitle = titleLine.replace(/^[#*\s]+/, '').replace(/[\[\]]/g, '');
+    html += `
+      <div class="briefing-card-item ${riskClass}">
+        <div class="briefing-card-header">${cleanTitle}</div>
+        <div class="briefing-card-body">
+          ${bodyLines.map(line => {
+            line = line.trim();
+            if (!line) return '';
+
+            // 한-영 병기 스타일 (괄호 안 영어)
+            if (line.startsWith('(') && line.endsWith(')')) {
+              return `<div style="margin-left:18px; font-size:11.5px; color:#94a3b8; font-style:italic; margin-bottom:8px; line-height:1.2;">${line}</div>`;
+            }
+
+            // 불릿 포인트 및 들여쓰기
+            if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
+              return `<div style="margin-top:8px; display:flex; gap:6px;"><span>•</span><span>${line.substring(2)}</span></div>`;
+            }
+
+            // 인용문 스타일
+            if (line.startsWith('> ')) {
+              return `<div style="border-left:2px solid #3b82f6; padding-left:8px; margin:8px 0; color:#cbd5e1; font-weight:600;">${line.substring(2)}</div>`;
+            }
+
+            return `<div style="margin-top:4px;">${line}</div>`;
+          }).join('')}
+        </div>
+      </div>
+    `;
+  });
+  container.innerHTML = html;
 }
 
 async function runHL(){

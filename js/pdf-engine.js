@@ -497,8 +497,8 @@ async function generateAIBriefing(fullText) {
   const content = document.getElementById('briefingContent');
   card.style.display = 'block';
 
-  // 브리핑 카드로 부드럽게 스크롤 이동
-  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // 화면 최상단으로 부드럽게 이동
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 
   content.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>AI가 실시간으로 데이터를 분석 중입니다...</span></div>';
 
