@@ -1369,6 +1369,10 @@ function extractSubstantiveFlightData(fullText) {
   if (mzfwM) data.weights.mzfw = { planned: mzfwM[1], max: mzfwM[2], margin: mzfwM[2] - mzfwM[1] };
 
   // 4. 연료 분석 (Fuel Analysis - lbs)
+  // 연료 정보는 4자리 코드(x100 lbs)와 시간(HH.MM)으로 구성됨
+  const formatFuel = (raw) => raw ? (parseInt(raw, 10) * 100).toLocaleString() + " lbs" : "";
+
+  const rampM = fullText.match(/RAMP\s+OUT\s+(\d+)\s+(\d{2}\.\d{2})/i);
   const tripM = fullText.match(/TRIP\s+(\d+)\s+(\d{2}\.\d{2})/i);
   const contM = fullText.match(/CONT\s+(\d+)\s+(\d{2}\.\d{2})/i);
   const resM = fullText.match(/RESERVE\s+(\d+)\s+(\d{2}\.\d.2})/i);
@@ -1376,11 +1380,12 @@ function extractSubstantiveFlightData(fullText) {
   const fodM = fullText.match(/FOD\s+(\d+)\s+(\d{2}\.\d.2})/i);
   const enduranceM = fullText.match(/ENDUR\s+(\d{2}\.\d.2})/i);
 
-  if (tripM) data.fuel.trip = { amount: tripM[1] + " lbs", time: tripM[2] };
-  if (contM) data.fuel.cont = { amount: contM[1] + " lbs", time: contM[2] };
-  if (resM) data.fuel.reserve = { amount: resM[1] + " lbs", time: resM[2] };
-  if (altnM) data.fuel.altn = { amount: altnM[1] + " lbs", time: altnM[2] };
-  if (fodM) data.fuel.fod = { amount: fodM[1] + " lbs", time: fodM[2] };
+  if (rampM) data.fuel.ramp_out = { amount: formatFuel(rampM[1]), time: rampM[2] };
+  if (tripM) data.fuel.trip = { amount: formatFuel(tripM[1]), time: tripM[2] };
+  if (contM) data.fuel.cont = { amount: formatFuel(contM[1]), time: contM[2] };
+  if (resM) data.fuel.reserve = { amount: formatFuel(resM[1]), time: resM[2] };
+  if (altnM) data.fuel.altn = { amount: formatFuel(altnM[1]), time: altnM[2] };
+  if (fodM) data.fuel.fod = { amount: formatFuel(fodM[1]), time: fodM[2] };
   if (enduranceM) data.fuel.endurance = enduranceM[1];
 
   const statM = fullText.match(/90%\s+([+-]\d+).*?99%\s+([+-]\d+)/i);
@@ -1390,9 +1395,13 @@ function extractSubstantiveFlightData(fullText) {
   const etpRegex = /ETP\s*([1-5])\s+([A-Z]{3,4})\/([A-Z]{3,4}).*?(\d{4})Z.*?CRIT\s*FUEL\s*(\d+).*?FOB\s*(\d+)/gi;
   let m;
   while ((m = etpRegex.exec(fullText)) !== null) {
+    const crit = parseInt(m[5], 10) * 100;
+    const fob = parseInt(m[6], 10) * 100;
     data.edto.push({
       id: m[1], airports: [m[2], m[3]], time: m[4],
-      crit_fuel: m[5], fob: m[6], margin: parseInt(m[6]) - parseInt(m[5])
+      crit_fuel: crit.toLocaleString() + " lbs",
+      fob: fob.toLocaleString() + " lbs",
+      margin: (fob - crit).toLocaleString() + " lbs"
     });
   }
 
