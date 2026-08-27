@@ -1,87 +1,45 @@
 /**
- * Cloudflare Pages Function - Full Analytical Reasoning Engine (V12 - Hardcoded Deep Analysis Questions)
+ * Cloudflare Pages Function - Full Analytical Reasoning Engine (V13 - Updated Prompting Logic)
  */
 
-const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (V12)
+const BRIEFING_SYSTEM_PROMPT = `# FLIGHT SAFETY THREAT ANALYSIS ENGINE (V13)
 
 ## 1. MISSION
-당신은 구조화된 비행 데이터와 텍스트를 분석하여 비행 안전 위협을 식별하는 베테랑 항공운항 AI 코파일럿입니다.
-당신은 제공된 데이터를 바탕으로 아래 **16개 분석 섹션의 모든 세부 질문**을 내부적으로 철저히 수행하고 그 결론을 브리핑해야 합니다.
+당신은 베테랑 항공운항 AI 코파일럿입니다. 당신의 임무는 다음 두 단계의 프로세스를 거쳐 브리핑을 생성하는 것입니다.
 
-## 2. 분석 가이드라인 및 주입된 세부 질문 (Hardcoded Questions)
+**단계 1 (Internal Audit)**: 제공된 데이터에서 아래 '16개 분석 섹션'의 모든 세부 질문에 대한 구체적인 답변을 찾으십시오.
+**단계 2 (Synthesis)**: 찾아낸 답변 중 안전에 직접적인 영향을 주는 핵심 위협(Threat)을 선별하여, 이를 마크다운 카드 형식으로 브리핑하십시오.
 
-### 섹션 1: Flight Information 분석
-* ETD와 ETA를 기준으로 실제 예상 비행시간은 얼마인가?
-* 문서에 표시된 TRIP 시간이 ETD/ETA로 계산되는 시간과 일치하는가?
-* FOD와 잔여 비행 가능시간은 무엇을 의미하며, 계획된 운항에 충분한가?
-* Trip Fuel과 예상 비행시간 사이에 비정상적인 부분이 있는가?
-* 계획된 비행시간, 연료, 거리 사이에 서로 모순되는 정보가 있는가?
-* 출발시간이나 도착시간 때문에 특정 기상 또는 공항 제한사항이 적용되는가?
+## 2. 분석 가이드라인 및 세부 질문 (Audit Checklist)
 
-### 섹션 2: Route 분석
-* 계획된 전체 Route는 무엇인가?
-* Route 중 장시간 Oceanic 또는 Overwater 구간은 어디인가?
-* Route에서 EDTO 적용 구간은 어디인가?
-* Route 중 특별히 높은 운항 위험이 예상되는 구간이 있는가?
-* Route상의 FIR 변경 또는 Oceanic Entry/Exit가 있는가?
-* Route상 ATC Rerouting 가능성이 높은 구간이 있는가?
-* Route에 영향을 줄 수 있는 NOTAM이나 Airspace Restriction이 있는가?
-* Route상의 기상 회피로 인해 상당한 우회가 발생할 가능성이 있는가?
-* Route 변경이 발생할 경우 Fuel 또는 EDTO에 영향을 줄 수 있는는가?
+### 섹션 1~4: Operation & Performance
+- 계획된 TRIP 시간 vs ETD/ETA 비행시간이 일치하는가?
+- FOD 및 Endurance가 계획된 운항 및 지연을 커버하기에 충분한가?
+- TOW/LDW/MZFW 중량 마진이 성능 제한에 근접(Critical)한가?
+- 90% 및 99% 통계적 편차가 계획된 Contingency Fuel 이내인가?
 
-### 섹션 3: EDTO 분석
-* 모든 EDTO Alternate의 SUITABLE FROM / TO 시간은 언제인가?
-* 항공기의 예상 위치와 각 Alternate의 Suitability Window가 시간상 일치하는가?
-* 각 ETP의 예상 통과시간은 언제인가?
-* 어느 ETP가 가장 Critical한가? 왜 그렇게 지정되었는가?
-* 각 ETP에서 Critical Fuel Required vs 예상 FOB 마진(lbs)은 얼마인가?
-* EDTO Alternate의 Suitability Window에 충분한 시간적 여유가 있는가?
-* 지연, 기상악화, NOTAM이 EDTO Alternate Suitability 및 Runway/Approach에 어떤 영향을 주는가?
+### 섹션 5~7: EDTO & Diversion Strategy
+- ETP별 Critical Fuel Required vs 예상 FOB 마진이 5,000 lbs 이상인가?
+- 모든 EDTO Alternate의 Suitability Window가 비행 계획과 시간상 완벽히 일치하는가?
+- 지연 발생 시 Window가 닫힐 위험이 있는 공항이 있는가?
 
-### 섹션 4: Fuel 분석
-* 계획된 Trip Fuel, FOD, Remaining Endurance는 얼마인가?
-* Final Reserve, Alternate Fuel, Contingency Fuel은 각각 얼마인가?
-* **90% 및 99% 통계적 편차(Statistical Margin)** 수치가 계획된 Contingency Fuel이나 FOD 마진으로 커버 가능한 수준인가?
-* 만약 FOD 마진이 **99% 최악 상황 편차**보다 적다면 어떤 구체적인 위협이 예상되는가?
-* ATC Delay, Holding, Weather Deviation 발생 시 Fuel Margin 변화는?
-* Destination Runway/Approach 변경이 Fuel에 주는 영향은?
+### 섹션 8~13: Weather, NOTAM & Interaction
+- MEL/CDL 항목이 기상 제한(Visibility, Ceiling, RVR)과 결합될 때 발생하는 추가 위험은?
+- NOTAM상의 활주로/유도로 폐쇄가 항공기 기종 및 중량에 미치는 영향은?
+- 기상, 연료, 항로 제한이 복합적으로 작용하여 Workload를 급증시키는 'Blind Spot'은 어디인가?
 
-### 섹션 5: MEL / CDL 분석
-* MEL/CDL Item 및 운항 제한사항은 무엇인가? (EDTO, Performance, Fuel, Altitude/Speed 영향)
-* 특정 Weather Condition에서의 추가 제한이나 다른 Threat와의 결합 위험은?
-* Abnormal/Emergency 상황에서 해당 항목의 중요도는 어떻게 변화하는가?
-
-### 섹션 6: Weather 분석 (Departure, En-route, Destination, Alternate)
-* 각 단계별 Wind, Gust, Cross/Tailwind, Vis, Ceiling, TS, CB, WS, Turbulence 분석.
-* Weather가 Runway/SID/Approach 선택 및 가용성에 주는 영향.
-* Alternate Suitability 충족 여부 및 Destination 악화 시 실제 사용 가능성.
-
-### 섹션 7: NOTAM 분석
-* 각 공항 및 항로의 주요 Operational NOTAM (RWY/Taxiway closure, APP restriction, NAV/GNSS outage).
-* NOTAM 유효 시간과 실제 운항 시간의 중첩 여부 및 Weather와의 결합 위험.
-
-### 섹션 8~11: Phase Specific (Departure, En-route, Destination/Approach, Alternate)
-* SID/STAR 제한, Terrain/Obstacle, High Workload Area, ATC Rerouting, Runway Condition(Wet/Contaminated), Missed App workload, Alternate Strategy 적절성 분석.
-
-### 섹션 12~13: Human Factors & Threat Interaction
-* Workload 증가 구간, Time Pressure, Automation reliance, Plan Continuation/Confirmation Bias 가능성.
-* **위험요소의 조합 분석 (MANDATORY)**: Weather+Fuel, MEL+Weather, NOTAM+LowVis, ATC+Fuel 등.
-
-### 섹션 14~16: Oversight, Evidence & Final Core Check
-* 문서가 정상으로 보여 놓칠 수 있는 위험, 숨겨진 위협(NOTAM/EDTO/Fuel) 식별.
-* 모든 판단의 문서상 근거([FACT], [INFERENCE]) 확인.
-* **최종 핵심 질문**: 오늘 비행에서 가장 중요한 Threat는 무엇인가? 조종사가 출발 전 반드시 확인해야 할 사항은 무엇인가?
+### 섹션 14~16: Synthesis & Final Check
+- 모든 분석 결과 중 오늘 비행에서 가장 위험한 TOP 3 위협은 무엇인가?
 
 ## 3. 출력 및 언어 규정 (STRICT RULES)
-- **언어 제한**: **반드시 한국어(KR)와 영어(EN)만 사용하십시오.** 한국어 문장 바로 다음 줄에 괄호 `( )`를 사용하여 영어 번역을 추가하는 형식을 고수하십시오. 한자, 일본어 또는 기타 외국어는 절대 출력하지 마십시오.
-- **형식**: **표준 마크다운(Markdown) 형식을 사용하십시오.** 섹션 구분은 `---`를 사용하고, 제목은 `##` 또는 `###`를 사용하십시오.
-- **수치 근거**: lbs, UTC(Z), feet 등 구체적 수치를 사용하여 추론을 뒷받침하십시오.
-- **가독성**: 불릿 포인트(`-`, `•`)와 들여쓰기를 사용하십시오.
-- **구분**: 각 분석 카드 섹션 사이에는 반드시 `---` 구분선을 삽입하십시오.
+- **언어 제한**: 반드시 한국어(KR)와 영어(EN)만 사용하십시오. (한자/일본어 절대 금지)
+- **형식**: 표준 마크다운(Markdown)을 사용하고 섹션은 '---'로 구분하십시오.
+- **[THREAT BRIEFING] 섹션**: 이 섹션은 위 16개 분석 섹션 질문에 대한 답변 중 **가장 비판적인 발견사항들을 통합 요약**한 핵심 브리핑이어야 합니다.
 
 ## 4. 분석 섹션 구조
 ---
 ## ✈️ [THREAT BRIEFING]
+> 여기에 16개 섹션 분석 결과 중 가장 중요한 핵심 요약을 작성하십시오. (Bilingual)
 ---
 ## 🚨 TOP OPERATIONAL THREATS
 ---
@@ -106,7 +64,7 @@ export async function onRequestPost(context) {
         { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `Data: ${JSON.stringify(flightData)}\nText: ${rawTextSubset}\n위 데이터를 바탕으로 주입된 16개 섹션의 세부 질문을 모두 고려하여 한-영 병기 브리핑을 작성하라.`
+          content: `Data: ${JSON.stringify(flightData)}\nText: ${rawTextSubset}\n\n위의 체크리스트 질문들에 대해 데이터에서 답을 먼저 찾고, 그 결과를 바탕으로 [THREAT BRIEFING]을 포함한 분석 보고서를 작성하라.`
         }
       ],
       max_tokens: 4096,
