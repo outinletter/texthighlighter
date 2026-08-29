@@ -86,9 +86,12 @@ function checkKeywordMatch(text, kw) {
   const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   let re;
   try {
-    re = kw.toLowerCase() === 'restrict'
-      ? new RegExp(`\\b${escaped}[A-Za-z]*\\b`, 'i')
-      : new RegExp(`\\b${escaped}\\b`, 'i');
+    const kwLower = kw.toLowerCase();
+    if (kwLower === 'restrict' || kwLower === 'prohibit') {
+      re = new RegExp(`\\b${escaped}[A-Za-z]*\\b`, 'i');
+    } else {
+      re = new RegExp(`\\b${escaped}\\b`, 'i');
+    }
   } catch (e) {
     re = new RegExp(escaped, 'i');
   }
@@ -373,7 +376,7 @@ async function extractMetadata(pdfJsDoc) {
 }
 
 /**
- * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM)을 매핑하는 함수
+ * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM 형식)을 매핑하는 함수
  */
 function buildWptTimeMap(fullPdfText) {
   const wptTimeMap = new Map();
@@ -388,259 +391,11 @@ function buildWptTimeMap(fullPdfText) {
   return wptTimeMap;
 }
 
-/**
- * 19단계 분석을 위한 고도화된 데이터 추출 엔진
- */
-/**
- * 19단계 분석을 위한 초정밀 데이터 추출 엔진 (Advanced Parser)
- */
-function extractSubstantiveFlightData(fullText) {
-  const data = {
-    info: {},
-    fuel: {},
-    weights: {},
-    edto: [],
-    suitability: [],
-    mel_cdl: [],
-    route: "",
-    airport_blocks: {}
-  };
-
-  // 1. FLIGHT INFORMATION (Step A, 1 대응)
-  const flightM = fullText.match(/\b(KAL|KE)\s*(\d{3,4})\b/i);
-  const etdEtaM = fullText.match(/ETD\s+([A-Z]{3,4})\s+(\d{4}Z).*?ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
-  const typeM = fullText.match(/\b(787-\d|B78[19])\b/i);
-  if (flightM) data.info.flight = flightM[0];
-  if (etdEtaM) {
-    data.info.dep = etdEtaM[1]; data.info.etd = etdEtaM[2];
-    data.info.dest = etdEtaM[3]; data.info.eta = etdEtaM[4];
-  }
-  const regM = fullText.match(/\bHL[0-9]{4,5}\b/i);
-  if (regM) data.info.reg = regM[0];
-  if (typeM) data.info.type = typeM[0];
-
-  // 2. ROUTE ANALYSIS (Step 3 대응)
-  const routeStart = fullText.indexOf("2ND");
-  const routeEnd = fullText.indexOf("DIST LATITUDE");
-  if (routeStart !== -1 && routeEnd > routeStart) {
-    data.route = fullText.substring(routeStart, routeEnd).replace(/\s+/g, ' ').trim();
-  }
-
-  // 3. WEIGHT ANALYSIS (Step A, 1 대응) - Margin 계산 추가
-  const towM = fullText.match(/TOW\s+(\d+)\s*\/\s*(\d+)/i);
-  const ldwM = fullText.match(/LDW\s+(\d+)\s*\/\s*(\d+)/i);
-  const mzfwM = fullText.match(/MZFW\s+(\d+)\s*\/\s*(\d+)/i);
-  if (towM) {
-    const planned = parseInt(towM[1], 10) * 100;
-    const max = parseInt(towM[2], 10) * 100;
-    data.weights.tow = { planned: planned.toLocaleString() + " lbs", max: max.toLocaleString() + " lbs", margin: (max - planned).toLocaleString() + " lbs" };
-  }
-  if (ldwM) {
-    const planned = parseInt(ldwM[1], 10) * 100;
-    const max = parseInt(ldwM[2], 10) * 100;
-    data.weights.ldw = { planned: planned.toLocaleString() + " lbs", max: max.toLocaleString() + " lbs", margin: (max - planned).toLocaleString() + " lbs" };
-  }
-  if (mzfwM) {
-    const planned = parseInt(mzfwM[1], 10) * 100;
-    const max = parseInt(mzfwM[2], 10) * 100;
-    data.weights.mzfw = { planned: planned.toLocaleString() + " lbs", max: max.toLocaleString() + " lbs", margin: (max - planned).toLocaleString() + " lbs" };
-  }
-
-  // 4. FUEL ANALYSIS (Step 5, 1 대응) - lbs 단위 변환 (x100) 및 세부 항목 추출
-  const formatFuel = (raw) => raw ? (parseInt(raw, 10) * 100).toLocaleString() + " lbs" : "";
-
-  const rampM = fullText.match(/RAMP\s+OUT\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const tripM = fullText.match(/TRIP\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const contM = fullText.match(/CONT\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const resM = fullText.match(/(?:RESERVE|FINAL\s*RES)\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const altnM = fullText.match(/ALTN\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const fodM = fullText.match(/FOD\s+(\d+)?\s*(\d{2}\.\d{2})/i);
-  const endurM = fullText.match(/ENDUR\s+(\d+)?\s*(\d{2}\.\d{2})/i);
-
-  if (rampM) data.fuel.ramp_out = { amount: formatFuel(rampM[1]), time: rampM[2] };
-  if (tripM) data.fuel.trip = { amount: formatFuel(tripM[1]), time: tripM[2] };
-  if (contM) data.fuel.cont = { amount: formatFuel(contM[1]), time: contM[2] };
-  if (resM) data.fuel.final_reserve = { amount: formatFuel(resM[1]), time: resM[2] };
-  if (altnM) data.fuel.altn = { amount: formatFuel(altnM[1]), time: altnM[2] };
-  if (fodM) data.fuel.fod = { amount: formatFuel(fodM[1] || ""), time: fodM[2] };
-  if (endurM) data.fuel.endurance = { amount: formatFuel(endurM[1] || ""), time: endurM[2] };
-
-  // 4.1 Statistical Fuel (90% / 99%) & Contingency %
-  const statM = fullText.match(/90%\s+([+-]\d+).*?99%\s+([+-]\d+)/i);
-  if (statM) {
-    data.fuel.statistical_margin = {
-      "90%": statM[1],
-      "99%": statM[2],
-      "note": "Statistical deviation coverage"
-    };
-  }
-  const contPercentM = fullText.match(/(\d+)\s*%\s*(?:CONT|CONTINGENCY)/i);
-  if (contPercentM) data.fuel.contingency_policy = contPercentM[1] + "%";
-
-  // 5. EDTO ANALYSIS (Step 4 대응) - ETP 마진 및 시간 분석
-  const etpRegex = /ETP\s*([1-5])\s+([A-Z]{3,4})\/([A-Z]{3,4}).*?(\d{4})Z.*?DIST\s+(\d+).*?WIND\s+([PM]\d+).*?TIME\s+(\d{2}\.\d{2}).*?CRIT\s*FUEL\s*(\d+).*?FOB\s*(\d+)/gi;
-  let m;
-  while ((m = etpRegex.exec(fullText)) !== null) {
-    const crit = parseInt(m[8], 10) * 100;
-    const fob = parseInt(m[9], 10) * 100;
-    data.edto.push({
-      id: m[1], airports: [m[2], m[3]], time_z: m[4], dist: m[5], wind: m[6],
-      diversion_time: m[7], crit_fuel: crit.toLocaleString() + " lbs",
-      fob: fob.toLocaleString() + " lbs", margin: (fob - crit).toLocaleString() + " lbs",
-      is_critical: (fob - crit < 5000) ? "⚠️ LOW MARGIN" : "OK"
-    });
-  }
-
-  const suitRe = /\b([A-Z]{3,4})\s+SUITABLE\s+FROM\s+(\d{4})\s+UTC\s*\/\s*TO\s+(\d{4})\s+UTC/gi;
-  while ((m = suitRe.exec(fullText)) !== null) {
-    data.suitability.push({ apt: m[1], from: m[2], to: m[3] });
-  }
-
-  // 6. MEL / CDL ANALYSIS (Step 6 대응)
-  const melRegex = /(MEL|CDL)\s+(\d{2}-\d{2}-\d{2}[A-Z]?)\s+([^\n]+)/gi;
-  while ((m = melRegex.exec(fullText)) !== null) {
-    data.mel_cdl.push({ type: m[1], id: m[2], desc: m[3].trim() });
-  }
-
-  // 7. WEATHER & NOTAM ANALYSIS (Step 7, 8 대응) - 핵심 위험 키워드 추출 강화
-  const airportCodesM = fullText.match(/\[\s*([A-Z]{4})\s*\]/gi);
-  const potentialApts = airportCodesM ? airportCodesM.map(m => m.match(/[A-Z]{4}/)[0]) : [];
-  const airports = [...new Set([data.info.dep, data.info.dest, ...data.suitability.map(s => s.apt), ...potentialApts])];
-
-  const seenApts = new Set();
-  airports.forEach(apt => {
-    if (!apt || seenApts.has(apt)) return;
-    seenApts.add(apt);
-    const regex = new RegExp(`\\[\\s*${apt}\\s*\\][\\s\\S]{1,6000}?(?=\\[|$)`, "i");
-    const block = fullText.match(regex);
-    if (block) {
-      // 19단계 지침의 핵심 위험 키워드를 필터링하여 압축 전달
-      const substantiveLines = block[0].split('\n').filter(line =>
-        /CLSD|CLOSED|RESTRICT|NOT AVBL|ILS|RWY|TAXI|U\/S|OFFLINE|MINIMA|CAT|RVR|VIS|WIND|GUST|TS|FG|DZ|SN|RA|BLSN|DS|SS|MAX|MIN|LIMIT|SHEAR|SHER|FOG|ASH|GR|FC|FZ|FIR|OCEANIC/i.test(line)
-      ).join(' ');
-      if (substantiveLines.length > 5) {
-        data.airport_blocks[apt] = substantiveLines.slice(0, 2500);
-      }
-    }
-  });
-
-  return data;
-}
-
-async function generateAIBriefing(fullText) {
-  const card = document.getElementById('briefingCard');
-  const content = document.getElementById('briefingContent');
-  card.style.display = 'block';
-
-  // 화면 최상단으로 부드럽게 이동
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-
-  content.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>AI가 실시간으로 데이터를 분석 중입니다...</span></div>';
-
-  const structuredData = extractSubstantiveFlightData(fullText);
-
-  try {
-    const response = await fetch('/api/briefing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        flightData: structuredData,
-        rawTextSubset: fullText.slice(0, 15000)
-      })
-    });
-
-    if (!response.ok) throw new Error('Network response was not ok');
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let accumulatedText = "";
-    let buffer = "";
-    content.innerHTML = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop(); // 마지막 불완전한 라인은 버퍼에 유지
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const dataStr = line.replace('data: ', '').trim();
-          if (dataStr === '[DONE]') break;
-          try {
-            const parsed = JSON.parse(dataStr);
-            if (parsed.response) {
-              accumulatedText += parsed.response;
-              renderBriefingToHTML(accumulatedText, content);
-            }
-          } catch (e) {
-            // JSON 파싱 실패 시 원본 텍스트가 data 부분인 경우 고려
-            if (!dataStr.startsWith('{') && dataStr.length > 0) {
-              accumulatedText += dataStr;
-              renderBriefingToHTML(accumulatedText, content);
-            }
-          }
-        }
-      }
-    }
-  } catch (err) {
-    content.innerHTML = `<div style="color:#ef4444; padding:20px;">Analysis Failed: ${err.message}</div>`;
-  }
-}
-
-function renderBriefingToHTML(markdown, container) {
-  const sections = markdown.split(/---+\n?/).filter(s => s.trim());
-  let html = '';
-
-  sections.forEach(section => {
-    const lines = section.trim().split('\n');
-    const titleLine = lines[0].trim();
-    const bodyLines = lines.slice(1);
-
-    let riskClass = section.includes('🔴') ? 'briefing-risk-critical' :
-                    section.includes('🟠') ? 'briefing-risk-high' :
-                    section.includes('🟡') ? 'briefing-risk-medium' : '';
-
-    const cleanTitle = titleLine.replace(/^[#*\s]+/, '').replace(/[\[\]]/g, '');
-    html += `
-      <div class="briefing-card-item ${riskClass}">
-        <div class="briefing-card-header">${cleanTitle}</div>
-        <div class="briefing-card-body">
-          ${bodyLines.map(line => {
-            line = line.trim();
-            if (!line) return '';
-
-            // 한-영 병기 스타일 (괄호 안 영어)
-            if (line.startsWith('(') && line.endsWith(')')) {
-              return `<div style="margin-left:18px; font-size:11.5px; color:#94a3b8; font-style:italic; margin-bottom:8px; line-height:1.2;">${line}</div>`;
-            }
-
-            // 불릿 포인트 및 들여쓰기
-            if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
-              return `<div style="margin-top:8px; display:flex; gap:6px;"><span>•</span><span>${line.substring(2)}</span></div>`;
-            }
-
-            // 인용문 스타일
-            if (line.startsWith('> ')) {
-              return `<div style="border-left:2px solid #3b82f6; padding-left:8px; margin:8px 0; color:#cbd5e1; font-weight:600;">${line.substring(2)}</div>`;
-            }
-
-            return `<div style="margin-top:4px;">${line}</div>`;
-          }).join('')}
-        </div>
-      </div>
-    `;
-  });
-  container.innerHTML = html;
-}
-
 async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
 
-  const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
+  const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
   'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS',
   'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF'];
 
@@ -694,7 +449,6 @@ async function runHL(){
     let edtoBookmarkY = null;
     let coaAnnotIdx = -1; // Added to track page with SUBMITTED AT for COPY OF ATS FPL
 
-    let allExtractedText = "";
     for(let pi=0;pi<numPages;pi++){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
       const tc=await jsPage2.getTextContent();
@@ -702,13 +456,8 @@ async function runHL(){
       const offset = detectPageOffset(rawText);
       const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
 
-      // 불필요한 연속 공백 제거 및 줄바꿈 정리로 토큰 절약
-      const cleanedPageText = pageText.replace(/\s+/g, ' ').trim();
-      allExtractedText += `\n[P${pi+1}] ` + cleanedPageText;
-
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined) {
-            // Special handling for COPY OF ATS FPL to find the page with SUBMITTED AT
             if (bm.label === 'COPY OF ATS' && coaAnnotIdx === -1) {
                 if (/SUBMITTED\s+AT/i.test(pageText)) coaAnnotIdx = pi;
             }
@@ -1203,8 +952,6 @@ async function runHL(){
 
     const cfpPageIdx = bmPages['CFP PLAN'];
     const resolvedCoaPageIdx = bmPages['COPY OF ATS'] !== undefined ? bmPages['COPY OF ATS'] : -1;
-
-    // Final target page for COA annotations (where SUBMITTED AT is)
     const finalCoaAnnotIdx = coaAnnotIdx !== -1 ? coaAnnotIdx : resolvedCoaPageIdx;
 
     let foundCoaPageOffset = 0;
@@ -1243,13 +990,11 @@ async function runHL(){
       }
 
       // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
-      // CFP보다 뒤에 있는 다음 섹션만 종료 지점으로 사용한다.
       const cfpEndIdx = Math.min(
         numPages,
         ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
           .filter(idx => idx !== -1 && idx > cfpPageIdx)
       );
-      // Fallback: If no other section found after CFP, scan at most 20 pages
       const safeCfpEndIdx = (cfpEndIdx === numPages || cfpEndIdx <= cfpPageIdx) ? Math.min(numPages, cfpPageIdx + 20) : cfpEndIdx;
 
       let cfpFullSectionText = "";
@@ -1814,11 +1559,6 @@ async function runHL(){
     document.getElementById('previewCard').style.display='block';
 
     dlPDF();
-
-    // Trigger AI Briefing in background
-    if (allExtractedText.trim()) {
-      generateAIBriefing(allExtractedText);
-    }
   } catch(err) {
     setStatus('error','Execution error: '+err.message);
     runBtn.className='action-btn run-btn active';
