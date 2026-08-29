@@ -86,9 +86,12 @@ function checkKeywordMatch(text, kw) {
   const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   let re;
   try {
-    re = kw.toLowerCase() === 'restrict'
-      ? new RegExp(`\\b${escaped}[A-Za-z]*\\b`, 'i')
-      : new RegExp(`\\b${escaped}\\b`, 'i');
+    const kwLower = kw.toLowerCase();
+    if (kwLower === 'restrict' || kwLower === 'prohibit') {
+      re = new RegExp(`\\b${escaped}[A-Za-z]*\\b`, 'i');
+    } else {
+      re = new RegExp(`\\b${escaped}\\b`, 'i');
+    }
   } catch (e) {
     re = new RegExp(escaped, 'i');
   }
@@ -392,7 +395,7 @@ async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
 
-  const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBITED', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
+  const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
   'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS',
   'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF'];
 
