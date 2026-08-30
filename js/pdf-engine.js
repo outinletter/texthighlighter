@@ -24,6 +24,33 @@ function setStatus(type, message) {
   if (statusEl) statusEl.textContent = message;
 }
 
+// 공통 파일 읽기 함수 (File 객체를 받아 전역 pdfBytes에 저장)
+async function handleSelectedFile(file) {
+  if (!file) return;
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    setStatus('error', 'PDF 형식의 파일만 업로드할 수 있습니다.');
+    alert('PDF 파일만 선택 가능합니다.');
+    return;
+  }
+
+  try {
+    setStatus('processing', 'PDF 파일을 읽는 중입니다...');
+    const buffer = await file.arrayBuffer();
+    pdfBytes = new Uint8Array(buffer);
+    done = false;
+    outBytes = null;
+    setStatus('done', `파일 첨부 완료: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+    
+    const runBtn = document.getElementById('runBtn');
+    if (runBtn) {
+      runBtn.className = 'action-btn run-btn active';
+      runBtn.innerHTML = 'RUN ENGINE';
+    }
+  } catch (err) {
+    setStatus('error', '파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+  }
+}
+
 // 결과 PDF 다운로드 함수
 function dlPDF() {
   if (!outBytes) return;
@@ -40,25 +67,32 @@ function dlPDF() {
 // 2. 파일 및 버튼 이벤트 바인딩
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-  // 파일 업로드 이벤트 바인딩
-  const fileInput = document.getElementById('fileInput') || document.getElementById('pdfFile');
+  // 1) 파일 업로드 input 바인딩 (여러 가능한 ID 지원)
+  const fileInput = document.getElementById('fileInput') || document.getElementById('pdfFile') || document.querySelector('input[type="file"]');
   if (fileInput) {
     fileInput.addEventListener('change', async (e) => {
       const file = e.target.files[0];
-      if (!file) return;
-
-      try {
-        setStatus('processing', 'PDF 파일을 읽는 중입니다...');
-        const buffer = await file.arrayBuffer();
-        pdfBytes = new Uint8Array(buffer);
-        setStatus('done', `파일 첨부 완료: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-      } catch (err) {
-        setStatus('error', '파일을 읽는 중 오류가 발생했습니다: ' + err.message);
-      }
+      await handleSelectedFile(file);
     });
   }
 
-  // Run Engine 버튼 이벤트 바인딩
+  // 2) 드래그 앤 드롭 지원 (dropZone 또는 body 전체)
+  const dropZone = document.getElementById('dropZone') || document.body;
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+  });
+
+  dropZone.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.dataTransfer && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      await handleSelectedFile(file);
+    }
+  });
+
+  // 3) Run Engine 버튼 이벤트 바인딩
   const runBtn = document.getElementById('runBtn');
   if (runBtn) {
     runBtn.addEventListener('click', () => {
@@ -210,7 +244,6 @@ function buildWptTimeMap(text) {
   return map;
 }
 
-// 빈 프레임 함수 예외 방지용 구현
 async function extractMetadata(pdfJsDoc) {
   return {};
 }
@@ -258,7 +291,6 @@ async function extractAllTaggedAirports(pdfJsDoc, startIdx, endIdx, tagPattern) 
   return list;
 }
 
-// 디스패치 문서 및 CFP에서 공항 코드를 추출하는 헬퍼 함수
 async function extractReleaseAirportsByRule2(pdfJsDoc) {
   const airports = [];
   try {
@@ -420,7 +452,6 @@ async function runHL(){
 
     let totalHits = 0;
 
-    // 키워드 하이라이트 검색 영역
     for(let pi = 0; pi < numPages; pi++){
       const jsPage = await pdfJsDoc.getPage(pi + 1);
       const vp = jsPage.getViewport({scale: 1.0});
@@ -548,7 +579,6 @@ async function runHL(){
             try { re = new RegExp(`\\b${escapedKw}\\b`, 'gi'); } catch(e) { re = new RegExp(escapedKw, 'gi'); }
             let m;
             while ((m = re.exec(cleanLineText)) !== null) {
-              // 정규식 무한 루프 방지 로직 보완
               if (m.index === re.lastIndex) {
                 re.lastIndex++;
               }
@@ -580,7 +610,6 @@ async function runHL(){
       }
     }
 
-    // 북마크 구성 영역
     const ctx = pdfLibDoc.context;
     const outlineItems = [];
     const bmLabelToRef = {};
