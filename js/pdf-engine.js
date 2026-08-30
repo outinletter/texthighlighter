@@ -24,33 +24,6 @@ function setStatus(type, message) {
   if (statusEl) statusEl.textContent = message;
 }
 
-// 공통 파일 읽기 함수 (File 객체를 받아 전역 pdfBytes에 저장)
-async function handleSelectedFile(file) {
-  if (!file) return;
-  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-    setStatus('error', 'PDF 형식의 파일만 업로드할 수 있습니다.');
-    alert('PDF 파일만 선택 가능합니다.');
-    return;
-  }
-
-  try {
-    setStatus('processing', 'PDF 파일을 읽는 중입니다...');
-    const buffer = await file.arrayBuffer();
-    pdfBytes = new Uint8Array(buffer);
-    done = false;
-    outBytes = null;
-    setStatus('done', `파일 첨부 완료: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-    
-    const runBtn = document.getElementById('runBtn');
-    if (runBtn) {
-      runBtn.className = 'action-btn run-btn active';
-      runBtn.innerHTML = 'RUN ENGINE';
-    }
-  } catch (err) {
-    setStatus('error', '파일을 읽는 중 오류가 발생했습니다: ' + err.message);
-  }
-}
-
 // 결과 PDF 다운로드 함수
 function dlPDF() {
   if (!outBytes) return;
@@ -64,35 +37,42 @@ function dlPDF() {
 }
 
 // ==========================================
-// 2. 파일 및 버튼 이벤트 바인딩
+// 2. 파일 및 버튼 이벤트 바인딩 (오류 수정 구간)
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-  // 1) 파일 업로드 input 바인딩 (여러 가능한 ID 지원)
-  const fileInput = document.getElementById('fileInput') || document.getElementById('pdfFile') || document.querySelector('input[type="file"]');
-  if (fileInput) {
-    fileInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      await handleSelectedFile(file);
+  // 실제 <input type="file"> 요소 감지
+  const fileInput = document.getElementById('fileInput') || document.getElementById('pdfFile');
+  // 화면에 보이는 파일 선택 커스텀 버튼 감지
+  const fileBtn = document.getElementById('fileBtn') || document.getElementById('uploadBtn') || document.getElementById('selectFileBtn');
+
+  // 커스텀 버튼 클릭 시 숨겨진 fileInput 트리거 실행
+  if (fileBtn && fileInput) {
+    fileBtn.addEventListener('click', () => {
+      fileInput.click();
     });
   }
 
-  // 2) 드래그 앤 드롭 지원 (dropZone 또는 body 전체)
-  const dropZone = document.getElementById('dropZone') || document.body;
-  dropZone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-  });
+  // 파일 선택 변경(change) 이벤트 바인딩
+  if (fileInput) {
+    fileInput.addEventListener('change', async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
 
-  dropZone.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.dataTransfer && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      await handleSelectedFile(file);
-    }
-  });
+      try {
+        setStatus('processing', 'PDF 파일을 읽는 중입니다...');
+        const buffer = await file.arrayBuffer();
+        pdfBytes = new Uint8Array(buffer);
+        done = false; // 새 파일 로드 시 상태 초기화
+        outBytes = null;
+        
+        setStatus('done', `파일 첨부 완료: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+      } catch (err) {
+        setStatus('error', '파일을 읽는 중 오류가 발생했습니다: ' + err.message);
+      }
+    });
+  }
 
-  // 3) Run Engine 버튼 이벤트 바인딩
+  // Run Engine 버튼 이벤트 바인딩
   const runBtn = document.getElementById('runBtn');
   if (runBtn) {
     runBtn.addEventListener('click', () => {
