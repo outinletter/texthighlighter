@@ -1,3 +1,12 @@
+// 전역 변수(pdfBytes)가 올바르게 로드되었는지 확인하는 함수
+function canRun() {
+  if (!pdfBytes || pdfBytes.byteLength === 0) {
+    alert('PDF 파일을 먼저 선택하거나 업로드하세요.');
+    return false;
+  }
+  return true;
+}
+
 // 디스패치 문서 및 CFP에서 공항 코드를 추출하는 헬퍼 함수
 async function extractReleaseAirportsByRule2(pdfJsDoc) {
   const airports = [];
@@ -722,14 +731,11 @@ async function runHL(){
         }
       }
 
-      // ----------------------------------------------------
       // Refile Fuel - RQRD Fuel 차이 계산 및 오버레이 배지 추가
-      // ----------------------------------------------------
       const refileFuelMatch = cfpFullSectionText.match(/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+(\d{4,5})/i);
       if (refileFuelMatch) {
-        const refileFuel = parseInt(refileFuelMatch[1], 10); // e.g., 00369 -> 369
+        const refileFuel = parseInt(refileFuelMatch[1], 10); 
 
-        // CFP 첫 페이지에서 RQRD 행의 Y 좌표 및 Right X 좌표 찾기
         const cfpLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
         let rqrdLine = null;
         let rqrdFuel = null;
@@ -737,18 +743,17 @@ async function runHL(){
         for (const line of cfpLines) {
           const rqrdMatch = line.text.match(/\bRQRD\s+(\d{4,5})\b/i);
           if (rqrdMatch) {
-            rqrdFuel = parseInt(rqrdMatch[1], 10); // e.g., 0274 -> 274
+            rqrdFuel = parseInt(rqrdMatch[1], 10); 
             rqrdLine = line;
             break;
           }
         }
 
         if (rqrdLine && rqrdFuel !== null) {
-          const fuelDiffHundreds = refileFuel - rqrdFuel; // e.g., 369 - 274 = 95 (100lbs 단위)
+          const fuelDiffHundreds = refileFuel - rqrdFuel; 
           if (fuelDiffHundreds > 0) {
-            const totalLbs = fuelDiffHundreds * 100; // e.g., 9500
-            // 00,000lbs 형식으로 포맷팅 (쉼표 및 5자리 패딩)
-            const formattedLbsStr = totalLbs.toLocaleString('en-US').padStart(6, '0') + "lbs"; // e.g., "09,500lbs"
+            const totalLbs = fuelDiffHundreds * 100; 
+            const formattedLbsStr = totalLbs.toLocaleString('en-US').padStart(6, '0') + "lbs"; 
 
             const rqrdMaxX = Math.max(...rqrdLine.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const rqrdFS = Math.abs(rqrdLine.parts[0].item.transform[3]) || 10;
