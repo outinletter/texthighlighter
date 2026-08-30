@@ -1493,6 +1493,7 @@ async function runHL(){
     const expectedRegex = /FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
     const expectedStartIdx = dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : 0;
     const expectedEndIdx = dispatchReleaseIdx !== -1 ? dispatchEndIdx : numPages;
+    
     for (let pi = expectedStartIdx; pi < expectedEndIdx; pi++) {
       const jsPage = await pdfJsDoc.getPage(pi + 1);
       const tc = await jsPage.getTextContent();
@@ -1505,23 +1506,34 @@ async function runHL(){
       const sx = lw / vp.width;
       const sy = lh / vp.height;
       const expectedBadges = [];
-
+    
       for (const line of lines) {
         let match;
         expectedRegex.lastIndex = 0;
         while ((match = expectedRegex.exec(line.text)) !== null) {
           const fromWpt = match[1].toUpperCase();
           const toWpt = match[2].toUpperCase();
-
-          const fromTime = wptTimeMap.get(fromWpt);
+    
+          // 1. fromWpt가 출발공항(depApt 변수 또는 "RKSI")이면 "00.00" 설정, 그 외는 Map 조회 (If fromWpt is departure airport, set "00.00", otherwise look up in Map)
+          let fromTime = "";
+          if (typeof depApt !== "undefined" && fromWpt === depApt.toUpperCase()) {
+            fromTime = "00.00";
+          } else if (fromWpt === "RKSI") {
+            fromTime = "00.00";
+          } else {
+            fromTime = wptTimeMap.get(fromWpt);
+          }
+    
+          // 2. toWpt 시간 조회 (Look up toWpt time)
           const toTime = wptTimeMap.get(toWpt);
-
+    
+          // 두 시간값이 모두 확보되면 뱃지 추가 (Add badge if both time values are valid)
           if (fromTime && toTime) {
             const badgeText = `${fromTime} ~ ${toTime}`;
             const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
-
+    
             const badgeSize = 9;
             const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
             expectedBadges.push({
@@ -1534,7 +1546,7 @@ async function runHL(){
           }
         }
       }
-
+    }
       const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
       for (const badge of expectedBadges) {
         drawDutyTimeStyleBadge(libPage, {
