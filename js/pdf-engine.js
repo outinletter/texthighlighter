@@ -201,7 +201,6 @@ function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, page
   });
 }
 
-
 async function extractReleaseAirportsByRule2(pdfJsDoc) {
   const airports = [];
   iataAirports = [];
@@ -343,7 +342,6 @@ async function extractMetadata(pdfJsDoc) {
     const flightMatch = decodedText.match(/\b(KAL|KE|KAL\s+|KE\s*)(\d{3,4})\b/i);
     if (flightMatch) extractedFlightNum = flightMatch[1].trim().toUpperCase() + flightMatch[2];
 
-    // 기번 패턴 검색 강화: HL + 4자리 숫자 (또는 경우에 따라 5자리)
     const acRegMatch = decodedText.match(/\bHL[0-9]{4,5}\b/i);
     if (acRegMatch) {
       extractedAcReg = acRegMatch[0].toUpperCase();
@@ -382,8 +380,6 @@ function buildWptTimeMap(fullPdfText) {
   const wptTimeMap = new Map();
   if (!fullPdfText) return wptTimeMap;
 
-  // CFP waypoint 행: "34E60 ... / ... 04.56 0639/"
-  // 행 단위로 제한해 다음 WPT 행의 시간과 잘못 연결되지 않도록 한다.
   for (const line of fullPdfText.split(/\r?\n/)) {
     const match = /\b([A-Z0-9]{3,10})\b[^\/\r\n]*\/[^\/\r\n]*?\b(\d{2}\.\d{2})\b\s+\d{4}\//i.exec(line);
     if (match) wptTimeMap.set(match[1].toUpperCase(), match[2]);
@@ -418,12 +414,10 @@ async function runHL(){
       pdfJsDoc = await pdfjsLib.getDocument({data:pdfBytes.buffer.slice(0)}).promise;
     }
 
-    // 메타데이터(기번 등)를 먼저 추출해야 하이라이트 키워드 목록에 포함 가능
     detectedAirports = await extractReleaseAirportsByRule2(pdfJsDoc);
     await extractMetadata(pdfJsDoc);
 
     const extraKws = [];
-    // 기번(AcReg) 하이라이트는 키워드 하이라이트가 활성화된 경우에만 포함
     if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
     const keywords=[...sel, ...extraKws].sort((a,b)=>b.length-a.length);
     const hlRGB = activeHlColorRGB;
@@ -447,7 +441,7 @@ async function runHL(){
 
     const bmPages={};
     let edtoBookmarkY = null;
-    let coaAnnotIdx = -1; // Added to track page with SUBMITTED AT for COPY OF ATS FPL
+    let coaAnnotIdx = -1;
 
     for(let pi=0;pi<numPages;pi++){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
@@ -511,7 +505,6 @@ async function runHL(){
 
     let totalHits=0;
 
-    // 하이라이트 레이어 및 검색 레이어 생성 (키워드 선택 시에만 동작)
     if(sel.size > 0){
       setStatus('processing','Calculating highlight positions and drawing...');
       for(let pi=0;pi<numPages;pi++){
@@ -649,28 +642,28 @@ async function runHL(){
                   const itemW = item.width || 0;
                   const itemH = Math.abs(tx[3]) || 10;
 
-                const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
-                if (idx !== -1) {
-                  const fullMeasuredW = stdFont.widthOfTextAtSize(s, itemH);
-                  const prefixMeasuredW = stdFont.widthOfTextAtSize(s.substring(0, idx), itemH);
-                  const matchMeasuredW = stdFont.widthOfTextAtSize(s.substring(idx, idx + targetWord.length), itemH);
+                  const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
+                  if (idx !== -1) {
+                    const fullMeasuredW = stdFont.widthOfTextAtSize(s, itemH);
+                    const prefixMeasuredW = stdFont.widthOfTextAtSize(s.substring(0, idx), itemH);
+                    const matchMeasuredW = stdFont.widthOfTextAtSize(s.substring(idx, idx + targetWord.length), itemH);
 
-                  const startXOffset = fullMeasuredW > 0 ? (prefixMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * idx;
-                  const actualHlWidth = fullMeasuredW > 0 ? (matchMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * targetWord.length;
+                    const startXOffset = fullMeasuredW > 0 ? (prefixMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * idx;
+                    const actualHlWidth = fullMeasuredW > 0 ? (matchMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * targetWord.length;
 
-                  const rx = (itemX + startXOffset) * sx;
-                  const ry = itemY * sy;
-                  const rw = actualHlWidth * sx;
-                  const rh = itemH * sy;
+                    const rx = (itemX + startXOffset) * sx;
+                    const ry = itemY * sy;
+                    const rw = actualHlWidth * sx;
+                    const rh = itemH * sy;
 
-                  libPage.drawRectangle({
-                    x: rx - 1, y: ry - (rh * 0.15),
-                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.15, 8),
-                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                    opacity: 0.25
-                  });
-                  totalHits++;
-                }
+                    libPage.drawRectangle({
+                      x: rx - 1, y: ry - (rh * 0.15),
+                      width: Math.max(rw + 2, 4), height: Math.max(rh * 1.15, 8),
+                      color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                      opacity: 0.25
+                    });
+                    totalHits++;
+                  }
                 }
               }
             }
@@ -720,12 +713,12 @@ async function runHL(){
               if (kw.toUpperCase() === 'MEL' || kw.toUpperCase() === 'CDL') {
                 if (lineTextFromMapping[startIdx - 1] === '/' || lineTextFromMapping[endIdx] === '/') continue;
               }
-            if (kw.toUpperCase() === 'MAY') {
+              if (kw.toUpperCase() === 'MAY') {
                 const beforeCtx = cleanLineText.slice(Math.max(0, startIdx - 6), startIdx);
                 const afterCtx = cleanLineText.slice(endIdx, endIdx + 6);
                 const isDateCtx = /\d\s*[A-Z]{0,2}\s*$/i.test(beforeCtx) || /^\s*\d/.test(afterCtx);
                 if (isDateCtx) continue;
-            }
+              }
               const itemMatches = {};
               for (let c = startIdx; c < endIdx; c++) {
                 const map = charMapping[c];
@@ -989,7 +982,6 @@ async function runHL(){
         lastY = item.transform[5];
       }
 
-      // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
       const cfpEndIdx = Math.min(
         numPages,
         ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
@@ -1020,9 +1012,7 @@ async function runHL(){
 
       wptTimeMap = buildWptTimeMap(cfpFullSectionText);
 
-      // =========================================================================
-      // TRIP 시간 계산 (Duty time 오버레이) - 첫 페이지 기준
-      // =========================================================================
+      // TRIP 시간 계산 (Duty time 오버레이)
       const tripMatch = cfpFirstPageText.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
       if (tripMatch) {
         const hours = parseInt(tripMatch[2], 10);
@@ -1150,7 +1140,7 @@ async function runHL(){
              const dy = Math.abs(prevItem.transform[5] - item.transform[5]);
              const dx = item.transform[4] - (prevItem.transform[4] + prevItem.width);
              if (dy > 4 || dx > 2) {
-                  coaFullTextWithNewlines += "\n";
+                 coaFullTextWithNewlines += "\n";
                  coaCharMapping.push({ isSeparator: true, itemIndex: -1, charIndex: -1 });
              }
           }
@@ -1487,9 +1477,7 @@ async function runHL(){
       }
     }
 
-    // =========================================================================
     // FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
-    // =========================================================================
     const expectedRegex = /FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
     const expectedStartIdx = dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : 0;
     const expectedEndIdx = dispatchReleaseIdx !== -1 ? dispatchEndIdx : numPages;
@@ -1514,7 +1502,6 @@ async function runHL(){
           const fromWpt = match[1].toUpperCase();
           const toWpt = match[2].toUpperCase();
     
-          // 1. fromWpt가 출발공항(depApt 변수 또는 "RKSI")이면 "00.00" 설정, 그 외는 Map 조회 (If fromWpt is departure airport, set "00.00", otherwise look up in Map)
           let fromTime = "";
           if (typeof depApt !== "undefined" && fromWpt === depApt.toUpperCase()) {
             fromTime = "00.00";
@@ -1524,10 +1511,8 @@ async function runHL(){
             fromTime = wptTimeMap.get(fromWpt);
           }
     
-          // 2. toWpt 시간 조회 (Look up toWpt time)
           const toTime = wptTimeMap.get(toWpt);
     
-          // 두 시간값이 모두 확보되면 뱃지 추가 (Add badge if both time values are valid)
           if (fromTime && toTime) {
             const badgeText = `${fromTime} ~ ${toTime}`;
             const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
@@ -1546,19 +1531,21 @@ async function runHL(){
           }
         }
       }
-    }
-      const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
-      for (const badge of expectedBadges) {
-        drawDutyTimeStyleBadge(libPage, {
-          text: badge.text,
-          x: rightEdge - badge.textWidth - 4,
-          centerY: badge.centerY,
-          font: boldFont,
-          fontSize: badge.size,
-          bgColor: [0.88, 0.90, 0.93],
-          bgOpacity: 0.85
-        });
-        totalHits++;
+
+      if (expectedBadges.length > 0) {
+        const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
+        for (const badge of expectedBadges) {
+          drawDutyTimeStyleBadge(libPage, {
+            text: badge.text,
+            x: rightEdge - badge.textWidth - 4,
+            centerY: badge.centerY,
+            font: boldFont,
+            fontSize: badge.size,
+            bgColor: [0.88, 0.90, 0.93],
+            bgOpacity: 0.85
+          });
+          totalHits++;
+        }
       }
     }
 
