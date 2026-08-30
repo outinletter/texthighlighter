@@ -1,3 +1,45 @@
+// 디스패치 문서 및 CFP에서 공항 코드를 추출하는 헬퍼 함수
+async function extractReleaseAirportsByRule2(pdfJsDoc) {
+  const airports = [];
+  try {
+    const page1 = await pdfJsDoc.getPage(1);
+    const tc = await page1.getTextContent();
+    const rawText = tc.items.map(it => it.str).join(' ');
+    const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
+    
+    let text = tc.items.map(it => {
+      return (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, offset) : it.str;
+    }).join(' ');
+
+    // 1. "BEROK TO LEMD" 또는 "RKSI TO LEMD" 패턴 검색
+    const routeMatch = text.match(/\b([A-Z]{4})\s+TO\s+([A-Z]{4})\b/i);
+    if (routeMatch) {
+      airports.push(routeMatch[1].toUpperCase(), routeMatch[2].toUpperCase());
+      return airports;
+    }
+
+    // 2. "RKSI/LEMD" 또는 "RKSI-LEMD" 패턴 검색
+    const pairMatch = text.match(/\b([A-Z]{4})\s*[\/-]\s*([A-Z]{4})\b/i);
+    if (pairMatch) {
+      airports.push(pairMatch[1].toUpperCase(), pairMatch[2].toUpperCase());
+      return airports;
+    }
+
+    // 3. "DEP/ARR" 명시적 구문 탐색
+    const depMatch = text.match(/\bDEP[:\s]+([A-Z]{4})\b/i);
+    const destMatch = text.match(/\b(?:DEST|ARR)[:\s]+([A-Z]{4})\b/i);
+    if (depMatch && destMatch) {
+      airports.push(depMatch[1].toUpperCase(), destMatch[1].toUpperCase());
+      return airports;
+    }
+  } catch (e) {
+    console.warn("extractReleaseAirportsByRule2 processing warning:", e);
+  }
+  return airports;
+}
+
+
+
 async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
