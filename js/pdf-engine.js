@@ -1,44 +1,226 @@
-// 디스패치 문서 및 CFP에서 공항 코드를 추출하는 헬퍼 함수
+// ----------------------------------------------------
+// 0. 기본 유틸리티 및 전역 상수 설정
+// ----------------------------------------------------
+const SOURCE_TEXT_CENTER_RATIO = 0.35;
+
+// 문자열 세척 및 인코딩 복원 함수
+function cleanAndDecodeItem(str, offset = 0) {
+  if (!str) return '';
+  if (offset === 0) return str;
+  let decoded = '';
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    decoded += String.fromCharCode(code + offset);
+  }
+  return decoded;
+}
+
+// 오프셋 감지 함수
+function detectPageOffset(rawText) {
+  if (!rawText) return 0;
+  if (rawText.includes('CFP') || rawText.includes('PLAN') || rawText.includes('NOTAM')) return 0;
+  return 0; // 필요 시 특정 문서 인코딩 오프셋 보정 로직 구현
+}
+
+// 키워드 매칭 검사 함수
+function checkKeywordMatch(text, kw) {
+  if (!text || !kw) return false;
+  const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(`\\b${escapedKw}\\b`, 'i');
+  return re.test(text);
+}
+
+// 텍스트 라인 그룹화 함수
+function groupTextItemsByLine(items, offset = 0) {
+  const sorted = items.slice().sort((a, b) => b.transform[5] - a.transform[5]);
+  const lines = [];
+  for (const item of sorted) {
+    const y = item.transform[5];
+    const decoded = cleanAndDecodeItem(item.str, offset);
+    let joined = false;
+    for (const line of lines) {
+      if (Math.abs(line.y - y) < 4.0) {
+        line.parts.push({ item, text: decoded });
+        joined = true;
+        break;
+      }
+    }
+    if (!joined) {
+      lines.push({ y, parts: [{ item, text: decoded }] });
+    }
+  }
+  for (const line of lines) {
+    line.parts.sort((a, b) => a.item.transform[4] - b.item.transform[4]);
+    line.text = line.parts.map(p => p.text).join(' ');
+  }
+  return lines;
+}
+
+// ----------------------------------------------------
+// 1. 공항 및 메타데이터 추출 헬퍼 함수
+// ----------------------------------------------------
 async function extractReleaseAirportsByRule2(pdfJsDoc) {
   const airports = [];
   try {
     const page1 = await pdfJsDoc.getPage(1);
     const tc = await page1.getTextContent();
     const rawText = tc.items.map(it => it.str).join(' ');
-    const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
-    
-    let text = tc.items.map(it => {
-      return (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, offset) : it.str;
-    }).join(' ');
+    const offset = detectPageOffset(rawText);
+    const text = tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
 
-    // 1. "BEROK TO LEMD" 또는 "RKSI TO LEMD" 패턴 검색
     const routeMatch = text.match(/\b([A-Z]{4})\s+TO\s+([A-Z]{4})\b/i);
-    if (routeMatch) {
-      airports.push(routeMatch[1].toUpperCase(), routeMatch[2].toUpperCase());
-      return airports;
-    }
+    if (routeMatch) return [routeMatch[1].toUpperCase(), routeMatch[2].toUpperCase()];
 
-    // 2. "RKSI/LEMD" 또는 "RKSI-LEMD" 패턴 검색
     const pairMatch = text.match(/\b([A-Z]{4})\s*[\/-]\s*([A-Z]{4})\b/i);
-    if (pairMatch) {
-      airports.push(pairMatch[1].toUpperCase(), pairMatch[2].toUpperCase());
-      return airports;
-    }
+    if (pairMatch) return [pairMatch[1].toUpperCase(), pairMatch[2].toUpperCase()];
 
-    // 3. "DEP/ARR" 명시적 구문 탐색
     const depMatch = text.match(/\bDEP[:\s]+([A-Z]{4})\b/i);
     const destMatch = text.match(/\b(?:DEST|ARR)[:\s]+([A-Z]{4})\b/i);
-    if (depMatch && destMatch) {
-      airports.push(depMatch[1].toUpperCase(), destMatch[1].toUpperCase());
-      return airports;
-    }
+    if (depMatch && destMatch) return [depMatch[1].toUpperCase(), destMatch[1].toUpperCase()];
   } catch (e) {
-    console.warn("extractReleaseAirportsByRule2 processing warning:", e);
+    console.warn("extractReleaseAirportsByRule2 warning:", e);
   }
   return airports;
 }
 
+async function extractMetadata(pdfJsDoc) {
+  try {
+    const page1 = await pdfJsDoc.getPage(1);
+    const tc = await page1.getTextContent();
+    const rawText = tc.items.map(it => it.str).join(' ');
+    const offset = detectPageOffset(rawText);
+    const text = tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
 
+    const regMatch = text.match(/\b(HL\d{4}|N\d{3,5}[A-Z]?)\b/i);
+    if (regMatch) window.extractedAcReg = regMatch[1].toUpperCase();
+  } catch (e) {
+    console.warn("extractMetadata warning:", e);
+  }
+}
+
+// ----------------------------------------------------
+// 2. NOTAM 태그 공항 추출 함수
+// ----------------------------------------------------
+async function extractFirstTagAirports(pdfJsDoc, startIdx, endIdx, tags) {
+  const results = [];
+  const tagSet = new Set(tags.map(t => t.toUpperCase()));
+  const tagPattern = new RegExp(`\\[\\s*(${tags.join('|')})\\s*\\]\\s*([A-Z]{3,4})`, 'i');
+
+  for (let pi = startIdx; pi < endIdx; pi++) {
+    const page = await pdfJsDoc.getPage(pi + 1);
+    const tc = await page.getTextContent();
+    const offset = detectPageOffset(tc.items.map(it => it.str).join(' '));
+    const lines = groupTextItemsByLine(tc.items, offset);
+
+    for (const line of lines) {
+      const match = line.text.match(tagPattern);
+      if (match) {
+        const tag = match[1].toUpperCase();
+        const code = match[2].toUpperCase();
+        if (tagSet.has(tag)) {
+          const maxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+          const fontSize = Math.abs(line.parts[0].item.transform[3]) || 10;
+          results.push({ tag, code, pageIdx: pi, y: line.y, maxX, fontSize });
+          tagSet.delete(tag);
+        }
+      }
+    }
+  }
+  return results;
+}
+
+async function extractAllTaggedAirports(pdfJsDoc, startIdx, endIdx, tagRegexStr) {
+  const results = [];
+  const tagPattern = new RegExp(`\\[\\s*(${tagRegexStr})\\s*\\]\\s*([A-Z]{3,4})`, 'gi');
+
+  for (let pi = startIdx; pi < endIdx; pi++) {
+    const page = await pdfJsDoc.getPage(pi + 1);
+    const tc = await page.getTextContent();
+    const offset = detectPageOffset(tc.items.map(it => it.str).join(' '));
+    const lines = groupTextItemsByLine(tc.items, offset);
+
+    for (const line of lines) {
+      let match;
+      tagPattern.lastIndex = 0;
+      while ((match = tagPattern.exec(line.text)) !== null) {
+        const tag = match[1].toUpperCase();
+        const code = match[2].toUpperCase();
+        const maxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+        const fontSize = Math.abs(line.parts[0].item.transform[3]) || 10;
+        results.push({ tag, code, pageIdx: pi, y: line.y, maxX, fontSize, title: `[${tag}] ${code}` });
+      }
+    }
+  }
+  return results;
+}
+
+// ----------------------------------------------------
+// 3. 하이라이트 및 오버레이 배지 드로잉 함수
+// ----------------------------------------------------
+function drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, colorObj, opacityVal, stdFont) {
+  const s = cleanAndDecodeItem(item.str, pageOffset);
+  if (!s) return;
+  const tx = item.transform;
+  const itemX = tx[4], itemY = tx[5];
+  const itemW = item.width || 0;
+  const itemH = Math.abs(tx[3]) || 10;
+
+  const charW = itemW / Math.max(s.length, 1);
+  const matchCharCount = maxCharIdx - minCharIdx + 1;
+
+  const rx = (itemX + minCharIdx * charW) * sx;
+  const ry = itemY * sy;
+  const rw = matchCharCount * charW * sx;
+  const rh = itemH * sy;
+
+  libPage.drawRectangle({
+    x: rx - 1,
+    y: ry - (rh * 0.2),
+    width: Math.max(rw + 2, 4),
+    height: Math.max(rh * 1.2, 8),
+    color: colorObj,
+    opacity: opacityVal
+  });
+}
+
+function drawDutyTimeStyleBadge(libPage, opts) {
+  const { text, x, centerY, font, fontSize, bgColor, bgOpacity } = opts;
+  const textWidth = font.widthOfTextAtSize(text, fontSize);
+  const paddingX = 4;
+  const badgeHeight = fontSize * 1.3;
+
+  // 배경 사각형 드로잉
+  libPage.drawRectangle({
+    x: x - paddingX,
+    y: centerY - (badgeHeight / 2),
+    width: textWidth + (paddingX * 2),
+    height: badgeHeight,
+    color: PDFLib.rgb(bgColor[0], bgColor[1], bgColor[2]),
+    opacity: bgOpacity
+  });
+
+  // 텍스트 드로잉
+  libPage.drawText(text, {
+    x: x,
+    y: centerY - (fontSize * 0.35),
+    size: fontSize,
+    font: font,
+    color: PDFLib.rgb(0, 0, 0)
+  });
+}
+
+// ----------------------------------------------------
+// 4. 웨이포인트 산출 시간 맵 생성 함수
+// ----------------------------------------------------
+function buildWptTimeMap(cfpText) {
+  const map = new Map();
+  const lineRegex = /\b([A-Z0-9]{3,10})\s+\d{3,4}\s+(\d{2}\.\d{2})\b/g;
+  let m;
+  while ((m = lineRegex.exec(cfpText)) !== null) {
+    map.set(m[1].toUpperCase(), m[2]);
+  }
+  return map;
+}
 
 async function runHL(){
   if(!canRun())return;
