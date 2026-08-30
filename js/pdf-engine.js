@@ -1,392 +1,3 @@
-/**
- * PDF Engine Core Functions
- */
-
-const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE", "WEATHER", "AIR", "ROUTE", "ALTN", "INFO"];
-const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
-const SOURCE_TEXT_CENTER_RATIO = 0.36;
-
-/**
- * 'Duty Time' / Accent Style Badge Drawer
- */
-function drawDutyTimeStyleBadge(libPage, options) {
-  const {
-    text,
-    x,
-    y,
-    centerY,
-    font,
-    fontSize = 8.5,
-    bgColor = [0.75, 0.77, 0.80], // Moderate gray (Slightly darker than before)
-    textColor = [0.15, 0.20, 0.25], // Slightly softened navy
-    bgOpacity = 0.75,
-    padH = 4,
-    padV = 2.5
-  } = options;
-
-  const textWidth = font.widthOfTextAtSize(text, fontSize);
-  // Use the embedded font's actual glyph height so background padding is equal.
-  const textHeight = font.heightAtSize(fontSize, { descender: false });
-  const textBaseY = centerY === undefined ? y : centerY - textHeight / 2;
-
-  libPage.drawRectangle({
-    x: x - padH,
-    y: textBaseY - padV,
-    width: textWidth + padH * 2,
-    height: textHeight + padV * 2,
-    color: PDFLib.rgb(...bgColor),
-    opacity: bgOpacity
-  });
-
-  libPage.drawText(text, {
-    x: x,
-    y: textBaseY,
-    size: fontSize,
-    font: font,
-    color: PDFLib.rgb(...textColor),
-    opacity: 1.0
-  });
-}
-
-/**
- * Text Item Line Grouping
- */
-function groupTextItemsByLine(items, offset) {
-  const decorated = items
-    .map(it => ({ item: it, text: decodeForTagScan(it.str, offset) }))
-    .filter(d => d.text && d.text.length > 0);
-
-  decorated.sort((a, b) => b.item.transform[5] - a.item.transform[5]);
-
-  const lines = [];
-  for (const d of decorated) {
-    const y = d.item.transform[5];
-    let joined = false;
-    for (const line of lines) {
-      if (Math.abs(line.y - y) < 4.0) {
-        line.parts.push(d);
-        joined = true;
-        break;
-      }
-    }
-    if (!joined) lines.push({ y, parts: [d] });
-  }
-
-  for (const line of lines) {
-    line.parts.sort((a, b) => a.item.transform[4] - b.item.transform[4]);
-    line.text = line.parts.map(p => p.text).join('');
-    line.items = line.parts.map(p => p.item);
-  }
-
-  return lines;
-}
-
-function checkKeywordMatch(text, kw) {
-  const normalizedText = text.replace(/[^A-Za-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  let re;
-  try {
-    const kwLower = kw.toLowerCase();
-    if (kwLower === 'restrict' || kwLower === 'prohibit') {
-      re = new RegExp(`\\b${escaped}[A-Za-z]*\\b`, 'i');
-    } else {
-      re = new RegExp(`\\b${escaped}\\b`, 'i');
-    }
-  } catch (e) {
-    re = new RegExp(escaped, 'i');
-  }
-  return re.test(normalizedText);
-}
-
-function detectPageOffset(rawText) {
-  if (!rawText) return 0;
-  let bestOffset = 0;
-  let bestMatches = 0;
-
-  const sampleLen = Math.min(rawText.length, 1500);
-  for (const offset of OFFSETS_TO_TEST) {
-    let decodedSample = "";
-    for (let j = 0; j < sampleLen; j++) {
-      decodedSample += String.fromCharCode(rawText.charCodeAt(j) + offset);
-    }
-    const cleanSample = decodedSample.replace(/[^A-Za-z0-9\s]/g, ' ').toUpperCase();
-    let matchCount = 0;
-    for (const kw of TEST_KEYWORDS) {
-      if (cleanSample.includes(kw)) matchCount++;
-    }
-    if (matchCount >= 3) return offset;
-    if (matchCount > bestMatches) {
-      bestMatches = matchCount;
-      bestOffset = offset;
-    }
-  }
-
-  if (bestMatches > 0) return bestOffset;
-
-  for (let i = -120; i <= 120; i++) {
-    if (OFFSETS_TO_TEST.includes(i)) continue;
-    let decodedSample = "";
-    for (let j = 0; j < sampleLen; j++) {
-      decodedSample += String.fromCharCode(rawText.charCodeAt(j) + i);
-    }
-    const cleanSample = decodedSample.replace(/[^A-Za-z0-9\s]/g, ' ').toUpperCase();
-    let matchCount = 0;
-    for (const kw of TEST_KEYWORDS) {
-      if (cleanSample.includes(kw)) matchCount++;
-    }
-    if (matchCount > bestMatches) {
-      bestMatches = matchCount;
-      bestOffset = i;
-    }
-    if (bestMatches >= 3) break;
-  }
-
-  return bestOffset;
-}
-
-function decodeStr(str, offset) {
-  if (!offset || !str) return str;
-  let decoded = "";
-  for (let i = 0; i < str.length; i++) {
-    decoded += String.fromCharCode(str.charCodeAt(i) + offset);
-  }
-  return decoded;
-}
-
-function cleanAndDecodeItem(str, offset) {
-  if (!str) return '';
-  let finalStr = str;
-  if (offset) {
-    const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    const decrypted = decodeStr(str, offset);
-    const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    if (decStandardCount > origStandardCount) finalStr = decrypted;
-  }
-  return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
-}
-
-function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity, font) {
-  const s = cleanAndDecodeItem(item.str, pageOffset) || '';
-  const tx = item.transform;
-  const fontSize = Math.abs(tx[3]) || 10;
-  const itemWidth = item.width || 0;
-
-  // Use font metrics if available, fallback to average width
-  let startXOffset = 0;
-  let actualHlWidth = 0;
-
-  if (font && s.length > 0) {
-    const fullMeasuredW = font.widthOfTextAtSize(s, fontSize);
-    const prefixMeasuredW = font.widthOfTextAtSize(s.substring(0, minCharIdx), fontSize);
-    const matchMeasuredW = font.widthOfTextAtSize(s.substring(minCharIdx, maxCharIdx + 1), fontSize);
-
-    if (fullMeasuredW > 0) {
-      startXOffset = (prefixMeasuredW / fullMeasuredW) * itemWidth;
-      actualHlWidth = (matchMeasuredW / fullMeasuredW) * itemWidth;
-    } else {
-      startXOffset = (itemWidth / s.length) * minCharIdx;
-      actualHlWidth = (itemWidth / s.length) * (maxCharIdx - minCharIdx + 1);
-    }
-  } else {
-    startXOffset = (itemWidth / Math.max(s.length, 1)) * minCharIdx;
-    actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
-  }
-
-  page.drawRectangle({
-    x: (tx[4] + startXOffset) * sx - 1,
-    y: (tx[5] * sy) - (fontSize * sy * 0.15),
-    width: Math.max(actualHlWidth * sx + 2, 4),
-    height: Math.max(fontSize * sy * 1.15, 8),
-    color, opacity
-  });
-}
-
-async function extractReleaseAirportsByRule2(pdfJsDoc) {
-  const airports = [];
-  iataAirports = [];
-  try {
-    for (let pNum = 1; pNum <= Math.min(30, pdfJsDoc.numPages); pNum++) {
-      const page = await pdfJsDoc.getPage(pNum);
-      const textContent = await page.getTextContent();
-      const rawText = textContent.items.map(it => it.str).join(' ');
-      const offset = detectPageOffset(rawText);
-      const decodedRawText = textContent.items.map(it => decodeStr(it.str, offset)).join(' ');
-
-      const isDispatchReleasePage = /DISPATCH\s+RELEASE\s+INFORMATION/i.test(decodedRawText) || /I\s+HEREBY\s+RELEASE/i.test(decodedRawText);
-      if (airports.length === 0) {
-        const m1 = /\bFLIGHT\s+RELEASE\s+[A-Z0-9]+\s+([A-Z]{4})[\/-]([A-Z]{4})\b/i.exec(decodedRawText);
-        if (m1) {
-          airports.push(m1[1].toUpperCase().trim(), m1[2].toUpperCase().trim());
-        } else {
-          const m2 = /\bETD\s+([A-Z]{4})\s+[A-Z0-9]+\s+ETA\s+([A-Z]{4})\b/i.exec(decodedRawText);
-          if (m2) {
-            airports.push(m2[1].toUpperCase().trim(), m2[2].toUpperCase().trim());
-          } else if (isDispatchReleasePage) {
-            const m3 = /I\s+HEREBY\s+RELEASE\s+(?:THE\s+)?FLIGHT.*?([A-Z]{4})\s*[\/-]\s*([A-Z]{4})\b/i.exec(decodedRawText);
-            if (m3) airports.push(m3[1].toUpperCase().trim(), m3[2].toUpperCase().trim());
-          }
-        }
-      }
-      if (iataAirports.length === 0 && isDispatchReleasePage) {
-        const mIata = /\b([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/g;
-        let match;
-        while ((match = mIata.exec(decodedRawText)) !== null) {
-          const a = match[1].toUpperCase(), b = match[2].toUpperCase();
-          const ignoreList = ['MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN','FEB','MAR','APR'];
-          if (!ignoreList.includes(a) && !ignoreList.includes(b)) {
-            iataAirports.push(a, b);
-            break;
-          }
-        }
-      }
-      if (iataAirports.length === 0) {
-         const mHeader = /\b(?:KAL|KE)\s*\d+\s*\/\s*([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
-         if (mHeader) iataAirports.push(mHeader[1].toUpperCase().trim(), mHeader[2].toUpperCase().trim());
-      }
-      if (airports.length === 2 && iataAirports.length === 2) break;
-    }
-  } catch (err) {
-    console.warn("Airport code extraction failed: ", err);
-  }
-  return airports;
-}
-
-function decodeForTagScan(str, offset) {
-  if (!str) return '';
-  let finalStr = str;
-  if (offset) {
-    const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    const decrypted = decodeStr(str, offset);
-    const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    if (decStandardCount > origStandardCount) finalStr = decrypted;
-  }
-  return finalStr.replace(/[^\x20-\x7E]/g, ' ');
-}
-
-async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
-  const found = {};
-  if (startPageIdx === undefined || startPageIdx === -1) return [];
-  const from = Math.max(0, startPageIdx);
-  const to = Math.min(pdfJsDoc.numPages, endPageIdxExclusive);
-
-  for (let pi = from; pi < to; pi++) {
-    if (Object.keys(found).length === tags.length) break;
-    const jsPage = await pdfJsDoc.getPage(pi + 1);
-    const tc = await jsPage.getTextContent();
-    const rawText = tc.items.map(it => it.str).join(' ');
-    const offset = detectPageOffset(rawText);
-    const lines = groupTextItemsByLine(tc.items, offset);
-
-    for (const line of lines) {
-      if (Object.keys(found).length === tags.length) break;
-      for (const tag of tags) {
-        if (found[tag] !== undefined) continue;
-        const re = new RegExp('\\[\\s*' + tag + '\\s*\\]\\s*([A-Z]{3,4})\\b', 'i');
-        const m = re.exec(line.text);
-        if (m) {
-          const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
-          const lineFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-          found[tag] = { code: m[1].toUpperCase(), pageIdx: pi, y: line.y, maxX: lineMaxX, fontSize: lineFS };
-        }
-      }
-    }
-  }
-
-  const ordered = [];
-  for (const tag of tags) {
-    if (found[tag]) ordered.push({ tag, code: found[tag].code, pageIdx: found[tag].pageIdx, y: found[tag].y, maxX: found[tag].maxX, fontSize: found[tag].fontSize });
-  }
-  return ordered;
-}
-
-async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tagPattern) {
-  const results = [];
-  if (startPageIdx === undefined || startPageIdx === -1) return results;
-  const from = Math.max(0, startPageIdx);
-  const to = Math.min(pdfJsDoc.numPages, endPageIdxExclusive);
-  const re = new RegExp('\\[\\s*(' + tagPattern + ')\\s*\\]\\s*([A-Z]{3,4})\\b', 'gi');
-
-  for (let pi = from; pi < to; pi++) {
-    const jsPage = await pdfJsDoc.getPage(pi + 1);
-    const tc = await jsPage.getTextContent();
-    const rawText = tc.items.map(it => it.str).join(' ');
-    const offset = detectPageOffset(rawText);
-    const lines = groupTextItemsByLine(tc.items, offset);
-
-    for (const line of lines) {
-      re.lastIndex = 0;
-      let m;
-      while ((m = re.exec(line.text)) !== null) {
-        const tagLabel = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
-        const code = m[2].toUpperCase();
-        results.push({ tag: tagLabel, code, pageIdx: pi, y: line.y });
-      }
-    }
-  }
-  return results;
-}
-
-async function extractMetadata(pdfJsDoc) {
-  try {
-    const scanPages = Math.min(10, pdfJsDoc.numPages);
-    let combinedText = '';
-    for (let p = 1; p <= scanPages; p++) {
-      const pg = await pdfJsDoc.getPage(p);
-      const tc = await pg.getTextContent();
-      const rawText = tc.items.map(it => it.str).join(' ');
-      const offset = detectPageOffset(rawText);
-      combinedText += ' ' + tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
-    }
-    const decodedText = combinedText;
-
-    const flightMatch = decodedText.match(/\b(KAL|KE|KAL\s+|KE\s*)(\d{3,4})\b/i);
-    if (flightMatch) extractedFlightNum = flightMatch[1].trim().toUpperCase() + flightMatch[2];
-
-    const acRegMatch = decodedText.match(/\bHL[0-9]{4,5}\b/i);
-    if (acRegMatch) {
-      extractedAcReg = acRegMatch[0].toUpperCase();
-    }
-
-    const monthsMap = {
-      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
-    };
-
-    const dateMatchA = decodedText.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b/i);
-    if (dateMatchA) {
-      const monthStr = dateMatchA[2].toLowerCase().substring(0, 3);
-      extractedFileDate = (monthsMap[monthStr] || '01') + dateMatchA[1].padStart(2, '0');
-    } else {
-      const dateMatchB = decodedText.match(/\b(\d{1,2})\/([A-Z]{3})\/(\d{2,4})\b/i);
-      if (dateMatchB) {
-        const monthStr = dateMatchB[2].toLowerCase();
-        extractedFileDate = (monthsMap[monthStr] || '01') + dateMatchB[1].padStart(2, '0');
-      } else {
-        const dateMatchC = decodedText.match(/\b(\d{2})([A-Z]{3})\b/i);
-        if (dateMatchC) {
-          extractedFileDate = (monthsMap[dateMatchC[2].toLowerCase()] || '01') + dateMatchC[2].toLowerCase();
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("Metadata extraction failed: ", err);
-  }
-}
-
-/**
- * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM 형식)을 매핑하는 함수
- */
-function buildWptTimeMap(fullPdfText) {
-  const wptTimeMap = new Map();
-  if (!fullPdfText) return wptTimeMap;
-
-  for (const line of fullPdfText.split(/\r?\n/)) {
-    const match = /\b([A-Z0-9]{3,10})\b[^\/\r\n]*\/[^\/\r\n]*?\b(\d{2}\.\d{2})\b\s+\d{4}\//i.exec(line);
-    if (match) wptTimeMap.set(match[1].toUpperCase(), match[2]);
-  }
-  return wptTimeMap;
-}
-
 async function runHL(){
   if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
@@ -1063,6 +674,53 @@ async function runHL(){
               fontSize: 9,
               bgColor: [0.88, 0.90, 0.93],
               bgOpacity: 0.75
+            });
+            totalHits++;
+          }
+        }
+      }
+
+      // ----------------------------------------------------
+      // Refile Fuel - RQRD Fuel 차이 계산 및 오버레이 배지 추가
+      // ----------------------------------------------------
+      const refileFuelMatch = cfpFullSectionText.match(/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+(\d{4,5})/i);
+      if (refileFuelMatch) {
+        const refileFuel = parseInt(refileFuelMatch[1], 10); // e.g., 00369 -> 369
+
+        // CFP 첫 페이지에서 RQRD 행의 Y 좌표 및 Right X 좌표 찾기
+        const cfpLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
+        let rqrdLine = null;
+        let rqrdFuel = null;
+
+        for (const line of cfpLines) {
+          const rqrdMatch = line.text.match(/\bRQRD\s+(\d{4,5})\b/i);
+          if (rqrdMatch) {
+            rqrdFuel = parseInt(rqrdMatch[1], 10); // e.g., 0274 -> 274
+            rqrdLine = line;
+            break;
+          }
+        }
+
+        if (rqrdLine && rqrdFuel !== null) {
+          const fuelDiffHundreds = refileFuel - rqrdFuel; // e.g., 369 - 274 = 95 (100lbs 단위)
+          if (fuelDiffHundreds > 0) {
+            const totalLbs = fuelDiffHundreds * 100; // e.g., 9500
+            // 00,000lbs 형식으로 포맷팅 (쉼표 및 5자리 패딩)
+            const formattedLbsStr = totalLbs.toLocaleString('en-US').padStart(6, '0') + "lbs"; // e.g., "09,500lbs"
+
+            const rqrdMaxX = Math.max(...rqrdLine.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+            const rqrdFS = Math.abs(rqrdLine.parts[0].item.transform[3]) || 10;
+            const srcMidY = rqrdLine.y * cfpSy + rqrdFS * cfpSy * SOURCE_TEXT_CENTER_RATIO;
+            const drawX = (rqrdMaxX + 12) * cfpSx;
+
+            drawDutyTimeStyleBadge(cfpLibPage, {
+              text: formattedLbsStr,
+              x: drawX,
+              centerY: srcMidY,
+              font: boldFont,
+              fontSize: 9,
+              bgColor: [0.88, 0.90, 0.93],
+              bgOpacity: 0.85
             });
             totalHits++;
           }
