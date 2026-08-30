@@ -1565,25 +1565,6 @@ async function runHL(){
       }
     }
 
-    outBytes=await pdfLibDoc.save();
-    done=true;
-    runBtn.className='action-btn dl-btn active';
-    runBtn.innerHTML='DOWNLOAD PDF FILE';
-
-    setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${Object.keys(bmPages).length} bookmarks set.`);
-    document.getElementById('previewCard').style.display='block';
-
-    dlPDF();
-  } catch(err) {
-    setStatus('error','Execution error: '+err.message);
-    runBtn.className='action-btn run-btn active';
-    runBtn.innerHTML='RUN ENGINE';
-  }
-}
-``` (The missing brace mismatch has been corrected, scoping the badge rendering loop back inside the page iteration loop.)
-
-    
-    
     
     const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
       for (const badge of expectedBadges) {
