@@ -47,6 +47,28 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
   return airports;
 }
 
+// Helper function to extract metadata (such as aircraft registration) from the PDF
+async function extractMetadata(pdfJsDoc) {
+  try {
+    const page1 = await pdfJsDoc.getPage(1);
+    const tc = await page1.getTextContent();
+    const rawText = tc.items.map(it => it.str).join(' ');
+    const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
+    
+    const pageText = tc.items.map(it => {
+      return (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, offset) : it.str;
+    }).join(' ');
+
+    // Example pattern matching aircraft registration (e.g., HL1234, N12345, B-1234)
+    const regMatch = pageText.match(/\b(HL\d{4}|N\d{3,5}[A-Z]?|B-\d{4})\b/i);
+    if (regMatch) {
+      // Assign to global variable used in your runHL function
+      window.extractedAcReg = regMatch[1].toUpperCase();
+    }
+  } catch (e) {
+    console.warn("extractMetadata processing warning:", e);
+  }
+}
 
 
 async function runHL(){
