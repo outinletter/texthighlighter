@@ -37,34 +37,29 @@ function dlPDF() {
 }
 
 // ==========================================
-// 2. 파일 및 버튼 이벤트 바인딩 (오류 수정 구간)
+// 2. 파일 및 버튼 이벤트 바인딩
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
-  // 실제 <input type="file"> 요소 감지
   const fileInput = document.getElementById('fileInput') || document.getElementById('pdfFile');
-  // 화면에 보이는 파일 선택 커스텀 버튼 감지
-  const fileBtn = document.getElementById('fileBtn') || document.getElementById('uploadBtn') || document.getElementById('selectFileBtn');
+  const browseBtn = document.getElementById('browseBtn') || document.getElementById('browse');
 
-  // 커스텀 버튼 클릭 시 숨겨진 fileInput 트리거 실행
-  if (fileBtn && fileInput) {
-    fileBtn.addEventListener('click', () => {
+  // Browse 버튼 클릭 시 숨겨진 fileInput 트리거
+  if (browseBtn && fileInput) {
+    browseBtn.addEventListener('click', () => {
       fileInput.click();
     });
   }
 
-  // 파일 선택 변경(change) 이벤트 바인딩
+  // 파일 업로드 이벤트 바인딩
   if (fileInput) {
     fileInput.addEventListener('change', async (e) => {
-      const file = e.target.files && e.target.files[0];
+      const file = e.target.files[0];
       if (!file) return;
 
       try {
         setStatus('processing', 'PDF 파일을 읽는 중입니다...');
         const buffer = await file.arrayBuffer();
         pdfBytes = new Uint8Array(buffer);
-        done = false; // 새 파일 로드 시 상태 초기화
-        outBytes = null;
-        
         setStatus('done', `파일 첨부 완료: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
       } catch (err) {
         setStatus('error', '파일을 읽는 중 오류가 발생했습니다: ' + err.message);
@@ -432,6 +427,7 @@ async function runHL(){
 
     let totalHits = 0;
 
+    // 키워드 하이라이트 검색 영역
     for(let pi = 0; pi < numPages; pi++){
       const jsPage = await pdfJsDoc.getPage(pi + 1);
       const vp = jsPage.getViewport({scale: 1.0});
@@ -590,6 +586,7 @@ async function runHL(){
       }
     }
 
+    // 북마크 구성 영역
     const ctx = pdfLibDoc.context;
     const outlineItems = [];
     const bmLabelToRef = {};
