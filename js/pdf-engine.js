@@ -1546,8 +1546,46 @@ async function runHL(){
           }
         }
       }
+
+      // 페이지 내 뱃지 그리기 로직 (페이지 루프 내부로 이동)
+      if (expectedBadges.length > 0) {
+        const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
+        for (const badge of expectedBadges) {
+          drawDutyTimeStyleBadge(libPage, {
+            text: badge.text,
+            x: rightEdge - badge.textWidth - 4,
+            centerY: badge.centerY,
+            font: boldFont,
+            fontSize: badge.size,
+            bgColor: [0.88, 0.90, 0.93],
+            bgOpacity: 0.85
+          });
+          totalHits++;
+        }
+      }
     }
-      const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
+
+    outBytes=await pdfLibDoc.save();
+    done=true;
+    runBtn.className='action-btn dl-btn active';
+    runBtn.innerHTML='DOWNLOAD PDF FILE';
+
+    setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${Object.keys(bmPages).length} bookmarks set.`);
+    document.getElementById('previewCard').style.display='block';
+
+    dlPDF();
+  } catch(err) {
+    setStatus('error','Execution error: '+err.message);
+    runBtn.className='action-btn run-btn active';
+    runBtn.innerHTML='RUN ENGINE';
+  }
+}
+``` (The missing brace mismatch has been corrected, scoping the badge rendering loop back inside the page iteration loop.)
+
+    
+    
+    
+    const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
       for (const badge of expectedBadges) {
         drawDutyTimeStyleBadge(libPage, {
           text: badge.text,
