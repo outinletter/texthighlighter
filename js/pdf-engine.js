@@ -1488,9 +1488,9 @@ async function runHL(){
     }
 
     // =========================================================================
-    // EXPECTED FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
+    // FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
     // =========================================================================
-    const expectedRegex = /EXPECTED\s+FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
+    const expectedRegex = /FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
     const expectedStartIdx = dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : 0;
     const expectedEndIdx = dispatchReleaseIdx !== -1 ? dispatchEndIdx : numPages;
     for (let pi = expectedStartIdx; pi < expectedEndIdx; pi++) {
