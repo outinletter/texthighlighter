@@ -1,10 +1,47 @@
+// ==========================================
+// 1. 필수 전역 변수 선언 및 초기화
+// ==========================================
+if (typeof extractedAcReg === 'undefined') {
+  var extractedAcReg = '';
+}
+if (typeof SOURCE_TEXT_CENTER_RATIO === 'undefined') {
+  var SOURCE_TEXT_CENTER_RATIO = 0.35;
+}
+
+// ==========================================
+// 2. 헬퍼 함수 정의
+// ==========================================
+
 // 전역 변수(pdfBytes)가 올바르게 로드되었는지 확인하는 함수
 function canRun() {
-  if (!pdfBytes || pdfBytes.byteLength === 0) {
+  if (typeof pdfBytes === 'undefined' || !pdfBytes || pdfBytes.byteLength === 0) {
     alert('PDF 파일을 먼저 선택하거나 업로드하세요.');
     return false;
   }
   return true;
+}
+
+// 메타데이터(항공기 등록번호 등)를 추출하는 헬퍼 함수 (오류 해결용 추가)
+async function extractMetadata(pdfJsDoc) {
+  extractedAcReg = '';
+  try {
+    const page1 = await pdfJsDoc.getPage(1);
+    const tc = await page1.getTextContent();
+    const rawText = tc.items.map(it => it.str).join(' ');
+    const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
+    
+    const pageText = tc.items.map(it => {
+      return (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, offset) : it.str;
+    }).join(' ');
+
+    // 항공기 등록기호 추출 (예: HL8001, N12345, B-1234 등)
+    const regMatch = pageText.match(/\b(HL\d{4}|N\d{3,5}[A-Z]?|B-?\d{4})\b/i);
+    if (regMatch) {
+      extractedAcReg = regMatch[1].toUpperCase();
+    }
+  } catch (e) {
+    console.warn("extractMetadata processing warning:", e);
+  }
 }
 
 // 디스패치 문서 및 CFP에서 공항 코드를 추출하는 헬퍼 함수
@@ -47,33 +84,15 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
   return airports;
 }
 
-// Helper function to extract metadata (such as aircraft registration) from the PDF
-async function extractMetadata(pdfJsDoc) {
-  try {
-    const page1 = await pdfJsDoc.getPage(1);
-    const tc = await page1.getTextContent();
-    const rawText = tc.items.map(it => it.str).join(' ');
-    const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
-    
-    const pageText = tc.items.map(it => {
-      return (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, offset) : it.str;
-    }).join(' ');
-
-    // Example pattern matching aircraft registration (e.g., HL1234, N12345, B-1234)
-    const regMatch = pageText.match(/\b(HL\d{4}|N\d{3,5}[A-Z]?|B-\d{4})\b/i);
-    if (regMatch) {
-      // Assign to global variable used in your runHL function
-      window.extractedAcReg = regMatch[1].toUpperCase();
-    }
-  } catch (e) {
-    console.warn("extractMetadata processing warning:", e);
-  }
-}
-
-
+// ==========================================
+// 3. 메인 실행 함수 (runHL)
+// ==========================================
 async function runHL(){
-  if(!canRun())return;
-  if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
+  if(!canRun()) return;
+  if(typeof libsReady !== 'undefined' && !libsReady){
+    setStatus('error','Required libraries not fully loaded.');
+    return;
+  }
 
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
   'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS',
@@ -84,7 +103,7 @@ async function runHL(){
   runBtn.innerHTML='Processing locally...';
   setStatus('processing','Restoring text encoding & analyzing highlights...');
 
-  done=false;outBytes=null;detectedAirports=[]; iataAirports=[];
+  done=false; outBytes=null; detectedAirports=[]; iataAirports=[];
   document.getElementById('previewCard').style.display = 'none';
 
   await new Promise(r=>setTimeout(r,50));
@@ -99,12 +118,12 @@ async function runHL(){
     }
 
     detectedAirports = await extractReleaseAirportsByRule2(pdfJsDoc);
-    await extractMetadata(pdfJsDoc);
+    await extractMetadata(pdfJsDoc); // 정상 호출 및 동작
 
     const extraKws = [];
-    if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
-    const keywords=[...sel, ...extraKws].sort((a,b)=>b.length-a.length);
-    const hlRGB = activeHlColorRGB;
+    if (typeof sel !== 'undefined' && sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
+    const keywords = (typeof sel !== 'undefined' ? [...sel, ...extraKws] : extraKws).sort((a,b)=>b.length-a.length);
+    const hlRGB = typeof activeHlColorRGB !== 'undefined' ? activeHlColorRGB : [1, 1, 0];
 
     const numPages=pdfJsDoc.numPages;
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
@@ -131,8 +150,8 @@ async function runHL(){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
       const tc=await jsPage2.getTextContent();
       const rawText=tc.items.map(it=>it.str).join(' ');
-      const offset = detectPageOffset(rawText);
-      const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
+      const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
+      const pageText=tc.items.map(it=>(typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, offset) : it.str).join(' ');
 
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined) {
@@ -144,7 +163,7 @@ async function runHL(){
         if(bm.pattern.test(pageText)){
           bmPages[bm.label]=pi;
           if (bm.label === 'EQUAL TIME POINT DATA') {
-            const matchItem = tc.items.find(it => /EQUAL/i.test(cleanAndDecodeItem(it.str, offset)));
+            const matchItem = tc.items.find(it => /EQUAL/i.test((typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, offset) : it.str));
             if (matchItem) edtoBookmarkY = matchItem.transform[5];
           }
           if (bm.label === 'COPY OF ATS') {
@@ -172,15 +191,15 @@ async function runHL(){
     let notam2SubAirports = [];
     let notam3SubAirports = [];
 
-    if (notam1PageIdx !== undefined) {
+    if (notam1PageIdx !== undefined && typeof extractFirstTagAirports === 'function') {
       const notam1EndIdx = notam2PageIdx !== undefined ? notam2PageIdx : (notam3PageIdx !== undefined ? notam3PageIdx : numPages);
       notam1SubAirports = await extractFirstTagAirports(pdfJsDoc, notam1PageIdx, notam1EndIdx, ['DEP', 'DEST', 'ALTN']);
     }
-    if (notam2PageIdx !== undefined) {
+    if (notam2PageIdx !== undefined && typeof extractAllTaggedAirports === 'function') {
       const notam2EndIdx = notam3PageIdx !== undefined ? notam3PageIdx : numPages;
       notam2SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam2PageIdx, notam2EndIdx, '(?:\\d+\\s*%\\s*)?ERA|EDTO|REFILE');
     }
-    if (notam3PageIdx !== undefined) {
+    if (notam3PageIdx !== undefined && typeof extractAllTaggedAirports === 'function') {
       const notam3EndIdx = numPages;
       notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR');
     }
@@ -189,7 +208,7 @@ async function runHL(){
 
     let totalHits=0;
 
-    if(sel.size > 0){
+    if(typeof sel !== 'undefined' && sel.size > 0){
       setStatus('processing','Calculating highlight positions and drawing...');
       for(let pi=0;pi<numPages;pi++){
         const jsPage=await pdfJsDoc.getPage(pi+1);
@@ -201,14 +220,14 @@ async function runHL(){
 
         const content=await jsPage.getTextContent();
         const rawPageText = content.items.map(it => it.str).join(' ');
-        const pageOffset = detectPageOffset(rawPageText);
+        const pageOffset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawPageText) : 0;
 
         const isDispatchPage = (dispatchReleaseIdx !== -1 && pi >= dispatchReleaseIdx && pi < dispatchEndIdx);
         const isNotamPage = (pkg1PageIdx !== -1 && pi >= pkg1PageIdx);
 
         if (pageOffset !== 0) {
           for (const item of content.items) {
-            const originalStr = cleanAndDecodeItem(item.str, pageOffset);
+            const originalStr = (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, pageOffset) : item.str;
             const asciiStr = originalStr ? originalStr.replace(/[^\x00-\x7F]/g, '') : '';
 
             if (asciiStr && asciiStr.trim()) {
@@ -230,7 +249,7 @@ async function runHL(){
         const groupedLines = [];
         const sortedItems = content.items
           .filter(it => {
-            const sDec = cleanAndDecodeItem(it.str, pageOffset);
+            const sDec = (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, pageOffset) : it.str;
             return sDec && sDec.trim();
           })
           .sort((a, b) => b.transform[5] - a.transform[5]);
@@ -252,7 +271,7 @@ async function runHL(){
 
         for (const line of groupedLines) {
           const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
-          const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
+          const lineText = lineItems.map(it => (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, pageOffset) : it.str).join(' ');
 
           if (isDispatchPage || isNotamPage) {
             let hasRouteStr = false;
@@ -320,7 +339,7 @@ async function runHL(){
               if (wordMatch) {
                 const targetWord = wordMatch[0];
                 for (const item of lineItems) {
-                  const s = cleanAndDecodeItem(item.str, pageOffset);
+                  const s = (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, pageOffset) : item.str;
                   const tx = item.transform;
                   const itemX = tx[4], itemY = tx[5];
                   const itemW = item.width || 0;
@@ -354,7 +373,7 @@ async function runHL(){
             continue;
           }
 
-          const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
+          const hasSentenceKw = SENTENCE_KW.some(kw => typeof checkKeywordMatch === 'function' && checkKeywordMatch(lineText, kw));
           if (hasSentenceKw) {
             const minX = Math.min(...lineItems.map(it => it.transform[4]));
             const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
@@ -374,7 +393,7 @@ async function runHL(){
           const charMapping = [];
           for (let i = 0; i < lineItems.length; i++) {
             const item = lineItems[i];
-            const decodedStr = cleanAndDecodeItem(item.str, pageOffset) || '';
+            const decodedStr = ((typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, pageOffset) : item.str) || '';
             if (i > 0) charMapping.push({ isSeparator: true });
             for (let charIdx = 0; charIdx < decodedStr.length; charIdx++) {
               charMapping.push({ itemIndex: i, charIndex: charIdx, char: decodedStr[charIdx] });
@@ -418,8 +437,10 @@ async function runHL(){
                 const minCharIdx = Math.min(...charIndices);
                 const maxCharIdx = Math.max(...charIndices);
                 const item = lineItems[itemIdx];
-                drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
+                if (typeof drawCharRangeHighlight === 'function') {
+                  drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
+                }
                 totalHits++;
               }
             }
@@ -447,8 +468,10 @@ async function runHL(){
                 const minCharIdx = Math.min(...charIndices);
                 const maxCharIdx = Math.max(...charIndices);
                 const item = lineItems[itemIdx];
-                drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
+                if (typeof drawCharRangeHighlight === 'function') {
+                  drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
+                }
                 totalHits++;
               }
             }
@@ -481,7 +504,7 @@ async function runHL(){
                   const maxCharIdx = Math.max(...charIndices);
                   const matchCharCount = maxCharIdx - minCharIdx + 1;
                   const item = lineItems[itemIdx];
-                  const s = cleanAndDecodeItem(item.str, pageOffset) || '';
+                  const s = ((typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, pageOffset) : item.str) || '';
                   const tx = item.transform;
                   const itemX = tx[4], itemY = tx[5];
                   const itemW = item.width || 0;
@@ -510,7 +533,7 @@ async function runHL(){
             if (msaVal >= 100) {
               const targetMsaStr = msaMatch[1];
               for (const item of lineItems) {
-                const s = cleanAndDecodeItem(item.str, pageOffset);
+                const s = (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, pageOffset) : item.str;
                 let idx = s.indexOf("/" + targetMsaStr);
                 if (idx !== -1) {
                   idx += 1;
@@ -635,14 +658,14 @@ async function runHL(){
     if (finalCoaAnnotIdx !== -1) {
       const coaRawPage = await pdfJsDoc.getPage(finalCoaAnnotIdx + 1);
       const coaRawContent = await coaRawPage.getTextContent();
-      foundCoaPageOffset = detectPageOffset(coaRawContent.items.map(it => it.str).join(' '));
+      foundCoaPageOffset = (typeof detectPageOffset === 'function') ? detectPageOffset(coaRawContent.items.map(it => it.str).join(' ')) : 0;
     }
 
     if(cfpPageIdx!==undefined) {
       const cfpJsPage=await pdfJsDoc.getPage(cfpPageIdx+1);
       const cfpContent=await cfpJsPage.getTextContent();
       const rawCfpText = cfpContent.items.map(it => it.str).join(' ');
-      const cfpOffset = detectPageOffset(rawCfpText);
+      const cfpOffset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawCfpText) : 0;
       const cfpLibPage = libPages[cfpPageIdx];
       const { width: cfpW, height: cfpH } = cfpLibPage.getSize();
       const cfpVp = cfpJsPage.getViewport({ scale: 1.0 });
@@ -658,7 +681,7 @@ async function runHL(){
       let cfpFirstPageText = "";
       let lastY = null;
       for (const item of cfpItems) {
-        const decodedStr = cleanAndDecodeItem(item.str, cfpOffset);
+        const decodedStr = (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, cfpOffset) : item.str;
         if (lastY !== null && Math.abs(item.transform[5] - lastY) > 4.5) {
           cfpFirstPageText += "\n";
         }
@@ -678,7 +701,7 @@ async function runHL(){
         const p = await pdfJsDoc.getPage(pi + 1);
         const tc = await p.getTextContent();
         const raw = tc.items.map(it => it.str).join(' ');
-        const off = detectPageOffset(raw);
+        const off = (typeof detectPageOffset === 'function') ? detectPageOffset(raw) : 0;
         const sorted = tc.items.slice().sort((a,b)=>{
           const ay=a.transform[5], by2=b.transform[5];
           if(Math.abs(ay-by2)>2) return by2-ay;
@@ -686,7 +709,7 @@ async function runHL(){
         });
         let pageLastY = null;
         for (const item of sorted) {
-          const s = cleanAndDecodeItem(item.str, off);
+          const s = (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, off) : item.str;
           if (pageLastY !== null && Math.abs(item.transform[5] - pageLastY) > 4.5) cfpFullSectionText += "\n";
           cfpFullSectionText += s + " ";
           pageLastY = item.transform[5];
@@ -694,7 +717,9 @@ async function runHL(){
         cfpFullSectionText += "\n";
       }
 
-      wptTimeMap = buildWptTimeMap(cfpFullSectionText);
+      if (typeof buildWptTimeMap === 'function') {
+        wptTimeMap = buildWptTimeMap(cfpFullSectionText);
+      }
 
       // TRIP 시간 계산 (Duty time 오버레이)
       const tripMatch = cfpFirstPageText.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
@@ -722,7 +747,7 @@ async function runHL(){
         if (formattedCalcText) {
           let secondLineY = null, secondLineMaxX = null, secondLineFS = 10;
           for (const item of cfpItems) {
-            const s = cleanAndDecodeItem(item.str, cfpOffset);
+            const s = (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, cfpOffset) : item.str;
             if (/2ND/i.test(s)) {
               secondLineY = item.transform[5];
               secondLineFS = Math.abs(item.transform[3]) || 10;
@@ -739,15 +764,17 @@ async function runHL(){
             const srcMidY = secondLineY + secondLineFS * SOURCE_TEXT_CENTER_RATIO;
             const drawX = (secondLineMaxX + 10) * cfpSx;
 
-            drawDutyTimeStyleBadge(cfpLibPage, {
-              text: formattedCalcText,
-              x: drawX,
-              centerY: srcMidY * cfpSy,
-              font: boldFont,
-              fontSize: 9,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.75
-            });
+            if (typeof drawDutyTimeStyleBadge === 'function') {
+              drawDutyTimeStyleBadge(cfpLibPage, {
+                text: formattedCalcText,
+                x: drawX,
+                centerY: srcMidY * cfpSy,
+                font: boldFont,
+                fontSize: 9,
+                bgColor: [0.88, 0.90, 0.93],
+                bgOpacity: 0.75
+              });
+            }
             totalHits++;
           }
         }
@@ -758,7 +785,7 @@ async function runHL(){
       if (refileFuelMatch) {
         const refileFuel = parseInt(refileFuelMatch[1], 10); 
 
-        const cfpLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
+        const cfpLines = (typeof groupTextItemsByLine === 'function') ? groupTextItemsByLine(cfpContent.items, cfpOffset) : [];
         let rqrdLine = null;
         let rqrdFuel = null;
 
@@ -782,15 +809,17 @@ async function runHL(){
             const srcMidY = rqrdLine.y * cfpSy + rqrdFS * cfpSy * SOURCE_TEXT_CENTER_RATIO;
             const drawX = (rqrdMaxX + 12) * cfpSx;
 
-            drawDutyTimeStyleBadge(cfpLibPage, {
-              text: formattedLbsStr,
-              x: drawX,
-              centerY: srcMidY,
-              font: boldFont,
-              fontSize: 9,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.85
-            });
+            if (typeof drawDutyTimeStyleBadge === 'function') {
+              drawDutyTimeStyleBadge(cfpLibPage, {
+                text: formattedLbsStr,
+                x: drawX,
+                centerY: srcMidY,
+                font: boldFont,
+                fontSize: 9,
+                bgColor: [0.88, 0.90, 0.93],
+                bgOpacity: 0.85
+              });
+            }
             totalHits++;
           }
         }
@@ -861,7 +890,7 @@ async function runHL(){
         for (let i = 0; i < sortedCoaItems.length; i++) {
           const item = sortedCoaItems[i];
           const prevItem = i > 0 ? sortedCoaItems[i-1] : null;
-          const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
+          const s = ((typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, foundCoaPageOffset) : item.str) || '';
 
           if (prevItem) {
              const dy = Math.abs(prevItem.transform[5] - item.transform[5]);
@@ -938,7 +967,7 @@ async function runHL(){
                     const maxCharIdx = Math.max(...charIndices);
                     const matchCharCount = maxCharIdx - minCharIdx + 1;
                     const item = sortedCoaItems[itemIdx];
-                    const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
+                    const s = ((typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, foundCoaPageOffset) : item.str) || '';
                     const tx = item.transform;
                     const charW = (item.width || 0) / Math.max(s.length, 1);
                     const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
@@ -1000,7 +1029,7 @@ async function runHL(){
                         const maxCharIdx = Math.max(...charIndices);
                         const matchCharCount = maxCharIdx - minCharIdx + 1;
                         const item = sortedCoaItems[itemIdx];
-                        const s = cleanAndDecodeItem(item.str, foundCoaPageOffset) || '';
+                        const s = ((typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, foundCoaPageOffset) : item.str) || '';
                         const tx = item.transform;
                         const charW = (item.width || 0) / Math.max(s.length, 1);
                         const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
@@ -1022,14 +1051,14 @@ async function runHL(){
           const routeDisplay = extractedRoute.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
           let anchorY = null, anchorX = null;
           for (const item of sortedCoaItems) {
-            const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
+            const s = ((typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, foundCoaPageOffset) : item.str).trim();
             if (s && /SUBMITTED\s+AT/i.test(s)) {
               anchorY = item.transform[5]; anchorX = item.transform[4];
             }
           }
           if (anchorY === null) {
             for (const item of sortedCoaItems) {
-              const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
+              const s = ((typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, foundCoaPageOffset) : item.str).trim();
               if (s) {
                 const y = item.transform[5];
                 if (anchorY === null || y < anchorY) { anchorY = y; anchorX = item.transform[4]; }
@@ -1066,7 +1095,7 @@ async function runHL(){
     if (discFuel && discTime && dispatchReleaseIdx !== -1) {
       const drJsPage = await pdfJsDoc.getPage(dispatchReleaseIdx + 1);
       const drContent = await drJsPage.getTextContent();
-      const drOffset = detectPageOffset(drContent.items.map(it => it.str).join(' '));
+      const drOffset = (typeof detectPageOffset === 'function') ? detectPageOffset(drContent.items.map(it => it.str).join(' ')) : 0;
       const drLibPage = libPages[dispatchReleaseIdx];
       const { width: drW, height: drH } = drLibPage.getSize();
       const drVp = drJsPage.getViewport({ scale: 1.0 });
@@ -1075,7 +1104,7 @@ async function runHL(){
       let dispatchItem = null;
 
       for (const item of drContent.items) {
-        const s = cleanAndDecodeItem(item.str, drOffset);
+        const s = (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(item.str, drOffset) : item.str;
         const su = s.trim().toUpperCase();
         if (/DISPATCH\s*NOTES/i.test(s)) {
           notesY = item.transform[5];
@@ -1092,7 +1121,7 @@ async function runHL(){
         }
       }
 
-      if (notesY !== null) {
+      if (notesY !== null && typeof drawDutyTimeStyleBadge === 'function') {
         const notesMidY = notesY + notesFS * SOURCE_TEXT_CENTER_RATIO;
         drawDutyTimeStyleBadge(drLibPage, {
           text: `DISC FUEL INFO  ${discFuel}  ${discTime}`,
@@ -1115,8 +1144,8 @@ async function runHL(){
         const scanPage = await pdfJsDoc.getPage(pi + 1);
         const scanTc = await scanPage.getTextContent();
         const scanRaw = scanTc.items.map(it => it.str).join(' ');
-        const scanOff = detectPageOffset(scanRaw);
-        const scanText = scanTc.items.map(it => cleanAndDecodeItem(it.str, scanOff)).join(' ');
+        const scanOff = (typeof detectPageOffset === 'function') ? detectPageOffset(scanRaw) : 0;
+        const scanText = scanTc.items.map(it => (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, scanOff) : it.str).join(' ');
         if (/ENROUTE\s+ALTERNATES/i.test(scanText)) {
           const suitRe = /\b([A-Z]{3,4})\s+SUITABLE\s+FROM\s+(\d{4})\s+UTC\s*\/\s*TO\s+(\d{4})\s+UTC/gi;
           let sm;
@@ -1135,8 +1164,8 @@ async function runHL(){
         const jsPage = await pdfJsDoc.getPage(pi + 1);
         const tc = await jsPage.getTextContent();
         const rawText = tc.items.map(it => it.str).join(' ');
-        const offset = detectPageOffset(rawText);
-        const lines = groupTextItemsByLine(tc.items, offset);
+        const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
+        const lines = (typeof groupTextItemsByLine === 'function') ? groupTextItemsByLine(tc.items, offset) : [];
         const libPage = libPages[pi];
         const { width: lw, height: lh } = libPage.getSize();
         const vp = jsPage.getViewport({ scale: 1.0 });
@@ -1154,15 +1183,17 @@ async function runHL(){
             const annotStartX = lw - textWidth - 36;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
-            drawDutyTimeStyleBadge(libPage, {
-              text: fullText,
-              x: annotStartX,
-              centerY: srcMidY,
-              font: boldFont,
-              fontSize: annotSize,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.75
-            });
+            if (typeof drawDutyTimeStyleBadge === 'function') {
+              drawDutyTimeStyleBadge(libPage, {
+                text: fullText,
+                x: annotStartX,
+                centerY: srcMidY,
+                font: boldFont,
+                fontSize: annotSize,
+                bgColor: [0.88, 0.90, 0.93],
+                bgOpacity: 0.75
+              });
+            }
             totalHits++;
           }
         }
@@ -1192,15 +1223,17 @@ async function runHL(){
         const depSrcFS = subAirport.fontSize || 10;
         const depSrcMidY = subAirport.y * sy + depSrcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
-        drawDutyTimeStyleBadge(libPages[pi], {
-          text: timeText,
-          x: (subAirport.maxX + 8) * sx,
-          centerY: depSrcMidY,
-          font: boldFont,
-          fontSize: depAnnotSize,
-          bgColor: [0.88, 0.90, 0.93],
-          bgOpacity: 0.75
-        });
+        if (typeof drawDutyTimeStyleBadge === 'function') {
+          drawDutyTimeStyleBadge(libPages[pi], {
+            text: timeText,
+            x: (subAirport.maxX + 8) * sx,
+            centerY: depSrcMidY,
+            font: boldFont,
+            fontSize: depAnnotSize,
+            bgColor: [0.88, 0.90, 0.93],
+            bgOpacity: 0.75
+          });
+        }
       }
     }
 
@@ -1213,8 +1246,8 @@ async function runHL(){
       const jsPage = await pdfJsDoc.getPage(pi + 1);
       const tc = await jsPage.getTextContent();
       const rawText = tc.items.map(it => it.str).join(' ');
-      const offset = detectPageOffset(rawText);
-      const lines = groupTextItemsByLine(tc.items, offset);
+      const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
+      const lines = (typeof groupTextItemsByLine === 'function') ? groupTextItemsByLine(tc.items, offset) : [];
       const libPage = libPages[pi];
       const { width: lw, height: lh } = libPage.getSize();
       const vp = jsPage.getViewport({ scale: 1.0 });
@@ -1262,15 +1295,17 @@ async function runHL(){
       if (expectedBadges.length > 0) {
         const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
         for (const badge of expectedBadges) {
-          drawDutyTimeStyleBadge(libPage, {
-            text: badge.text,
-            x: rightEdge - badge.textWidth - 4,
-            centerY: badge.centerY,
-            font: boldFont,
-            fontSize: badge.size,
-            bgColor: [0.88, 0.90, 0.93],
-            bgOpacity: 0.85
-          });
+          if (typeof drawDutyTimeStyleBadge === 'function') {
+            drawDutyTimeStyleBadge(libPage, {
+              text: badge.text,
+              x: rightEdge - badge.textWidth - 4,
+              centerY: badge.centerY,
+              font: boldFont,
+              fontSize: badge.size,
+              bgColor: [0.88, 0.90, 0.93],
+              bgOpacity: 0.85
+            });
+          }
           totalHits++;
         }
       }
@@ -1281,12 +1316,18 @@ async function runHL(){
     runBtn.className='action-btn dl-btn active';
     runBtn.innerHTML='DOWNLOAD PDF FILE';
 
-    setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${Object.keys(bmPages).length} bookmarks set.`);
+    if (typeof setStatus === 'function') {
+      setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${Object.keys(bmPages).length} bookmarks set.`);
+    }
     document.getElementById('previewCard').style.display='block';
 
-    dlPDF();
+    if (typeof dlPDF === 'function') {
+      dlPDF();
+    }
   } catch(err) {
-    setStatus('error','Execution error: '+err.message);
+    if (typeof setStatus === 'function') {
+      setStatus('error','Execution error: '+err.message);
+    }
     runBtn.className='action-btn run-btn active';
     runBtn.innerHTML='RUN ENGINE';
   }
