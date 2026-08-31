@@ -1609,35 +1609,32 @@ async function runHL(){
     setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${Object.keys(bmPages).length} bookmarks set.`);
     document.getElementById('previewCard').style.display='block';
 
-    // AI 브리핑 생성 (다운로드 흐름을 막지 않도록 백그라운드로 실행)
-    (async () => {
-      try {
-        let rawTextSubset = '';
-        const maxChars = 20000;
-        for (let p = 1; p <= numPages && rawTextSubset.length < maxChars; p++) {
-          const briefJsPage = await pdfJsDoc.getPage(p);
-          const briefTc = await briefJsPage.getTextContent();
-          rawTextSubset += briefTc.items.map(it => it.str).join(' ') + '\n';
-        }
-        rawTextSubset = rawTextSubset.slice(0, maxChars);
-
-        const flightData = {
-          flightNumber: extractedFlightNum || '',
-          date: extractedFileDate || '',
-          aircraftReg: extractedAcReg || '',
-          airports: (detectedAirports.length === 2 ? detectedAirports : iataAirports)
-        };
-
-        if (typeof renderBriefing === 'function') renderBriefing(flightData, rawTextSubset);
-      } catch (briefErr) {
-        console.error('Briefing prep failed:', briefErr);
-      }
-    })();
-
     dlPDF();
-  } catch(err) {
-    setStatus('error','Execution error: '+err.message);
-    runBtn.className='action-btn run-btn active';
-    runBtn.innerHTML='RUN ENGINE';
-  }
-}
+
+    // AI 브리핑 생성 (다운로드가 끝난 뒤 약간의 지연을 두고 시작 — iOS WebKit에서
+    // Blob 다운로드와 동시 진행 중인 fetch가 충돌해 즉시 끊기는 문제 회피)
+    setTimeout(() => {
+      (async () => {
+        try {
+          let rawTextSubset = '';
+          const maxChars = 20000;
+          for (let p = 1; p <= numPages && rawTextSubset.length < maxChars; p++) {
+            const briefJsPage = await pdfJsDoc.getPage(p);
+            const briefTc = await briefJsPage.getTextContent();
+            rawTextSubset += briefTc.items.map(it => it.str).join(' ') + '\n';
+          }
+          rawTextSubset = rawTextSubset.slice(0, maxChars);
+
+          const flightData = {
+            flightNumber: extractedFlightNum || '',
+            date: extractedFileDate || '',
+            aircraftReg: extractedAcReg || '',
+            airports: (detectedAirports.length === 2 ? detectedAirports : iataAirports)
+          };
+
+          if (typeof renderBriefing === 'function') renderBriefing(flightData, rawTextSubset);
+        } catch (briefErr) {
+          console.error('Briefing prep failed:', briefErr);
+        }
+      })();
+    }, 500);
