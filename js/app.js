@@ -240,6 +240,61 @@ function dlPDF(){
   }
 }
 
+async function renderBriefing(flightData, rawTextSubset) {
+  const el = document.getElementById('briefingContent');
+  if (!el) return;
+  el.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>Analyzing flight package for safety concerns...</span></div>';
+
+  try {
+    const res = await fetch('/api/briefing', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ flightData, rawTextSubset })
+    });
+    if (!res.ok || !res.body) throw new Error('Briefing request failed (' + res.status + ')');
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let fullText = '';
+
+    el.innerHTML = '';
+    const textEl = document.createElement('div');
+    textEl.style.whiteSpace = 'pre-wrap';
+    el.appendChild(textEl);
+
+    while (true) {
+      const { value, done: streamDone } = await reader.read();
+      if (streamDone) break;
+      buffer += decoder.decode(value, { stream: true });
+
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data:')) continue;
+        const payload = trimmed.slice(5).trim();
+        if (!payload || payload === '[DONE]') continue;
+        try {
+          const json = JSON.parse(payload);
+          if (json.response) {
+            fullText += json.response;
+            textEl.textContent = fullText;
+          }
+        } catch (parseErr) { /* 불완전한 청크는 건너뜀 */ }
+      }
+    }
+
+    if (!fullText) {
+      el.innerHTML = '<div class="loading-briefing"><span>No safety concerns could be generated from this document.</span></div>';
+    }
+  } catch (e) {
+    el.innerHTML = `<div class="loading-briefing"><span>AI briefing failed: ${e.message}</span></div>`;
+  }
+}
+
+
+
 // 이벤트 리스너 바인딩 및 초기화
 document.addEventListener('DOMContentLoaded', () => {
   initLibraries();
