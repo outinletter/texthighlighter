@@ -10,6 +10,10 @@ const PRESETS=['3 PCT','A/C','ACTUAL','AGTOW','ALERT LEVEL','ALTN','AMD','AMEND'
 let currentThemeName = 'blue';
 let activeHlColorRGB = [0.36, 0.78, 1.0];
 
+// Default marker mode: underline
+let highlightMode = 'underline';
+
+let sel=new Set(), custom=[], pdfBytes=null, fname='document', done=false, outBytes=null;
 let sel=new Set(), custom=[], pdfBytes=null, fname='document', done=false, outBytes=null;
 let detectedAirports = [];
 let iataAirports = [];
