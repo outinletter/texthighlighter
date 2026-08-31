@@ -1,56 +1,398 @@
-// 전역 변수(pdfBytes)가 올바르게 로드되었는지 확인하는 함수
-function canRunEngine() {
-  if (!pdfBytes || pdfBytes.byteLength === 0) {
-    alert('PDF 파일을 먼저 선택하거나 업로드하세요.');
-    return false;
-  }
-  return true;
+/**
+ * PDF Engine Core Functions
+ */
+
+const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE", "WEATHER", "AIR", "ROUTE", "ALTN", "INFO"];
+const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
+const SOURCE_TEXT_CENTER_RATIO = 0.36;
+
+/**
+ * 'Duty Time' / Accent Style Badge Drawer
+ */
+function drawDutyTimeStyleBadge(libPage, options) {
+  const {
+    text,
+    x,
+    y,
+    centerY,
+    font,
+    fontSize = 8.5,
+    bgColor = [0.75, 0.77, 0.80], // Moderate gray (Slightly darker than before)
+    textColor = [0.15, 0.20, 0.25], // Slightly softened navy
+    bgOpacity = 0.75,
+    padH = 4,
+    padV = 2.5
+  } = options;
+
+  const textWidth = font.widthOfTextAtSize(text, fontSize);
+  // Use the embedded font's actual glyph height so background padding is equal.
+  const textHeight = font.heightAtSize(fontSize, { descender: false });
+  const textBaseY = centerY === undefined ? y : centerY - textHeight / 2;
+
+  libPage.drawRectangle({
+    x: x - padH,
+    y: textBaseY - padV,
+    width: textWidth + padH * 2,
+    height: textHeight + padV * 2,
+    color: PDFLib.rgb(...bgColor),
+    opacity: bgOpacity
+  });
+
+  libPage.drawText(text, {
+    x: x,
+    y: textBaseY,
+    size: fontSize,
+    font: font,
+    color: PDFLib.rgb(...textColor),
+    opacity: 1.0
+  });
 }
 
-// 디스패치 문서 및 CFP에서 공항 코드를 추출하는 헬퍼 함수
-async function extractReleaseAirportsByRule2(pdfJsDoc) {
-  const airports = [];
+/**
+ * Text Item Line Grouping
+ */
+function groupTextItemsByLine(items, offset) {
+  const decorated = items
+    .map(it => ({ item: it, text: decodeForTagScan(it.str, offset) }))
+    .filter(d => d.text && d.text.length > 0);
+
+  decorated.sort((a, b) => b.item.transform[5] - a.item.transform[5]);
+
+  const lines = [];
+  for (const d of decorated) {
+    const y = d.item.transform[5];
+    let joined = false;
+    for (const line of lines) {
+      if (Math.abs(line.y - y) < 4.0) {
+        line.parts.push(d);
+        joined = true;
+        break;
+      }
+    }
+    if (!joined) lines.push({ y, parts: [d] });
+  }
+
+  for (const line of lines) {
+    line.parts.sort((a, b) => a.item.transform[4] - b.item.transform[4]);
+    line.text = line.parts.map(p => p.text).join('');
+    line.items = line.parts.map(p => p.item);
+  }
+
+  return lines;
+}
+
+function checkKeywordMatch(text, kw) {
+  const normalizedText = text.replace(/[^A-Za-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
+  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  let re;
   try {
-    const page1 = await pdfJsDoc.getPage(1);
-    const tc = await page1.getTextContent();
-    const rawText = tc.items.map(it => it.str).join(' ');
-    const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
-    
-    let text = tc.items.map(it => {
-      return (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, offset) : it.str;
-    }).join(' ');
-
-    // 1. "BEROK TO LEMD" 또는 "RKSI TO LEMD" 패턴 검색
-    const routeMatch = text.match(/\b([A-Z]{4})\s+TO\s+([A-Z]{4})\b/i);
-    if (routeMatch) {
-      airports.push(routeMatch[1].toUpperCase(), routeMatch[2].toUpperCase());
-      return airports;
-    }
-
-    // 2. "RKSI/LEMD" 또는 "RKSI-LEMD" 패턴 검색
-    const pairMatch = text.match(/\b([A-Z]{4})\s*[\/-]\s*([A-Z]{4})\b/i);
-    if (pairMatch) {
-      airports.push(pairMatch[1].toUpperCase(), pairMatch[2].toUpperCase());
-      return airports;
-    }
-
-    // 3. "DEP/ARR" 명시적 구문 탐색
-    const depMatch = text.match(/\bDEP[:\s]+([A-Z]{4})\b/i);
-    const destMatch = text.match(/\b(?:DEST|ARR)[:\s]+([A-Z]{4})\b/i);
-    if (depMatch && destMatch) {
-      airports.push(depMatch[1].toUpperCase(), destMatch[1].toUpperCase());
-      return airports;
+    const kwLower = kw.toLowerCase();
+    if (kwLower === 'restrict' || kwLower === 'prohibit') {
+      re = new RegExp(`\\b${escaped}[A-Za-z]*\\b`, 'i');
+    } else {
+      re = new RegExp(`\\b${escaped}\\b`, 'i');
     }
   } catch (e) {
-    console.warn("extractReleaseAirportsByRule2 processing warning:", e);
+    re = new RegExp(escaped, 'i');
+  }
+  return re.test(normalizedText);
+}
+
+function detectPageOffset(rawText) {
+  if (!rawText) return 0;
+  let bestOffset = 0;
+  let bestMatches = 0;
+
+  const sampleLen = Math.min(rawText.length, 1500);
+  for (const offset of OFFSETS_TO_TEST) {
+    let decodedSample = "";
+    for (let j = 0; j < sampleLen; j++) {
+      decodedSample += String.fromCharCode(rawText.charCodeAt(j) + offset);
+    }
+    const cleanSample = decodedSample.replace(/[^A-Za-z0-9\s]/g, ' ').toUpperCase();
+    let matchCount = 0;
+    for (const kw of TEST_KEYWORDS) {
+      if (cleanSample.includes(kw)) matchCount++;
+    }
+    if (matchCount >= 3) return offset;
+    if (matchCount > bestMatches) {
+      bestMatches = matchCount;
+      bestOffset = offset;
+    }
+  }
+
+  if (bestMatches > 0) return bestOffset;
+
+  for (let i = -120; i <= 120; i++) {
+    if (OFFSETS_TO_TEST.includes(i)) continue;
+    let decodedSample = "";
+    for (let j = 0; j < sampleLen; j++) {
+      decodedSample += String.fromCharCode(rawText.charCodeAt(j) + i);
+    }
+    const cleanSample = decodedSample.replace(/[^A-Za-z0-9\s]/g, ' ').toUpperCase();
+    let matchCount = 0;
+    for (const kw of TEST_KEYWORDS) {
+      if (cleanSample.includes(kw)) matchCount++;
+    }
+    if (matchCount > bestMatches) {
+      bestMatches = matchCount;
+      bestOffset = i;
+    }
+    if (bestMatches >= 3) break;
+  }
+
+  return bestOffset;
+}
+
+function decodeStr(str, offset) {
+  if (!offset || !str) return str;
+  let decoded = "";
+  for (let i = 0; i < str.length; i++) {
+    decoded += String.fromCharCode(str.charCodeAt(i) + offset);
+  }
+  return decoded;
+}
+
+function cleanAndDecodeItem(str, offset) {
+  if (!str) return '';
+  let finalStr = str;
+  if (offset) {
+    const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
+    const decrypted = decodeStr(str, offset);
+    const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
+    if (decStandardCount > origStandardCount) finalStr = decrypted;
+  }
+  return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
+}
+
+function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity, font) {
+  const s = cleanAndDecodeItem(item.str, pageOffset) || '';
+  const tx = item.transform;
+  const fontSize = Math.abs(tx[3]) || 10;
+  const itemWidth = item.width || 0;
+
+  // Use font metrics if available, fallback to average width
+  let startXOffset = 0;
+  let actualHlWidth = 0;
+
+  if (font && s.length > 0) {
+    const fullMeasuredW = font.widthOfTextAtSize(s, fontSize);
+    const prefixMeasuredW = font.widthOfTextAtSize(s.substring(0, minCharIdx), fontSize);
+    const matchMeasuredW = font.widthOfTextAtSize(s.substring(minCharIdx, maxCharIdx + 1), fontSize);
+
+    if (fullMeasuredW > 0) {
+      startXOffset = (prefixMeasuredW / fullMeasuredW) * itemWidth;
+      actualHlWidth = (matchMeasuredW / fullMeasuredW) * itemWidth;
+    } else {
+      startXOffset = (itemWidth / s.length) * minCharIdx;
+      actualHlWidth = (itemWidth / s.length) * (maxCharIdx - minCharIdx + 1);
+    }
+  } else {
+    startXOffset = (itemWidth / Math.max(s.length, 1)) * minCharIdx;
+    actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
+  }
+
+  page.drawRectangle({
+    x: (tx[4] + startXOffset) * sx - 1,
+    y: (tx[5] * sy) - (fontSize * sy * 0.15),
+    width: Math.max(actualHlWidth * sx + 2, 4),
+    height: Math.max(fontSize * sy * 1.15, 8),
+    color, opacity
+  });
+}
+
+
+async function extractReleaseAirportsByRule2(pdfJsDoc) {
+  const airports = [];
+  iataAirports = [];
+  try {
+    for (let pNum = 1; pNum <= Math.min(30, pdfJsDoc.numPages); pNum++) {
+      const page = await pdfJsDoc.getPage(pNum);
+      const textContent = await page.getTextContent();
+      const rawText = textContent.items.map(it => it.str).join(' ');
+      const offset = detectPageOffset(rawText);
+      const decodedRawText = textContent.items.map(it => decodeStr(it.str, offset)).join(' ');
+
+      const isDispatchReleasePage = /DISPATCH\s+RELEASE\s+INFORMATION/i.test(decodedRawText) || /I\s+HEREBY\s+RELEASE/i.test(decodedRawText);
+      if (airports.length === 0) {
+        const m1 = /\bFLIGHT\s+RELEASE\s+[A-Z0-9]+\s+([A-Z]{4})[\/-]([A-Z]{4})\b/i.exec(decodedRawText);
+        if (m1) {
+          airports.push(m1[1].toUpperCase().trim(), m1[2].toUpperCase().trim());
+        } else {
+          const m2 = /\bETD\s+([A-Z]{4})\s+[A-Z0-9]+\s+ETA\s+([A-Z]{4})\b/i.exec(decodedRawText);
+          if (m2) {
+            airports.push(m2[1].toUpperCase().trim(), m2[2].toUpperCase().trim());
+          } else if (isDispatchReleasePage) {
+            const m3 = /I\s+HEREBY\s+RELEASE\s+(?:THE\s+)?FLIGHT.*?([A-Z]{4})\s*[\/-]\s*([A-Z]{4})\b/i.exec(decodedRawText);
+            if (m3) airports.push(m3[1].toUpperCase().trim(), m3[2].toUpperCase().trim());
+          }
+        }
+      }
+      if (iataAirports.length === 0 && isDispatchReleasePage) {
+        const mIata = /\b([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/g;
+        let match;
+        while ((match = mIata.exec(decodedRawText)) !== null) {
+          const a = match[1].toUpperCase(), b = match[2].toUpperCase();
+          const ignoreList = ['MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN','FEB','MAR','APR'];
+          if (!ignoreList.includes(a) && !ignoreList.includes(b)) {
+            iataAirports.push(a, b);
+            break;
+          }
+        }
+      }
+      if (iataAirports.length === 0) {
+         const mHeader = /\b(?:KAL|KE)\s*\d+\s*\/\s*([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
+         if (mHeader) iataAirports.push(mHeader[1].toUpperCase().trim(), mHeader[2].toUpperCase().trim());
+      }
+      if (airports.length === 2 && iataAirports.length === 2) break;
+    }
+  } catch (err) {
+    console.warn("Airport code extraction failed: ", err);
   }
   return airports;
 }
 
+function decodeForTagScan(str, offset) {
+  if (!str) return '';
+  let finalStr = str;
+  if (offset) {
+    const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
+    const decrypted = decodeStr(str, offset);
+    const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
+    if (decStandardCount > origStandardCount) finalStr = decrypted;
+  }
+  return finalStr.replace(/[^\x20-\x7E]/g, ' ');
+}
 
+async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
+  const found = {};
+  if (startPageIdx === undefined || startPageIdx === -1) return [];
+  const from = Math.max(0, startPageIdx);
+  const to = Math.min(pdfJsDoc.numPages, endPageIdxExclusive);
+
+  for (let pi = from; pi < to; pi++) {
+    if (Object.keys(found).length === tags.length) break;
+    const jsPage = await pdfJsDoc.getPage(pi + 1);
+    const tc = await jsPage.getTextContent();
+    const rawText = tc.items.map(it => it.str).join(' ');
+    const offset = detectPageOffset(rawText);
+    const lines = groupTextItemsByLine(tc.items, offset);
+
+    for (const line of lines) {
+      if (Object.keys(found).length === tags.length) break;
+      for (const tag of tags) {
+        if (found[tag] !== undefined) continue;
+        const re = new RegExp('\\[\\s*' + tag + '\\s*\\]\\s*([A-Z]{3,4})\\b', 'i');
+        const m = re.exec(line.text);
+        if (m) {
+          const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+          const lineFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+          found[tag] = { code: m[1].toUpperCase(), pageIdx: pi, y: line.y, maxX: lineMaxX, fontSize: lineFS };
+        }
+      }
+    }
+  }
+
+  const ordered = [];
+  for (const tag of tags) {
+    if (found[tag]) ordered.push({ tag, code: found[tag].code, pageIdx: found[tag].pageIdx, y: found[tag].y, maxX: found[tag].maxX, fontSize: found[tag].fontSize });
+  }
+  return ordered;
+}
+
+async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tagPattern) {
+  const results = [];
+  if (startPageIdx === undefined || startPageIdx === -1) return results;
+  const from = Math.max(0, startPageIdx);
+  const to = Math.min(pdfJsDoc.numPages, endPageIdxExclusive);
+  const re = new RegExp('\\[\\s*(' + tagPattern + ')\\s*\\]\\s*([A-Z]{3,4})\\b', 'gi');
+
+  for (let pi = from; pi < to; pi++) {
+    const jsPage = await pdfJsDoc.getPage(pi + 1);
+    const tc = await jsPage.getTextContent();
+    const rawText = tc.items.map(it => it.str).join(' ');
+    const offset = detectPageOffset(rawText);
+    const lines = groupTextItemsByLine(tc.items, offset);
+
+    for (const line of lines) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(line.text)) !== null) {
+        const tagLabel = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
+        const code = m[2].toUpperCase();
+        results.push({ tag: tagLabel, code, pageIdx: pi, y: line.y });
+      }
+    }
+  }
+  return results;
+}
+
+async function extractMetadata(pdfJsDoc) {
+  try {
+    const scanPages = Math.min(10, pdfJsDoc.numPages);
+    let combinedText = '';
+    for (let p = 1; p <= scanPages; p++) {
+      const pg = await pdfJsDoc.getPage(p);
+      const tc = await pg.getTextContent();
+      const rawText = tc.items.map(it => it.str).join(' ');
+      const offset = detectPageOffset(rawText);
+      combinedText += ' ' + tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
+    }
+    const decodedText = combinedText;
+
+    const flightMatch = decodedText.match(/\b(KAL|KE|KAL\s+|KE\s*)(\d{3,4})\b/i);
+    if (flightMatch) extractedFlightNum = flightMatch[1].trim().toUpperCase() + flightMatch[2];
+
+    // 기번 패턴 검색 강화: HL + 4자리 숫자 (또는 경우에 따라 5자리)
+    const acRegMatch = decodedText.match(/\bHL[0-9]{4,5}\b/i);
+    if (acRegMatch) {
+      extractedAcReg = acRegMatch[0].toUpperCase();
+    }
+
+    const monthsMap = {
+      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+    };
+
+    const dateMatchA = decodedText.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b/i);
+    if (dateMatchA) {
+      const monthStr = dateMatchA[2].toLowerCase().substring(0, 3);
+      extractedFileDate = (monthsMap[monthStr] || '01') + dateMatchA[1].padStart(2, '0');
+    } else {
+      const dateMatchB = decodedText.match(/\b(\d{1,2})\/([A-Z]{3})\/(\d{2,4})\b/i);
+      if (dateMatchB) {
+        const monthStr = dateMatchB[2].toLowerCase();
+        extractedFileDate = (monthsMap[monthStr] || '01') + dateMatchB[1].padStart(2, '0');
+      } else {
+        const dateMatchC = decodedText.match(/\b(\d{2})([A-Z]{3})\b/i);
+        if (dateMatchC) {
+          extractedFileDate = (monthsMap[dateMatchC[2].toLowerCase()] || '01') + dateMatchC[2].toLowerCase();
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("Metadata extraction failed: ", err);
+  }
+}
+
+/**
+ * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM 형식)을 매핑하는 함수
+ */
+function buildWptTimeMap(fullPdfText) {
+  const wptTimeMap = new Map();
+  if (!fullPdfText) return wptTimeMap;
+
+  // CFP waypoint 행: "34E60 ... / ... 04.56 0639/"
+  // 행 단위로 제한해 다음 WPT 행의 시간과 잘못 연결되지 않도록 한다.
+  for (const line of fullPdfText.split(/\r?\n/)) {
+    const match = /\b([A-Z0-9]{3,10})\b[^\/\r\n]*\/[^\/\r\n]*?\b(\d{2}\.\d{2})\b\s+\d{4}\//i.exec(line);
+    if (match) wptTimeMap.set(match[1].toUpperCase(), match[2]);
+  }
+  return wptTimeMap;
+}
 
 async function runHL(){
-  if(!canRunEngine())return;
+  if(!canRun())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
 
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
@@ -76,10 +418,12 @@ async function runHL(){
       pdfJsDoc = await pdfjsLib.getDocument({data:pdfBytes.buffer.slice(0)}).promise;
     }
 
+    // 메타데이터(기번 등)를 먼저 추출해야 하이라이트 키워드 목록에 포함 가능
     detectedAirports = await extractReleaseAirportsByRule2(pdfJsDoc);
     await extractMetadata(pdfJsDoc);
 
     const extraKws = [];
+    // 기번(AcReg) 하이라이트는 키워드 하이라이트가 활성화된 경우에만 포함
     if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
     const keywords=[...sel, ...extraKws].sort((a,b)=>b.length-a.length);
     const hlRGB = activeHlColorRGB;
@@ -103,7 +447,7 @@ async function runHL(){
 
     const bmPages={};
     let edtoBookmarkY = null;
-    let coaAnnotIdx = -1;
+    let coaAnnotIdx = -1; // Added to track page with SUBMITTED AT for COPY OF ATS FPL
 
     for(let pi=0;pi<numPages;pi++){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
@@ -167,6 +511,7 @@ async function runHL(){
 
     let totalHits=0;
 
+    // 하이라이트 레이어 및 검색 레이어 생성 (키워드 선택 시에만 동작)
     if(sel.size > 0){
       setStatus('processing','Calculating highlight positions and drawing...');
       for(let pi=0;pi<numPages;pi++){
@@ -304,28 +649,28 @@ async function runHL(){
                   const itemW = item.width || 0;
                   const itemH = Math.abs(tx[3]) || 10;
 
-                  const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
-                  if (idx !== -1) {
-                    const fullMeasuredW = stdFont.widthOfTextAtSize(s, itemH);
-                    const prefixMeasuredW = stdFont.widthOfTextAtSize(s.substring(0, idx), itemH);
-                    const matchMeasuredW = stdFont.widthOfTextAtSize(s.substring(idx, idx + targetWord.length), itemH);
+                const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
+                if (idx !== -1) {
+                  const fullMeasuredW = stdFont.widthOfTextAtSize(s, itemH);
+                  const prefixMeasuredW = stdFont.widthOfTextAtSize(s.substring(0, idx), itemH);
+                  const matchMeasuredW = stdFont.widthOfTextAtSize(s.substring(idx, idx + targetWord.length), itemH);
 
-                    const startXOffset = fullMeasuredW > 0 ? (prefixMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * idx;
-                    const actualHlWidth = fullMeasuredW > 0 ? (matchMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * targetWord.length;
+                  const startXOffset = fullMeasuredW > 0 ? (prefixMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * idx;
+                  const actualHlWidth = fullMeasuredW > 0 ? (matchMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * targetWord.length;
 
-                    const rx = (itemX + startXOffset) * sx;
-                    const ry = itemY * sy;
-                    const rw = actualHlWidth * sx;
-                    const rh = itemH * sy;
+                  const rx = (itemX + startXOffset) * sx;
+                  const ry = itemY * sy;
+                  const rw = actualHlWidth * sx;
+                  const rh = itemH * sy;
 
-                    libPage.drawRectangle({
-                      x: rx - 1, y: ry - (rh * 0.15),
-                      width: Math.max(rw + 2, 4), height: Math.max(rh * 1.15, 8),
-                      color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                      opacity: 0.25
-                    });
-                    totalHits++;
-                  }
+                  libPage.drawRectangle({
+                    x: rx - 1, y: ry - (rh * 0.15),
+                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.15, 8),
+                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                    opacity: 0.25
+                  });
+                  totalHits++;
+                }
                 }
               }
             }
@@ -375,12 +720,12 @@ async function runHL(){
               if (kw.toUpperCase() === 'MEL' || kw.toUpperCase() === 'CDL') {
                 if (lineTextFromMapping[startIdx - 1] === '/' || lineTextFromMapping[endIdx] === '/') continue;
               }
-              if (kw.toUpperCase() === 'MAY') {
+            if (kw.toUpperCase() === 'MAY') {
                 const beforeCtx = cleanLineText.slice(Math.max(0, startIdx - 6), startIdx);
                 const afterCtx = cleanLineText.slice(endIdx, endIdx + 6);
                 const isDateCtx = /\d\s*[A-Z]{0,2}\s*$/i.test(beforeCtx) || /^\s*\d/.test(afterCtx);
                 if (isDateCtx) continue;
-              }
+            }
               const itemMatches = {};
               for (let c = startIdx; c < endIdx; c++) {
                 const map = charMapping[c];
@@ -644,6 +989,38 @@ async function runHL(){
         lastY = item.transform[5];
       }
 
+      // RQRD / REFILE POINT 연료 차이 배지 추가
+      const refileMatch = cfpFirstPageText.match(/REFILE\s+POINT\s+(\d{3,6})/i);
+      if (refileMatch) {
+        const refileFuel = parseInt(refileMatch[1], 10) * 100;
+        const rqrdLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
+        for (const line of rqrdLines) {
+          const rqrdMatches = [...line.text.matchAll(/\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi)];
+          if (rqrdMatches.length > 0) {
+            const lastMatch = rqrdMatches[rqrdMatches.length - 1];
+            const rqrdFuel = parseInt(lastMatch[1], 10) * 100;
+            const diff = refileFuel - rqrdFuel;
+            const sign = diff >= 0 ? '+' : '-';
+            const padded = String(Math.abs(diff)).padStart(5, '0');
+            const formatted = padded.slice(0, -3) + ',' + padded.slice(-3);
+            const badgeText = `${sign} ${formatted} lbs`;
+            const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+            const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+            const srcMidY = line.y * cfpSy + srcFS * cfpSy * SOURCE_TEXT_CENTER_RATIO;
+            drawDutyTimeStyleBadge(cfpLibPage, {
+              text: badgeText,
+              x: (lineMaxX + 12) * cfpSx,
+              centerY: srcMidY,
+              font: boldFont,
+              fontSize: 9,
+              bgColor: [0.88, 0.90, 0.93],
+              bgOpacity: 0.85
+            });
+          }
+        }
+      }
+
+      // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
       const cfpEndIdx = Math.min(
         numPages,
         ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
@@ -674,7 +1051,9 @@ async function runHL(){
 
       wptTimeMap = buildWptTimeMap(cfpFullSectionText);
 
-      // TRIP 시간 계산 (Duty time 오버레이)
+      // =========================================================================
+      // TRIP 시간 계산 (Duty time 오버레이) - 첫 페이지 기준
+      // =========================================================================
       const tripMatch = cfpFirstPageText.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
       if (tripMatch) {
         const hours = parseInt(tripMatch[2], 10);
@@ -725,49 +1104,6 @@ async function runHL(){
               fontSize: 9,
               bgColor: [0.88, 0.90, 0.93],
               bgOpacity: 0.75
-            });
-            totalHits++;
-          }
-        }
-      }
-
-      // Refile Fuel - RQRD Fuel 차이 계산 및 오버레이 배지 추가
-      const refileFuelMatch = cfpFullSectionText.match(/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+(\d{4,5})/i);
-      if (refileFuelMatch) {
-        const refileFuel = parseInt(refileFuelMatch[1], 10); 
-
-        const cfpLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
-        let rqrdLine = null;
-        let rqrdFuel = null;
-
-        for (const line of cfpLines) {
-          const rqrdMatch = line.text.match(/\bRQRD\s+(\d{4,5})\b/i);
-          if (rqrdMatch) {
-            rqrdFuel = parseInt(rqrdMatch[1], 10); 
-            rqrdLine = line;
-            break;
-          }
-        }
-
-        if (rqrdLine && rqrdFuel !== null) {
-          const fuelDiffHundreds = refileFuel - rqrdFuel; 
-          if (fuelDiffHundreds > 0) {
-            const totalLbs = fuelDiffHundreds * 100; 
-            const formattedLbsStr = totalLbs.toLocaleString('en-US').padStart(6, '0') + "lbs"; 
-
-            const rqrdMaxX = Math.max(...rqrdLine.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
-            const rqrdFS = Math.abs(rqrdLine.parts[0].item.transform[3]) || 10;
-            const srcMidY = rqrdLine.y * cfpSy + rqrdFS * cfpSy * SOURCE_TEXT_CENTER_RATIO;
-            const drawX = (rqrdMaxX + 12) * cfpSx;
-
-            drawDutyTimeStyleBadge(cfpLibPage, {
-              text: formattedLbsStr,
-              x: drawX,
-              centerY: srcMidY,
-              font: boldFont,
-              fontSize: 9,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.85
             });
             totalHits++;
           }
@@ -845,7 +1181,7 @@ async function runHL(){
              const dy = Math.abs(prevItem.transform[5] - item.transform[5]);
              const dx = item.transform[4] - (prevItem.transform[4] + prevItem.width);
              if (dy > 4 || dx > 2) {
-                 coaFullTextWithNewlines += "\n";
+                  coaFullTextWithNewlines += "\n";
                  coaCharMapping.push({ isSeparator: true, itemIndex: -1, charIndex: -1 });
              }
           }
@@ -1182,7 +1518,9 @@ async function runHL(){
       }
     }
 
+    // =========================================================================
     // FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
+    // =========================================================================
     const expectedRegex = /FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
     const expectedStartIdx = dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : 0;
     const expectedEndIdx = dispatchReleaseIdx !== -1 ? dispatchEndIdx : numPages;
@@ -1207,17 +1545,18 @@ async function runHL(){
           const fromWpt = match[1].toUpperCase();
           const toWpt = match[2].toUpperCase();
     
+          // 1. fromWpt가 실제 추출된 출발공항이면 "00.00" 설정, 그 외는 Map 조회 (If fromWpt is the actual departure airport, set "00.00", otherwise look up in Map)
           let fromTime = "";
-          if (typeof depApt !== "undefined" && fromWpt === depApt.toUpperCase()) {
-            fromTime = "00.00";
-          } else if (fromWpt === "RKSI") {
+          if (detectedAirports && detectedAirports[0] && fromWpt === detectedAirports[0].toUpperCase()) {
             fromTime = "00.00";
           } else {
             fromTime = wptTimeMap.get(fromWpt);
           }
     
+          // 2. toWpt 시간 조회 (Look up toWpt time)
           const toTime = wptTimeMap.get(toWpt);
     
+          // 두 시간값이 모두 확보되면 뱃지 추가 (Add badge if both time values are valid)
           if (fromTime && toTime) {
             const badgeText = `${fromTime} ~ ${toTime}`;
             const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
@@ -1237,6 +1576,7 @@ async function runHL(){
         }
       }
 
+      // 페이지 내 뱃지 그리기 로직 (페이지 루프 내부로 이동)
       if (expectedBadges.length > 0) {
         const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
         for (const badge of expectedBadges) {
@@ -1251,6 +1591,41 @@ async function runHL(){
           });
           totalHits++;
         }
+      }
+    }
+
+    outBytes=await pdfLibDoc.save();
+    done=true;
+    runBtn.className='action-btn dl-btn active';
+    runBtn.innerHTML='DOWNLOAD PDF FILE';
+
+    setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${Object.keys(bmPages).length} bookmarks set.`);
+    document.getElementById('previewCard').style.display='block';
+
+    dlPDF();
+  } catch(err) {
+    setStatus('error','Execution error: '+err.message);
+    runBtn.className='action-btn run-btn active';
+    runBtn.innerHTML='RUN ENGINE';
+  }
+}
+``` (The missing brace mismatch has been corrected, scoping the badge rendering loop back inside the page iteration loop.)
+
+    
+    
+    
+    const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
+      for (const badge of expectedBadges) {
+        drawDutyTimeStyleBadge(libPage, {
+          text: badge.text,
+          x: rightEdge - badge.textWidth - 4,
+          centerY: badge.centerY,
+          font: boldFont,
+          fontSize: badge.size,
+          bgColor: [0.88, 0.90, 0.93],
+          bgOpacity: 0.85
+        });
+        totalHits++;
       }
     }
 
