@@ -246,12 +246,22 @@ async function renderBriefing(flightData, rawTextSubset) {
   el.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>Analyzing flight package for safety concerns...</span></div>';
 
   try {
-    const res = await fetch('/api/briefing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ flightData, rawTextSubset })
-    });
-    if (!res.ok || !res.body) throw new Error('Briefing request failed (' + res.status + ')');
+    let res;
+    try {
+      res = await fetch('/api/briefing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flightData, rawTextSubset })
+      });
+    } catch (fetchErr) {
+      throw new Error('FETCH_ERROR[' + fetchErr.name + ']: ' + fetchErr.message);
+    }
+    if (!res.ok) {
+      let bodyText = '';
+      try { bodyText = await res.text(); } catch (_) {}
+      throw new Error('HTTP_' + res.status + ': ' + bodyText.slice(0, 300));
+    }
+    if (!res.body) throw new Error('NO_STREAM_BODY: response.body unsupported in this browser');
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -292,7 +302,6 @@ async function renderBriefing(flightData, rawTextSubset) {
     el.innerHTML = `<div class="loading-briefing"><span>AI briefing failed: ${e.message}</span></div>`;
   }
 }
-
 
 
 // 이벤트 리스너 바인딩 및 초기화
