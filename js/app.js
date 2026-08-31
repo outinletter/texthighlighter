@@ -14,7 +14,6 @@ let activeHlColorRGB = [0.36, 0.78, 1.0];
 let highlightMode = 'underline';
 
 let sel=new Set(), custom=[], pdfBytes=null, fname='document', done=false, outBytes=null;
-let sel=new Set(), custom=[], pdfBytes=null, fname='document', done=false, outBytes=null;
 let detectedAirports = [];
 let iataAirports = [];
 let bmEnabled = false; 
@@ -42,6 +41,20 @@ function selectColor(name, rgbArray) {
   done = false;
   updRun();
 }
+
+function setHighlightMode(mode) {
+  highlightMode = mode === 'highlight' ? 'highlight' : 'underline';
+
+  const toggle = document.getElementById('markerModeToggle');
+
+  if (toggle) {
+    toggle.checked = highlightMode === 'highlight';
+  }
+
+  done = false;
+  updRun();
+}
+
 
 async function forceDownload(event, url, filename) {
   event.preventDefault();
@@ -337,6 +350,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updBadge(); done=false; updRun();
   });
+
+  const markerModeToggle = document.getElementById('markerModeToggle');
+
+  if (markerModeToggle) {
+    markerModeToggle.checked = false;
+    highlightMode = 'underline';
+  
+    markerModeToggle.addEventListener('change', e => {
+      setHighlightMode(e.target.checked ? 'highlight' : 'underline');
+    });
+  }
 
   document.getElementById('bmEnabled').addEventListener('change', e => {
     bmEnabled = e.target.checked;
