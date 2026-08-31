@@ -1638,3 +1638,9 @@ async function runHL(){
         }
       })();
     }, 500);
+  } catch(err) {
+    setStatus('error','Execution error: '+err.message);
+    runBtn.className='action-btn run-btn active';
+    runBtn.innerHTML='RUN ENGINE';
+  }
+}
