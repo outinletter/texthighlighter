@@ -391,8 +391,16 @@ function buildWptTimeMap(fullPdfText) {
   return wptTimeMap;
 }
 
+function canRunEngine() {
+  if (!pdfBytes || pdfBytes.byteLength === 0) {
+    alert('PDF 파일을 먼저 선택하거나 업로드하세요.');
+    return false;
+  }
+  return true;
+}
+
 async function runHL(){
-  if(!canRun())return;
+  if(!canRunEngine())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
 
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
@@ -1001,8 +1009,7 @@ async function runHL(){
             const rqrdFuel = parseInt(lastMatch[1], 10) * 100;
             const diff = refileFuel - rqrdFuel;
             const sign = diff >= 0 ? '+' : '-';
-            const padded = String(Math.abs(diff)).padStart(5, '0');
-            const formatted = padded.slice(0, -3) + ',' + padded.slice(-3);
+            const formatted = Math.abs(diff).toLocaleString('en-US');
             const badgeText = `${sign} ${formatted} lbs`;
             const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
@@ -1591,41 +1598,6 @@ async function runHL(){
           });
           totalHits++;
         }
-      }
-    }
-
-    outBytes=await pdfLibDoc.save();
-    done=true;
-    runBtn.className='action-btn dl-btn active';
-    runBtn.innerHTML='DOWNLOAD PDF FILE';
-
-    setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${Object.keys(bmPages).length} bookmarks set.`);
-    document.getElementById('previewCard').style.display='block';
-
-    dlPDF();
-  } catch(err) {
-    setStatus('error','Execution error: '+err.message);
-    runBtn.className='action-btn run-btn active';
-    runBtn.innerHTML='RUN ENGINE';
-  }
-}
-``` (The missing brace mismatch has been corrected, scoping the badge rendering loop back inside the page iteration loop.)
-
-    
-    
-    
-    const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
-      for (const badge of expectedBadges) {
-        drawDutyTimeStyleBadge(libPage, {
-          text: badge.text,
-          x: rightEdge - badge.textWidth - 4,
-          centerY: badge.centerY,
-          font: boldFont,
-          fontSize: badge.size,
-          bgColor: [0.88, 0.90, 0.93],
-          bgOpacity: 0.85
-        });
-        totalHits++;
       }
     }
 
