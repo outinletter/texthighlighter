@@ -1,646 +1,59 @@
-/**
- * PDF Engine Core Functions
- */
-
-const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE", "WEATHER", "AIR", "ROUTE", "ALTN", "INFO"];
-const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
-const SOURCE_TEXT_CENTER_RATIO = 0.36;
-
-/**
- * 'Duty Time' / Accent Style Badge Drawer
- */
-function drawDutyTimeStyleBadge(libPage, options) {
-  const {
-    text,
-    x,
-    y,
-    centerY,
-    font,
-    fontSize = 8.5,
-    bgColor = [0.75, 0.77, 0.80], // Moderate gray (Slightly darker than before)
-    textColor = [0.15, 0.20, 0.25], // Slightly softened navy
-    bgOpacity = 0.75,
-    padH = 4,
-    padV = 2.5
-  } = options;
-
-  const textWidth = font.widthOfTextAtSize(text, fontSize);
-  // Use the embedded font's actual glyph height so background padding is equal.
-  const textHeight = font.heightAtSize(fontSize, { descender: false });
-  const textBaseY = centerY === undefined ? y : centerY - textHeight / 2;
-
-  libPage.drawRectangle({
-    x: x - padH,
-    y: textBaseY - padV,
-    width: textWidth + padH * 2,
-    height: textHeight + padV * 2,
-    color: PDFLib.rgb(...bgColor),
-    opacity: bgOpacity
-  });
-
-  libPage.drawText(text, {
-    x: x,
-    y: textBaseY,
-    size: fontSize,
-    font: font,
-    color: PDFLib.rgb(...textColor),
-    opacity: 1.0
-  });
+// 전역 변수(pdfBytes)가 올바르게 로드되었는지 확인하는 함수
+function canRunEngine() {
+  if (!pdfBytes || pdfBytes.byteLength === 0) {
+    alert('PDF 파일을 먼저 선택하거나 업로드하세요.');
+    return false;
+  }
+  return true;
 }
 
-/**
- * Text Item Line Grouping
- */
-function groupTextItemsByLine(items, offset) {
-  const decorated = items
-    .map(it => ({ item: it, text: decodeForTagScan(it.str, offset) }))
-    .filter(d => d.text && d.text.length > 0);
-
-  decorated.sort((a, b) => b.item.transform[5] - a.item.transform[5]);
-
-  const lines = [];
-  for (const d of decorated) {
-    const y = d.item.transform[5];
-    let joined = false;
-    for (const line of lines) {
-      if (Math.abs(line.y - y) < 4.0) {
-        line.parts.push(d);
-        joined = true;
-        break;
-      }
-    }
-    if (!joined) lines.push({ y, parts: [d] });
-  }
-
-  for (const line of lines) {
-    line.parts.sort((a, b) => a.item.transform[4] - b.item.transform[4]);
-    line.text = line.parts.map(p => p.text).join('');
-    line.items = line.parts.map(p => p.item);
-  }
-
-  return lines;
-}
-
-function checkKeywordMatch(text, kw) {
-  const normalizedText = text.replace(/[^A-Za-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
-  const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  let re;
-  try {
-    re = kw.toLowerCase() === 'restrict'
-      ? new RegExp(`\\b${escaped}[A-Za-z]*\\b`, 'i')
-      : new RegExp(`\\b${escaped}\\b`, 'i');
-  } catch (e) {
-    re = new RegExp(escaped, 'i');
-  }
-  return re.test(normalizedText);
-}
-
-function detectPageOffset(rawText) {
-  if (!rawText) return 0;
-  let bestOffset = 0;
-  let bestMatches = 0;
-
-  const sampleLen = Math.min(rawText.length, 1500);
-  for (const offset of OFFSETS_TO_TEST) {
-    let decodedSample = "";
-    for (let j = 0; j < sampleLen; j++) {
-      decodedSample += String.fromCharCode(rawText.charCodeAt(j) + offset);
-    }
-    const cleanSample = decodedSample.replace(/[^A-Za-z0-9\s]/g, ' ').toUpperCase();
-    let matchCount = 0;
-    for (const kw of TEST_KEYWORDS) {
-      if (cleanSample.includes(kw)) matchCount++;
-    }
-    if (matchCount >= 3) return offset;
-    if (matchCount > bestMatches) {
-      bestMatches = matchCount;
-      bestOffset = offset;
-    }
-  }
-
-  if (bestMatches > 0) return bestOffset;
-
-  for (let i = -120; i <= 120; i++) {
-    if (OFFSETS_TO_TEST.includes(i)) continue;
-    let decodedSample = "";
-    for (let j = 0; j < sampleLen; j++) {
-      decodedSample += String.fromCharCode(rawText.charCodeAt(j) + i);
-    }
-    const cleanSample = decodedSample.replace(/[^A-Za-z0-9\s]/g, ' ').toUpperCase();
-    let matchCount = 0;
-    for (const kw of TEST_KEYWORDS) {
-      if (cleanSample.includes(kw)) matchCount++;
-    }
-    if (matchCount > bestMatches) {
-      bestMatches = matchCount;
-      bestOffset = i;
-    }
-    if (bestMatches >= 3) break;
-  }
-
-  return bestOffset;
-}
-
-function decodeStr(str, offset) {
-  if (!offset || !str) return str;
-  let decoded = "";
-  for (let i = 0; i < str.length; i++) {
-    decoded += String.fromCharCode(str.charCodeAt(i) + offset);
-  }
-  return decoded;
-}
-
-function cleanAndDecodeItem(str, offset) {
-  if (!str) return '';
-  let finalStr = str;
-  if (offset) {
-    const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    const decrypted = decodeStr(str, offset);
-    const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    if (decStandardCount > origStandardCount) finalStr = decrypted;
-  }
-  return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
-}
-
-function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity, font) {
-  const s = cleanAndDecodeItem(item.str, pageOffset) || '';
-  const tx = item.transform;
-  const fontSize = Math.abs(tx[3]) || 10;
-  const itemWidth = item.width || 0;
-
-  // Use font metrics if available, fallback to average width
-  let startXOffset = 0;
-  let actualHlWidth = 0;
-
-  if (font && s.length > 0) {
-    const fullMeasuredW = font.widthOfTextAtSize(s, fontSize);
-    const prefixMeasuredW = font.widthOfTextAtSize(s.substring(0, minCharIdx), fontSize);
-    const matchMeasuredW = font.widthOfTextAtSize(s.substring(minCharIdx, maxCharIdx + 1), fontSize);
-
-    if (fullMeasuredW > 0) {
-      startXOffset = (prefixMeasuredW / fullMeasuredW) * itemWidth;
-      actualHlWidth = (matchMeasuredW / fullMeasuredW) * itemWidth;
-    } else {
-      startXOffset = (itemWidth / s.length) * minCharIdx;
-      actualHlWidth = (itemWidth / s.length) * (maxCharIdx - minCharIdx + 1);
-    }
-  } else {
-    startXOffset = (itemWidth / Math.max(s.length, 1)) * minCharIdx;
-    actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
-  }
-
-  page.drawRectangle({
-    x: (tx[4] + startXOffset) * sx - 1,
-    y: (tx[5] * sy) - (fontSize * sy * 0.15),
-    width: Math.max(actualHlWidth * sx + 2, 4),
-    height: Math.max(fontSize * sy * 1.15, 8),
-    color, opacity
-  });
-}
-
-
+// 디스패치 문서 및 CFP에서 공항 코드를 추출하는 헬퍼 함수
 async function extractReleaseAirportsByRule2(pdfJsDoc) {
   const airports = [];
-  iataAirports = [];
   try {
-    for (let pNum = 1; pNum <= Math.min(30, pdfJsDoc.numPages); pNum++) {
-      const page = await pdfJsDoc.getPage(pNum);
-      const textContent = await page.getTextContent();
-      const rawText = textContent.items.map(it => it.str).join(' ');
-      const offset = detectPageOffset(rawText);
-      const decodedRawText = textContent.items.map(it => decodeStr(it.str, offset)).join(' ');
+    const page1 = await pdfJsDoc.getPage(1);
+    const tc = await page1.getTextContent();
+    const rawText = tc.items.map(it => it.str).join(' ');
+    const offset = (typeof detectPageOffset === 'function') ? detectPageOffset(rawText) : 0;
+    
+    let text = tc.items.map(it => {
+      return (typeof cleanAndDecodeItem === 'function') ? cleanAndDecodeItem(it.str, offset) : it.str;
+    }).join(' ');
 
-      const isDispatchReleasePage = /DISPATCH\s+RELEASE\s+INFORMATION/i.test(decodedRawText) || /I\s+HEREBY\s+RELEASE/i.test(decodedRawText);
-      if (airports.length === 0) {
-        const m1 = /\bFLIGHT\s+RELEASE\s+[A-Z0-9]+\s+([A-Z]{4})[\/-]([A-Z]{4})\b/i.exec(decodedRawText);
-        if (m1) {
-          airports.push(m1[1].toUpperCase().trim(), m1[2].toUpperCase().trim());
-        } else {
-          const m2 = /\bETD\s+([A-Z]{4})\s+[A-Z0-9]+\s+ETA\s+([A-Z]{4})\b/i.exec(decodedRawText);
-          if (m2) {
-            airports.push(m2[1].toUpperCase().trim(), m2[2].toUpperCase().trim());
-          } else if (isDispatchReleasePage) {
-            const m3 = /I\s+HEREBY\s+RELEASE\s+(?:THE\s+)?FLIGHT.*?([A-Z]{4})\s*[\/-]\s*([A-Z]{4})\b/i.exec(decodedRawText);
-            if (m3) airports.push(m3[1].toUpperCase().trim(), m3[2].toUpperCase().trim());
-          }
-        }
-      }
-      if (iataAirports.length === 0 && isDispatchReleasePage) {
-        const mIata = /\b([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/g;
-        let match;
-        while ((match = mIata.exec(decodedRawText)) !== null) {
-          const a = match[1].toUpperCase(), b = match[2].toUpperCase();
-          const ignoreList = ['MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN','FEB','MAR','APR'];
-          if (!ignoreList.includes(a) && !ignoreList.includes(b)) {
-            iataAirports.push(a, b);
-            break;
-          }
-        }
-      }
-      if (iataAirports.length === 0) {
-         const mHeader = /\b(?:KAL|KE)\s*\d+\s*\/\s*([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
-         if (mHeader) iataAirports.push(mHeader[1].toUpperCase().trim(), mHeader[2].toUpperCase().trim());
-      }
-      if (airports.length === 2 && iataAirports.length === 2) break;
+    // 1. "BEROK TO LEMD" 또는 "RKSI TO LEMD" 패턴 검색
+    const routeMatch = text.match(/\b([A-Z]{4})\s+TO\s+([A-Z]{4})\b/i);
+    if (routeMatch) {
+      airports.push(routeMatch[1].toUpperCase(), routeMatch[2].toUpperCase());
+      return airports;
     }
-  } catch (err) {
-    console.warn("Airport code extraction failed: ", err);
+
+    // 2. "RKSI/LEMD" 또는 "RKSI-LEMD" 패턴 검색
+    const pairMatch = text.match(/\b([A-Z]{4})\s*[\/-]\s*([A-Z]{4})\b/i);
+    if (pairMatch) {
+      airports.push(pairMatch[1].toUpperCase(), pairMatch[2].toUpperCase());
+      return airports;
+    }
+
+    // 3. "DEP/ARR" 명시적 구문 탐색
+    const depMatch = text.match(/\bDEP[:\s]+([A-Z]{4})\b/i);
+    const destMatch = text.match(/\b(?:DEST|ARR)[:\s]+([A-Z]{4})\b/i);
+    if (depMatch && destMatch) {
+      airports.push(depMatch[1].toUpperCase(), destMatch[1].toUpperCase());
+      return airports;
+    }
+  } catch (e) {
+    console.warn("extractReleaseAirportsByRule2 processing warning:", e);
   }
   return airports;
 }
 
-function decodeForTagScan(str, offset) {
-  if (!str) return '';
-  let finalStr = str;
-  if (offset) {
-    const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    const decrypted = decodeStr(str, offset);
-    const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    if (decStandardCount > origStandardCount) finalStr = decrypted;
-  }
-  return finalStr.replace(/[^\x20-\x7E]/g, ' ');
-}
 
-async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
-  const found = {};
-  if (startPageIdx === undefined || startPageIdx === -1) return [];
-  const from = Math.max(0, startPageIdx);
-  const to = Math.min(pdfJsDoc.numPages, endPageIdxExclusive);
-
-  for (let pi = from; pi < to; pi++) {
-    if (Object.keys(found).length === tags.length) break;
-    const jsPage = await pdfJsDoc.getPage(pi + 1);
-    const tc = await jsPage.getTextContent();
-    const rawText = tc.items.map(it => it.str).join(' ');
-    const offset = detectPageOffset(rawText);
-    const lines = groupTextItemsByLine(tc.items, offset);
-
-    for (const line of lines) {
-      if (Object.keys(found).length === tags.length) break;
-      for (const tag of tags) {
-        if (found[tag] !== undefined) continue;
-        const re = new RegExp('\\[\\s*' + tag + '\\s*\\]\\s*([A-Z]{3,4})\\b', 'i');
-        const m = re.exec(line.text);
-        if (m) {
-          const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
-          const lineFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-          found[tag] = { code: m[1].toUpperCase(), pageIdx: pi, y: line.y, maxX: lineMaxX, fontSize: lineFS };
-        }
-      }
-    }
-  }
-
-  const ordered = [];
-  for (const tag of tags) {
-    if (found[tag]) ordered.push({ tag, code: found[tag].code, pageIdx: found[tag].pageIdx, y: found[tag].y, maxX: found[tag].maxX, fontSize: found[tag].fontSize });
-  }
-  return ordered;
-}
-
-async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tagPattern) {
-  const results = [];
-  if (startPageIdx === undefined || startPageIdx === -1) return results;
-  const from = Math.max(0, startPageIdx);
-  const to = Math.min(pdfJsDoc.numPages, endPageIdxExclusive);
-  const re = new RegExp('\\[\\s*(' + tagPattern + ')\\s*\\]\\s*([A-Z]{3,4})\\b', 'gi');
-
-  for (let pi = from; pi < to; pi++) {
-    const jsPage = await pdfJsDoc.getPage(pi + 1);
-    const tc = await jsPage.getTextContent();
-    const rawText = tc.items.map(it => it.str).join(' ');
-    const offset = detectPageOffset(rawText);
-    const lines = groupTextItemsByLine(tc.items, offset);
-
-    for (const line of lines) {
-      re.lastIndex = 0;
-      let m;
-      while ((m = re.exec(line.text)) !== null) {
-        const tagLabel = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
-        const code = m[2].toUpperCase();
-        results.push({ tag: tagLabel, code, pageIdx: pi, y: line.y });
-      }
-    }
-  }
-  return results;
-}
-
-async function extractMetadata(pdfJsDoc) {
-  try {
-    const scanPages = Math.min(10, pdfJsDoc.numPages);
-    let combinedText = '';
-    for (let p = 1; p <= scanPages; p++) {
-      const pg = await pdfJsDoc.getPage(p);
-      const tc = await pg.getTextContent();
-      const rawText = tc.items.map(it => it.str).join(' ');
-      const offset = detectPageOffset(rawText);
-      combinedText += ' ' + tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
-    }
-    const decodedText = combinedText;
-
-    const flightMatch = decodedText.match(/\b(KAL|KE|KAL\s+|KE\s*)(\d{3,4})\b/i);
-    if (flightMatch) extractedFlightNum = flightMatch[1].trim().toUpperCase() + flightMatch[2];
-
-    // 기번 패턴 검색 강화: HL + 4자리 숫자 (또는 경우에 따라 5자리)
-    const acRegMatch = decodedText.match(/\bHL[0-9]{4,5}\b/i);
-    if (acRegMatch) {
-      extractedAcReg = acRegMatch[0].toUpperCase();
-    }
-
-    const monthsMap = {
-      jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
-      jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
-    };
-
-    const dateMatchA = decodedText.match(/\b(\d{1,2})\s+(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}\b/i);
-    if (dateMatchA) {
-      const monthStr = dateMatchA[2].toLowerCase().substring(0, 3);
-      extractedFileDate = (monthsMap[monthStr] || '01') + dateMatchA[1].padStart(2, '0');
-    } else {
-      const dateMatchB = decodedText.match(/\b(\d{1,2})\/([A-Z]{3})\/(\d{2,4})\b/i);
-      if (dateMatchB) {
-        const monthStr = dateMatchB[2].toLowerCase();
-        extractedFileDate = (monthsMap[monthStr] || '01') + dateMatchB[1].padStart(2, '0');
-      } else {
-        const dateMatchC = decodedText.match(/\b(\d{2})([A-Z]{3})\b/i);
-        if (dateMatchC) {
-          extractedFileDate = (monthsMap[dateMatchC[2].toLowerCase()] || '01') + dateMatchC[2].toLowerCase();
-        }
-      }
-    }
-  } catch (err) {
-    console.warn("Metadata extraction failed: ", err);
-  }
-}
-
-/**
- * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM)을 매핑하는 함수
- */
-function buildWptTimeMap(fullPdfText) {
-  const wptTimeMap = new Map();
-  if (!fullPdfText) return wptTimeMap;
-
-  // CFP waypoint 행: "34E60 ... / ... 04.56 0639/"
-  // 행 단위로 제한해 다음 WPT 행의 시간과 잘못 연결되지 않도록 한다.
-  for (const line of fullPdfText.split(/\r?\n/)) {
-    const match = /\b([A-Z0-9]{3,10})\b[^\/\r\n]*\/[^\/\r\n]*?\b(\d{2}\.\d{2})\b\s+\d{4}\//i.exec(line);
-    if (match) wptTimeMap.set(match[1].toUpperCase(), match[2]);
-  }
-  return wptTimeMap;
-}
-
-/**
- * 19단계 분석을 위한 고도화된 데이터 추출 엔진
- */
-/**
- * 19단계 분석을 위한 초정밀 데이터 추출 엔진 (Advanced Parser)
- */
-function extractSubstantiveFlightData(fullText) {
-  const data = {
-    info: {},
-    fuel: {},
-    weights: {},
-    edto: [],
-    suitability: [],
-    mel_cdl: [],
-    route: "",
-    airport_blocks: {}
-  };
-
-  // 1. FLIGHT INFORMATION (Step A, 1 대응)
-  const flightM = fullText.match(/\b(KAL|KE)\s*(\d{3,4})\b/i);
-  const etdEtaM = fullText.match(/ETD\s+([A-Z]{3,4})\s+(\d{4}Z).*?ETA\s+([A-Z]{3,4})\s+(\d{4}Z)/i);
-  const typeM = fullText.match(/\b(787-\d|B78[19])\b/i);
-  if (flightM) data.info.flight = flightM[0];
-  if (etdEtaM) {
-    data.info.dep = etdEtaM[1]; data.info.etd = etdEtaM[2];
-    data.info.dest = etdEtaM[3]; data.info.eta = etdEtaM[4];
-  }
-  const regM = fullText.match(/\bHL[0-9]{4,5}\b/i);
-  if (regM) data.info.reg = regM[0];
-  if (typeM) data.info.type = typeM[0];
-
-  // 2. ROUTE ANALYSIS (Step 3 대응)
-  const routeStart = fullText.indexOf("2ND");
-  const routeEnd = fullText.indexOf("DIST LATITUDE");
-  if (routeStart !== -1 && routeEnd > routeStart) {
-    data.route = fullText.substring(routeStart, routeEnd).replace(/\s+/g, ' ').trim();
-  }
-
-  // 3. WEIGHT ANALYSIS (Step A, 1 대응) - Margin 계산 추가
-  const towM = fullText.match(/TOW\s+(\d+)\s*\/\s*(\d+)/i);
-  const ldwM = fullText.match(/LDW\s+(\d+)\s*\/\s*(\d+)/i);
-  const mzfwM = fullText.match(/MZFW\s+(\d+)\s*\/\s*(\d+)/i);
-  if (towM) {
-    const planned = parseInt(towM[1], 10) * 100;
-    const max = parseInt(towM[2], 10) * 100;
-    data.weights.tow = { planned: planned.toLocaleString() + " lbs", max: max.toLocaleString() + " lbs", margin: (max - planned).toLocaleString() + " lbs" };
-  }
-  if (ldwM) {
-    const planned = parseInt(ldwM[1], 10) * 100;
-    const max = parseInt(ldwM[2], 10) * 100;
-    data.weights.ldw = { planned: planned.toLocaleString() + " lbs", max: max.toLocaleString() + " lbs", margin: (max - planned).toLocaleString() + " lbs" };
-  }
-  if (mzfwM) {
-    const planned = parseInt(mzfwM[1], 10) * 100;
-    const max = parseInt(mzfwM[2], 10) * 100;
-    data.weights.mzfw = { planned: planned.toLocaleString() + " lbs", max: max.toLocaleString() + " lbs", margin: (max - planned).toLocaleString() + " lbs" };
-  }
-
-  // 4. FUEL ANALYSIS (Step 5, 1 대응) - lbs 단위 변환 (x100) 및 세부 항목 추출
-  const formatFuel = (raw) => raw ? (parseInt(raw, 10) * 100).toLocaleString() + " lbs" : "";
-
-  const rampM = fullText.match(/RAMP\s+OUT\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const tripM = fullText.match(/TRIP\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const contM = fullText.match(/CONT\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const resM = fullText.match(/(?:RESERVE|FINAL\s*RES)\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const altnM = fullText.match(/ALTN\s+(\d+)\s+(\d{2}\.\d{2})/i);
-  const fodM = fullText.match(/FOD\s+(\d+)?\s*(\d{2}\.\d{2})/i);
-  const endurM = fullText.match(/ENDUR\s+(\d+)?\s*(\d{2}\.\d{2})/i);
-
-  if (rampM) data.fuel.ramp_out = { amount: formatFuel(rampM[1]), time: rampM[2] };
-  if (tripM) data.fuel.trip = { amount: formatFuel(tripM[1]), time: tripM[2] };
-  if (contM) data.fuel.cont = { amount: formatFuel(contM[1]), time: contM[2] };
-  if (resM) data.fuel.final_reserve = { amount: formatFuel(resM[1]), time: resM[2] };
-  if (altnM) data.fuel.altn = { amount: formatFuel(altnM[1]), time: altnM[2] };
-  if (fodM) data.fuel.fod = { amount: formatFuel(fodM[1] || ""), time: fodM[2] };
-  if (endurM) data.fuel.endurance = { amount: formatFuel(endurM[1] || ""), time: endurM[2] };
-
-  // 4.1 Statistical Fuel (90% / 99%) & Contingency %
-  const statM = fullText.match(/90%\s+([+-]\d+).*?99%\s+([+-]\d+)/i);
-  if (statM) {
-    data.fuel.statistical_margin = {
-      "90%": statM[1],
-      "99%": statM[2],
-      "note": "Statistical deviation coverage"
-    };
-  }
-  const contPercentM = fullText.match(/(\d+)\s*%\s*(?:CONT|CONTINGENCY)/i);
-  if (contPercentM) data.fuel.contingency_policy = contPercentM[1] + "%";
-
-  // 5. EDTO ANALYSIS (Step 4 대응) - ETP 마진 및 시간 분석
-  const etpRegex = /ETP\s*([1-5])\s+([A-Z]{3,4})\/([A-Z]{3,4}).*?(\d{4})Z.*?DIST\s+(\d+).*?WIND\s+([PM]\d+).*?TIME\s+(\d{2}\.\d{2}).*?CRIT\s*FUEL\s*(\d+).*?FOB\s*(\d+)/gi;
-  let m;
-  while ((m = etpRegex.exec(fullText)) !== null) {
-    const crit = parseInt(m[8], 10) * 100;
-    const fob = parseInt(m[9], 10) * 100;
-    data.edto.push({
-      id: m[1], airports: [m[2], m[3]], time_z: m[4], dist: m[5], wind: m[6],
-      diversion_time: m[7], crit_fuel: crit.toLocaleString() + " lbs",
-      fob: fob.toLocaleString() + " lbs", margin: (fob - crit).toLocaleString() + " lbs",
-      is_critical: (fob - crit < 5000) ? "⚠️ LOW MARGIN" : "OK"
-    });
-  }
-
-  const suitRe = /\b([A-Z]{3,4})\s+SUITABLE\s+FROM\s+(\d{4})\s+UTC\s*\/\s*TO\s+(\d{4})\s+UTC/gi;
-  while ((m = suitRe.exec(fullText)) !== null) {
-    data.suitability.push({ apt: m[1], from: m[2], to: m[3] });
-  }
-
-  // 6. MEL / CDL ANALYSIS (Step 6 대응)
-  const melRegex = /(MEL|CDL)\s+(\d{2}-\d{2}-\d{2}[A-Z]?)\s+([^\n]+)/gi;
-  while ((m = melRegex.exec(fullText)) !== null) {
-    data.mel_cdl.push({ type: m[1], id: m[2], desc: m[3].trim() });
-  }
-
-  // 7. WEATHER & NOTAM ANALYSIS (Step 7, 8 대응) - 핵심 위험 키워드 추출 강화
-  const airportCodesM = fullText.match(/\[\s*([A-Z]{4})\s*\]/gi);
-  const potentialApts = airportCodesM ? airportCodesM.map(m => m.match(/[A-Z]{4}/)[0]) : [];
-  const airports = [...new Set([data.info.dep, data.info.dest, ...data.suitability.map(s => s.apt), ...potentialApts])];
-
-  const seenApts = new Set();
-  airports.forEach(apt => {
-    if (!apt || seenApts.has(apt)) return;
-    seenApts.add(apt);
-    const regex = new RegExp(`\\[\\s*${apt}\\s*\\][\\s\\S]{1,6000}?(?=\\[|$)`, "i");
-    const block = fullText.match(regex);
-    if (block) {
-      // 19단계 지침의 핵심 위험 키워드를 필터링하여 압축 전달
-      const substantiveLines = block[0].split('\n').filter(line =>
-        /CLSD|CLOSED|RESTRICT|NOT AVBL|ILS|RWY|TAXI|U\/S|OFFLINE|MINIMA|CAT|RVR|VIS|WIND|GUST|TS|FG|DZ|SN|RA|BLSN|DS|SS|MAX|MIN|LIMIT|SHEAR|SHER|FOG|ASH|GR|FC|FZ|FIR|OCEANIC/i.test(line)
-      ).join(' ');
-      if (substantiveLines.length > 5) {
-        data.airport_blocks[apt] = substantiveLines.slice(0, 2500);
-      }
-    }
-  });
-
-  return data;
-}
-
-async function generateAIBriefing(fullText) {
-  const card = document.getElementById('briefingCard');
-  const content = document.getElementById('briefingContent');
-  card.style.display = 'block';
-
-  // 화면 최상단으로 부드럽게 이동
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-
-  content.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>AI가 실시간으로 데이터를 분석 중입니다...</span></div>';
-
-  const structuredData = extractSubstantiveFlightData(fullText);
-
-  try {
-    const response = await fetch('/api/briefing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        flightData: structuredData,
-        rawTextSubset: fullText.slice(0, 15000)
-      })
-    });
-
-    if (!response.ok) throw new Error('Network response was not ok');
-
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let accumulatedText = "";
-    let buffer = "";
-    content.innerHTML = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop(); // 마지막 불완전한 라인은 버퍼에 유지
-
-      for (const line of lines) {
-        if (line.startsWith('data: ')) {
-          const dataStr = line.replace('data: ', '').trim();
-          if (dataStr === '[DONE]') break;
-          try {
-            const parsed = JSON.parse(dataStr);
-            if (parsed.response) {
-              accumulatedText += parsed.response;
-              renderBriefingToHTML(accumulatedText, content);
-            }
-          } catch (e) {
-            // JSON 파싱 실패 시 원본 텍스트가 data 부분인 경우 고려
-            if (!dataStr.startsWith('{') && dataStr.length > 0) {
-              accumulatedText += dataStr;
-              renderBriefingToHTML(accumulatedText, content);
-            }
-          }
-        }
-      }
-    }
-  } catch (err) {
-    content.innerHTML = `<div style="color:#ef4444; padding:20px;">Analysis Failed: ${err.message}</div>`;
-  }
-}
-
-function renderBriefingToHTML(markdown, container) {
-  const sections = markdown.split(/---+\n?/).filter(s => s.trim());
-  let html = '';
-
-  sections.forEach(section => {
-    const lines = section.trim().split('\n');
-    const titleLine = lines[0].trim();
-    const bodyLines = lines.slice(1);
-
-    let riskClass = section.includes('🔴') ? 'briefing-risk-critical' :
-                    section.includes('🟠') ? 'briefing-risk-high' :
-                    section.includes('🟡') ? 'briefing-risk-medium' : '';
-
-    const cleanTitle = titleLine.replace(/^[#*\s]+/, '').replace(/[\[\]]/g, '');
-    html += `
-      <div class="briefing-card-item ${riskClass}">
-        <div class="briefing-card-header">${cleanTitle}</div>
-        <div class="briefing-card-body">
-          ${bodyLines.map(line => {
-            line = line.trim();
-            if (!line) return '';
-
-            // 한-영 병기 스타일 (괄호 안 영어)
-            if (line.startsWith('(') && line.endsWith(')')) {
-              return `<div style="margin-left:18px; font-size:11.5px; color:#94a3b8; font-style:italic; margin-bottom:8px; line-height:1.2;">${line}</div>`;
-            }
-
-            // 불릿 포인트 및 들여쓰기
-            if (line.startsWith('- ') || line.startsWith('• ') || line.startsWith('* ')) {
-              return `<div style="margin-top:8px; display:flex; gap:6px;"><span>•</span><span>${line.substring(2)}</span></div>`;
-            }
-
-            // 인용문 스타일
-            if (line.startsWith('> ')) {
-              return `<div style="border-left:2px solid #3b82f6; padding-left:8px; margin:8px 0; color:#cbd5e1; font-weight:600;">${line.substring(2)}</div>`;
-            }
-
-            return `<div style="margin-top:4px;">${line}</div>`;
-          }).join('')}
-        </div>
-      </div>
-    `;
-  });
-  container.innerHTML = html;
-}
 
 async function runHL(){
-  if(!canRun())return;
+  if(!canRunEngine())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
 
-  const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
+  const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
   'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS',
   'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF'];
 
@@ -663,12 +76,10 @@ async function runHL(){
       pdfJsDoc = await pdfjsLib.getDocument({data:pdfBytes.buffer.slice(0)}).promise;
     }
 
-    // 메타데이터(기번 등)를 먼저 추출해야 하이라이트 키워드 목록에 포함 가능
     detectedAirports = await extractReleaseAirportsByRule2(pdfJsDoc);
     await extractMetadata(pdfJsDoc);
 
     const extraKws = [];
-    // 기번(AcReg) 하이라이트는 키워드 하이라이트가 활성화된 경우에만 포함
     if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
     const keywords=[...sel, ...extraKws].sort((a,b)=>b.length-a.length);
     const hlRGB = activeHlColorRGB;
@@ -692,9 +103,8 @@ async function runHL(){
 
     const bmPages={};
     let edtoBookmarkY = null;
-    let coaAnnotIdx = -1; // Added to track page with SUBMITTED AT for COPY OF ATS FPL
+    let coaAnnotIdx = -1;
 
-    let allExtractedText = "";
     for(let pi=0;pi<numPages;pi++){
       const jsPage2=await pdfJsDoc.getPage(pi+1);
       const tc=await jsPage2.getTextContent();
@@ -702,13 +112,8 @@ async function runHL(){
       const offset = detectPageOffset(rawText);
       const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
 
-      // 불필요한 연속 공백 제거 및 줄바꿈 정리로 토큰 절약
-      const cleanedPageText = pageText.replace(/\s+/g, ' ').trim();
-      allExtractedText += `\n[P${pi+1}] ` + cleanedPageText;
-
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined) {
-            // Special handling for COPY OF ATS FPL to find the page with SUBMITTED AT
             if (bm.label === 'COPY OF ATS' && coaAnnotIdx === -1) {
                 if (/SUBMITTED\s+AT/i.test(pageText)) coaAnnotIdx = pi;
             }
@@ -762,7 +167,6 @@ async function runHL(){
 
     let totalHits=0;
 
-    // 하이라이트 레이어 및 검색 레이어 생성 (키워드 선택 시에만 동작)
     if(sel.size > 0){
       setStatus('processing','Calculating highlight positions and drawing...');
       for(let pi=0;pi<numPages;pi++){
@@ -900,28 +304,28 @@ async function runHL(){
                   const itemW = item.width || 0;
                   const itemH = Math.abs(tx[3]) || 10;
 
-                const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
-                if (idx !== -1) {
-                  const fullMeasuredW = stdFont.widthOfTextAtSize(s, itemH);
-                  const prefixMeasuredW = stdFont.widthOfTextAtSize(s.substring(0, idx), itemH);
-                  const matchMeasuredW = stdFont.widthOfTextAtSize(s.substring(idx, idx + targetWord.length), itemH);
+                  const idx = s.toUpperCase().indexOf(targetWord.toUpperCase());
+                  if (idx !== -1) {
+                    const fullMeasuredW = stdFont.widthOfTextAtSize(s, itemH);
+                    const prefixMeasuredW = stdFont.widthOfTextAtSize(s.substring(0, idx), itemH);
+                    const matchMeasuredW = stdFont.widthOfTextAtSize(s.substring(idx, idx + targetWord.length), itemH);
 
-                  const startXOffset = fullMeasuredW > 0 ? (prefixMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * idx;
-                  const actualHlWidth = fullMeasuredW > 0 ? (matchMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * targetWord.length;
+                    const startXOffset = fullMeasuredW > 0 ? (prefixMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * idx;
+                    const actualHlWidth = fullMeasuredW > 0 ? (matchMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * targetWord.length;
 
-                  const rx = (itemX + startXOffset) * sx;
-                  const ry = itemY * sy;
-                  const rw = actualHlWidth * sx;
-                  const rh = itemH * sy;
+                    const rx = (itemX + startXOffset) * sx;
+                    const ry = itemY * sy;
+                    const rw = actualHlWidth * sx;
+                    const rh = itemH * sy;
 
-                  libPage.drawRectangle({
-                    x: rx - 1, y: ry - (rh * 0.15),
-                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.15, 8),
-                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                    opacity: 0.25
-                  });
-                  totalHits++;
-                }
+                    libPage.drawRectangle({
+                      x: rx - 1, y: ry - (rh * 0.15),
+                      width: Math.max(rw + 2, 4), height: Math.max(rh * 1.15, 8),
+                      color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                      opacity: 0.25
+                    });
+                    totalHits++;
+                  }
                 }
               }
             }
@@ -971,12 +375,12 @@ async function runHL(){
               if (kw.toUpperCase() === 'MEL' || kw.toUpperCase() === 'CDL') {
                 if (lineTextFromMapping[startIdx - 1] === '/' || lineTextFromMapping[endIdx] === '/') continue;
               }
-            if (kw.toUpperCase() === 'MAY') {
+              if (kw.toUpperCase() === 'MAY') {
                 const beforeCtx = cleanLineText.slice(Math.max(0, startIdx - 6), startIdx);
                 const afterCtx = cleanLineText.slice(endIdx, endIdx + 6);
                 const isDateCtx = /\d\s*[A-Z]{0,2}\s*$/i.test(beforeCtx) || /^\s*\d/.test(afterCtx);
                 if (isDateCtx) continue;
-            }
+              }
               const itemMatches = {};
               for (let c = startIdx; c < endIdx; c++) {
                 const map = charMapping[c];
@@ -1203,8 +607,6 @@ async function runHL(){
 
     const cfpPageIdx = bmPages['CFP PLAN'];
     const resolvedCoaPageIdx = bmPages['COPY OF ATS'] !== undefined ? bmPages['COPY OF ATS'] : -1;
-
-    // Final target page for COA annotations (where SUBMITTED AT is)
     const finalCoaAnnotIdx = coaAnnotIdx !== -1 ? coaAnnotIdx : resolvedCoaPageIdx;
 
     let foundCoaPageOffset = 0;
@@ -1242,14 +644,11 @@ async function runHL(){
         lastY = item.transform[5];
       }
 
-      // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
-      // CFP보다 뒤에 있는 다음 섹션만 종료 지점으로 사용한다.
       const cfpEndIdx = Math.min(
         numPages,
         ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
           .filter(idx => idx !== -1 && idx > cfpPageIdx)
       );
-      // Fallback: If no other section found after CFP, scan at most 20 pages
       const safeCfpEndIdx = (cfpEndIdx === numPages || cfpEndIdx <= cfpPageIdx) ? Math.min(numPages, cfpPageIdx + 20) : cfpEndIdx;
 
       let cfpFullSectionText = "";
@@ -1275,9 +674,7 @@ async function runHL(){
 
       wptTimeMap = buildWptTimeMap(cfpFullSectionText);
 
-      // =========================================================================
-      // TRIP 시간 계산 (Duty time 오버레이) - 첫 페이지 기준
-      // =========================================================================
+      // TRIP 시간 계산 (Duty time 오버레이)
       const tripMatch = cfpFirstPageText.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
       if (tripMatch) {
         const hours = parseInt(tripMatch[2], 10);
@@ -1328,6 +725,49 @@ async function runHL(){
               fontSize: 9,
               bgColor: [0.88, 0.90, 0.93],
               bgOpacity: 0.75
+            });
+            totalHits++;
+          }
+        }
+      }
+
+      // Refile Fuel - RQRD Fuel 차이 계산 및 오버레이 배지 추가
+      const refileFuelMatch = cfpFullSectionText.match(/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+(\d{4,5})/i);
+      if (refileFuelMatch) {
+        const refileFuel = parseInt(refileFuelMatch[1], 10); 
+
+        const cfpLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
+        let rqrdLine = null;
+        let rqrdFuel = null;
+
+        for (const line of cfpLines) {
+          const rqrdMatch = line.text.match(/\bRQRD\s+(\d{4,5})\b/i);
+          if (rqrdMatch) {
+            rqrdFuel = parseInt(rqrdMatch[1], 10); 
+            rqrdLine = line;
+            break;
+          }
+        }
+
+        if (rqrdLine && rqrdFuel !== null) {
+          const fuelDiffHundreds = refileFuel - rqrdFuel; 
+          if (fuelDiffHundreds > 0) {
+            const totalLbs = fuelDiffHundreds * 100; 
+            const formattedLbsStr = totalLbs.toLocaleString('en-US').padStart(6, '0') + "lbs"; 
+
+            const rqrdMaxX = Math.max(...rqrdLine.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+            const rqrdFS = Math.abs(rqrdLine.parts[0].item.transform[3]) || 10;
+            const srcMidY = rqrdLine.y * cfpSy + rqrdFS * cfpSy * SOURCE_TEXT_CENTER_RATIO;
+            const drawX = (rqrdMaxX + 12) * cfpSx;
+
+            drawDutyTimeStyleBadge(cfpLibPage, {
+              text: formattedLbsStr,
+              x: drawX,
+              centerY: srcMidY,
+              font: boldFont,
+              fontSize: 9,
+              bgColor: [0.88, 0.90, 0.93],
+              bgOpacity: 0.85
             });
             totalHits++;
           }
@@ -1405,7 +845,7 @@ async function runHL(){
              const dy = Math.abs(prevItem.transform[5] - item.transform[5]);
              const dx = item.transform[4] - (prevItem.transform[4] + prevItem.width);
              if (dy > 4 || dx > 2) {
-                  coaFullTextWithNewlines += "\n";
+                 coaFullTextWithNewlines += "\n";
                  coaCharMapping.push({ isSeparator: true, itemIndex: -1, charIndex: -1 });
              }
           }
@@ -1742,12 +1182,11 @@ async function runHL(){
       }
     }
 
-    // =========================================================================
-    // EXPECTED FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
-    // =========================================================================
-    const expectedRegex = /EXPECTED\s+FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
+    // FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
+    const expectedRegex = /FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
     const expectedStartIdx = dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : 0;
     const expectedEndIdx = dispatchReleaseIdx !== -1 ? dispatchEndIdx : numPages;
+    
     for (let pi = expectedStartIdx; pi < expectedEndIdx; pi++) {
       const jsPage = await pdfJsDoc.getPage(pi + 1);
       const tc = await jsPage.getTextContent();
@@ -1760,23 +1199,31 @@ async function runHL(){
       const sx = lw / vp.width;
       const sy = lh / vp.height;
       const expectedBadges = [];
-
+    
       for (const line of lines) {
         let match;
         expectedRegex.lastIndex = 0;
         while ((match = expectedRegex.exec(line.text)) !== null) {
           const fromWpt = match[1].toUpperCase();
           const toWpt = match[2].toUpperCase();
-
-          const fromTime = wptTimeMap.get(fromWpt);
+    
+          let fromTime = "";
+          if (typeof depApt !== "undefined" && fromWpt === depApt.toUpperCase()) {
+            fromTime = "00.00";
+          } else if (fromWpt === "RKSI") {
+            fromTime = "00.00";
+          } else {
+            fromTime = wptTimeMap.get(fromWpt);
+          }
+    
           const toTime = wptTimeMap.get(toWpt);
-
+    
           if (fromTime && toTime) {
             const badgeText = `${fromTime} ~ ${toTime}`;
             const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
-
+    
             const badgeSize = 9;
             const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
             expectedBadges.push({
@@ -1790,18 +1237,20 @@ async function runHL(){
         }
       }
 
-      const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
-      for (const badge of expectedBadges) {
-        drawDutyTimeStyleBadge(libPage, {
-          text: badge.text,
-          x: rightEdge - badge.textWidth - 4,
-          centerY: badge.centerY,
-          font: boldFont,
-          fontSize: badge.size,
-          bgColor: [0.88, 0.90, 0.93],
-          bgOpacity: 0.85
-        });
-        totalHits++;
+      if (expectedBadges.length > 0) {
+        const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
+        for (const badge of expectedBadges) {
+          drawDutyTimeStyleBadge(libPage, {
+            text: badge.text,
+            x: rightEdge - badge.textWidth - 4,
+            centerY: badge.centerY,
+            font: boldFont,
+            fontSize: badge.size,
+            bgColor: [0.88, 0.90, 0.93],
+            bgOpacity: 0.85
+          });
+          totalHits++;
+        }
       }
     }
 
@@ -1814,11 +1263,6 @@ async function runHL(){
     document.getElementById('previewCard').style.display='block';
 
     dlPDF();
-
-    // Trigger AI Briefing in background
-    if (allExtractedText.trim()) {
-      generateAIBriefing(allExtractedText);
-    }
   } catch(err) {
     setStatus('error','Execution error: '+err.message);
     runBtn.className='action-btn run-btn active';
