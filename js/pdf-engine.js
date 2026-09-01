@@ -1068,19 +1068,26 @@ async function runHL(){
         lastY = item.transform[5];
       }
 
+      // ★ 다음 섹션 북마크 전까지를 CFP 섹션 범위로 먼저 계산 (RQRD 탐색 범위 제한용으로도 재사용)
+      const cfpEndIdx = Math.min(
+        numPages,
+        ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
+          .filter(idx => idx !== -1 && idx > cfpPageIdx)
+      );
+      const safeCfpEndIdx = (cfpEndIdx === numPages || cfpEndIdx <= cfpPageIdx) ? Math.min(numPages, cfpPageIdx + 20) : cfpEndIdx;
+
       // ================================================================
       // RQRD / REFILE POINT 연료 차이 배지 추가 (수정됨)
       // ================================================================
       // REFILE POINT 연료 / RQRD 텍스트는 CFP PLAN 페이지가 아니라
-      // 별도의 "REFILE FLT PLAN" 페이지에 있을 수 있으므로, CFP 페이지부터
-      // 이후 최대 20페이지 범위에서 해당 텍스트가 있는 실제 페이지를 탐색한다.
+      // 별도의 "REFILE FLT PLAN" 페이지에 있을 수 있으므로, CFP 섹션(다음 북마크 전까지) 범위에서 탐색한다.
       let refilePageIdx = -1;
       let refilePageText = "";
       let refilePageOffset = 0;
       let refilePageContent = null;
       let refileLibPage = null;
       let refileSx = 1, refileSy = 1;
-      const refileSearchEnd = Math.min(numPages, cfpPageIdx + 20);
+      const refileSearchEnd = safeCfpEndIdx;
       for (let rpi = cfpPageIdx; rpi < refileSearchEnd; rpi++) {
         const rJsPage = await pdfJsDoc.getPage(rpi + 1);
         const rContent = await rJsPage.getTextContent();
@@ -1113,7 +1120,6 @@ async function runHL(){
 
       // RQRD 연료 찾기 - 더 넓은 컨텍스트 검색
       if (refileFuel !== null && refilePageIdx !== -1) {
-        // REFILE FLT PLAN 페이지 텍스트에서 RQRD 찾기
         const allRqrdMatches = [];
         const rqrdRegex = /\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi;
         let rqrdMatch;
@@ -1126,10 +1132,8 @@ async function runHL(){
         }
         console.log('[FUEL BADGE DEBUG] 모든 RQRD 매치:', allRqrdMatches);
 
-        // 🔥 수정: 모든 RQRD 중 가장 작은 값 찾기
         let targetRqrd = null;
         let minValue = Infinity;
-
         for (const r of allRqrdMatches) {
           if (r.value < minValue) {
             minValue = r.value;
@@ -1144,7 +1148,6 @@ async function runHL(){
           const formatted = Math.abs(diff).toLocaleString('en-US');
           const badgeText = `${sign} ${formatted} lbs`;
 
-          // 해당 RQRD가 있는 라인 찾기
           const rqrdLines = groupTextItemsByLine(refilePageContent.items, refilePageOffset);
           for (const line of rqrdLines) {
             if (line.text.includes(targetRqrd.match)) {
@@ -1169,13 +1172,6 @@ async function runHL(){
       }
 
       // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
-      const cfpEndIdx = Math.min(
-        numPages,
-        ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
-          .filter(idx => idx !== -1 && idx > cfpPageIdx)
-      );
-      const safeCfpEndIdx = (cfpEndIdx === numPages || cfpEndIdx <= cfpPageIdx) ? Math.min(numPages, cfpPageIdx + 20) : cfpEndIdx;
-
       let cfpFullSectionText = "";
       for (let pi = cfpPageIdx; pi < safeCfpEndIdx; pi++) {
         const p = await pdfJsDoc.getPage(pi + 1);
@@ -1198,7 +1194,6 @@ async function runHL(){
       }
 
       wptTimeMap = buildWptTimeMap(cfpFullSectionText);
-
       
       // =========================================================================
       // TRIP 시간 계산 (Duty time 오버레이) - 첫 페이지 기준
