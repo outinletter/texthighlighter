@@ -1113,7 +1113,7 @@ async function runHL(){
 
         const rqrdLines = groupTextItemsByLine(refilePageContent.items, refilePageOffset);
         for (const line of rqrdLines) {
-          if (line.text.includes(targetRqrd.match)) {
+          if (line.text.replace(/\s+/g, '').includes(targetRqrd.match.replace(/\s+/g, ''))) {
             const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * refileSy + srcFS * refileSy * SOURCE_TEXT_CENTER_RATIO;
