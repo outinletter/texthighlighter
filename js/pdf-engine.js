@@ -167,34 +167,40 @@ function cleanAndDecodeItem(str, offset) {
 /**
  * Highlight/Underline 모드 공용 드로잉 헬퍼
  * 기본 모드는 'underline'으로 설정
- * 폰트 크기에 따라 두께와 크기가 조정됨
+ * 폰트 크기에 따라 두께와 위치가 조정됨
  */
 function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
   // highlightMode가 undefined인 경우 기본값 'underline' 사용
   const mode = (typeof highlightMode !== 'undefined') ? highlightMode : 'underline';
   
   if (mode === 'underline') {
-    // 폰트 크기에 비례한 밑줄 두께 (최소 1.2, 최대 3.0)
-    const baseThickness = fontSize ? Math.max(height * 0.12, 1.2) : 1.5;
-    const thickness = Math.min(baseThickness, 3.0);
+    // 폰트 크기에 비례한 밑줄 두께 (최소 1.0, 최대 2.5)
+    const baseThickness = fontSize ? Math.max(fontSize * 0.10, 1.0) : 1.2;
+    const thickness = Math.min(baseThickness, 2.5);
+    
+    // 밑줄 위치: 텍스트 하단에 위치하도록 y + height - thickness
+    // y는 텍스트의 상단 좌표, height는 텍스트 높이
+    const underlineY = y + height - thickness;
+    
+    // 텍스트 너비에 맞게 밑줄 그리기 (좌우 여백 없이 정확히 맞춤)
     page.drawRectangle({
-      x, 
-      y: y + height - thickness,
-      width,
+      x: x,
+      y: underlineY,
+      width: width,
       height: thickness,
-      color,
+      color: color,
       opacity: Math.min(opacity + 0.75, 1.0)
     });
   } else {
     // 하이라이트 모드 - 폰트 크기에 비례한 박스 크기
     const padY = fontSize ? Math.max(fontSize * 0.08, 1) : 2;
     page.drawRectangle({ 
-      x, 
+      x: x, 
       y: y - padY, 
-      width, 
+      width: width, 
       height: height + padY * 2, 
-      color, 
-      opacity 
+      color: color, 
+      opacity: opacity 
     });
   }
 }
@@ -205,34 +211,53 @@ function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, page
   const fontSize = Math.abs(tx[3]) || 10;
   const itemWidth = item.width || 0;
 
+  // 텍스트의 실제 너비 계산
   let startXOffset = 0;
   let actualHlWidth = 0;
 
   if (font && s.length > 0) {
-    const fullMeasuredW = font.widthOfTextAtSize(s, fontSize);
-    const prefixMeasuredW = font.widthOfTextAtSize(s.substring(0, minCharIdx), fontSize);
-    const matchMeasuredW = font.widthOfTextAtSize(s.substring(minCharIdx, maxCharIdx + 1), fontSize);
+    try {
+      const fullMeasuredW = font.widthOfTextAtSize(s, fontSize);
+      const prefixMeasuredW = font.widthOfTextAtSize(s.substring(0, minCharIdx), fontSize);
+      const matchMeasuredW = font.widthOfTextAtSize(s.substring(minCharIdx, maxCharIdx + 1), fontSize);
 
-    if (fullMeasuredW > 0) {
-      startXOffset = (prefixMeasuredW / fullMeasuredW) * itemWidth;
-      actualHlWidth = (matchMeasuredW / fullMeasuredW) * itemWidth;
-    } else {
-      startXOffset = (itemWidth / s.length) * minCharIdx;
-      actualHlWidth = (itemWidth / s.length) * (maxCharIdx - minCharIdx + 1);
+      if (fullMeasuredW > 0) {
+        startXOffset = (prefixMeasuredW / fullMeasuredW) * itemWidth;
+        actualHlWidth = (matchMeasuredW / fullMeasuredW) * itemWidth;
+      } else {
+        startXOffset = (itemWidth / Math.max(s.length, 1)) * minCharIdx;
+        actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
+      }
+    } catch (e) {
+      // 폰트 측정 실패 시 폴백
+      startXOffset = (itemWidth / Math.max(s.length, 1)) * minCharIdx;
+      actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
     }
   } else {
     startXOffset = (itemWidth / Math.max(s.length, 1)) * minCharIdx;
     actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
   }
 
-  const rectHeight = Math.max(fontSize * sy * 1.15, 8);
+  // 텍스트의 실제 높이 계산
+  const textHeight = fontSize * sy;
+  const rectHeight = Math.max(textHeight, 6);
+  
+  // 텍스트 상단 좌표 (PDF 좌표계에서 y는 하단 기준)
+  const textTopY = tx[5] * sy;
+  
+  // 밑줄/하이라이트 그리기 - 위치 정확히 조정
+  const rectX = (tx[4] + startXOffset) * sx;
+  const rectWidth = Math.max(actualHlWidth * sx, 2);
+  
   drawMarkerRect(
     page,
-    (tx[4] + startXOffset) * sx - 1,
-    (tx[5] * sy) - (fontSize * sy * 0.15),
-    Math.max(actualHlWidth * sx + 2, 4),
+    rectX,
+    textTopY,
+    rectWidth,
     rectHeight,
-    color, opacity, fontSize
+    color,
+    opacity,
+    fontSize
   );
 }
 
@@ -1050,28 +1075,46 @@ async function runHL(){
       // ================================================================
       // RQRD / REFILE POINT 연료 차이 배지 추가 (수정됨)
       // ================================================================
+      // REFILE POINT 연료 찾기
       const refileMatch = cfpFirstPageText.match(/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+(\d{3,6})/i);
       console.log('[FUEL BADGE DEBUG] refileMatch:', refileMatch);
+      
+      let refileFuel = null;
       if (refileMatch) {
-        const refileFuel = parseInt(refileMatch[1], 10) * 100;
+        refileFuel = parseInt(refileMatch[1], 10) * 100;
         console.log('[FUEL BADGE DEBUG] refileFuel:', refileFuel);
+      }
+      
+      // RQRD 연료 찾기 - 더 넓은 컨텍스트 검색
+      if (refileFuel !== null) {
+        // 전체 CFP 텍스트에서 RQRD 찾기
+        const allRqrdMatches = [];
+        const rqrdRegex = /\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi;
+        let rqrdMatch;
+        while ((rqrdMatch = rqrdRegex.exec(cfpFirstPageText)) !== null) {
+          allRqrdMatches.push({
+            match: rqrdMatch[0],
+            value: parseInt(rqrdMatch[1], 10) * 100,
+            index: rqrdMatch.index
+          });
+        }
+        console.log('[FUEL BADGE DEBUG] 모든 RQRD 매치:', allRqrdMatches);
         
-        // REFILE POINT가 있는 위치 찾기
-        const refileLineIndex = cfpFirstPageText.toUpperCase().indexOf('REFILE POINT');
-        const refileContext = cfpFirstPageText.substring(Math.max(0, refileLineIndex - 300), refileLineIndex);
-        console.log('[FUEL BADGE DEBUG] REFILE 앞 컨텍스트:', refileContext);
+        // REFILE POINT 앞에 있는 RQRD 중 가장 가까운 것 찾기
+        const refileIdx = cfpFirstPageText.toUpperCase().indexOf('REFILE POINT');
+        let targetRqrd = null;
+        let targetRqrdIdx = -1;
         
-        // REFILE POINT 직전의 RQRD 찾기
-        const rqrdMatches = [...refileContext.matchAll(/\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi)];
-        console.log('[FUEL BADGE DEBUG] REFILE 앞 RQRD 매치:', rqrdMatches);
+        for (const r of allRqrdMatches) {
+          if (r.index < refileIdx && r.index > targetRqrdIdx) {
+            targetRqrd = r;
+            targetRqrdIdx = r.index;
+          }
+        }
+        console.log('[FUEL BADGE DEBUG] targetRqrd:', targetRqrd);
         
-        if (rqrdMatches.length > 0) {
-          // 마지막 RQRD (REFILE POINT에 가장 가까운) 선택
-          const lastMatch = rqrdMatches[rqrdMatches.length - 1];
-          const rqrdFuel = parseInt(lastMatch[1], 10) * 100;
-          console.log('[FUEL BADGE DEBUG] rqrdFuel:', rqrdFuel);
-          
-          const diff = refileFuel - rqrdFuel;
+        if (targetRqrd) {
+          const diff = refileFuel - targetRqrd.value;
           const sign = diff >= 0 ? '+' : '-';
           const formatted = Math.abs(diff).toLocaleString('en-US');
           const badgeText = `${sign} ${formatted} lbs`;
@@ -1079,7 +1122,7 @@ async function runHL(){
           // 해당 RQRD가 있는 라인 찾기
           const rqrdLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
           for (const line of rqrdLines) {
-            if (line.text.includes(lastMatch[0])) {
+            if (line.text.includes(targetRqrd.match)) {
               const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
               const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
               const srcMidY = line.y * cfpSy + srcFS * cfpSy * SOURCE_TEXT_CENTER_RATIO;
@@ -1092,6 +1135,8 @@ async function runHL(){
                 bgColor: [0.88, 0.90, 0.93],
                 bgOpacity: 0.85
               });
+              console.log('[FUEL BADGE DEBUG] 배지 생성됨:', badgeText);
+              totalHits++;
               break;
             }
           }
