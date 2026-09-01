@@ -51,6 +51,13 @@ function setHighlightMode(mode) {
     toggle.checked = highlightMode === 'highlight';
   }
 
+  const underlineLabel = document.getElementById('modeLabelUnderline');
+  const highlightLabel = document.getElementById('modeLabelHighlight');
+  if (underlineLabel && highlightLabel) {
+    underlineLabel.classList.toggle('active', highlightMode === 'underline');
+    highlightLabel.classList.toggle('active', highlightMode === 'highlight');
+  }
+
   done = false;
   updRun();
 }
@@ -355,8 +362,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (markerModeToggle) {
     markerModeToggle.checked = false;
-    highlightMode = 'underline';
-  
+    setHighlightMode('underline');
+
     markerModeToggle.addEventListener('change', e => {
       setHighlightMode(e.target.checked ? 'highlight' : 'underline');
     });
