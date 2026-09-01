@@ -985,6 +985,8 @@ async function runHL(){
       foundCoaPageOffset = detectPageOffset(coaRawContent.items.map(it => it.str).join(' '));
     }
 
+    console.log('[FUEL BADGE DEBUG] cfpPageIdx (CFP PLAN 북마크):', cfpPageIdx);
+
     if(cfpPageIdx!==undefined) {
       const cfpJsPage=await pdfJsDoc.getPage(cfpPageIdx+1);
       const cfpContent=await cfpJsPage.getTextContent();
@@ -1015,10 +1017,15 @@ async function runHL(){
 
       // RQRD / REFILE POINT 연료 차이 배지 추가
       const refileMatch = cfpFirstPageText.match(/REFILE\s+POINT\s+(\d{3,6})/i);
+      console.log('[FUEL BADGE DEBUG] refileMatch:', refileMatch, '| REFILE 주변 텍스트:', cfpFirstPageText.slice(Math.max(0, cfpFirstPageText.toUpperCase().indexOf('REFILE') - 20), cfpFirstPageText.toUpperCase().indexOf('REFILE') + 60));
       if (refileMatch) {
         const refileFuel = parseInt(refileMatch[1], 10) * 100;
         const rqrdLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
+        console.log('[FUEL BADGE DEBUG] refileFuel:', refileFuel, '| rqrdLines 총 개수:', rqrdLines.length);
         for (const line of rqrdLines) {
+          if (/RQRD/i.test(line.text)) {
+            console.log('[FUEL BADGE DEBUG] RQRD 포함 라인 텍스트:', JSON.stringify(line.text));
+          }
           const rqrdMatches = [...line.text.matchAll(/\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi)];
           if (rqrdMatches.length > 0) {
             const lastMatch = rqrdMatches[rqrdMatches.length - 1];
