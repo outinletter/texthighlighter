@@ -9,12 +9,24 @@
   <link rel="apple-touch-icon" href="notamhighlighter.png">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* 클릭 가능한 커서 스타일 추가 */
+    .header-text h1 {
+      cursor: pointer;
+      user-select: none;
+    }
+    .header-text h1:hover {
+      opacity: 0.8;
+      transition: opacity 0.2s;
+    }
+  </style>
 </head>
 <body>
 
 <div class="header">
   <div class="header-container">
-    <div class="header-text">
+    <!-- 클릭 이벤트를 위한 id 추가 -->
+    <div class="header-text" id="appTitle">
       <h1>NOTAM <span class="highlight">HIGHLIGHTER</span> <span class="version">v2.0</span></h1>
       <p>Offline Ready Smart NOTAM Highlighter & Route Matcher</p>
     </div>
@@ -143,5 +155,34 @@
 
 <script src="js/pdf-engine.js"></script>
 <script src="js/app.js"></script>
+
+<!-- 추가된 JavaScript: 제목 클릭 시 새로고침 + 최상단 이동 -->
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    // 1. 제목 요소 가져오기
+    const appTitle = document.getElementById('appTitle');
+    
+    // 2. 클릭 이벤트 등록
+    if (appTitle) {
+      appTitle.addEventListener('click', function(e) {
+        // 페이지 새로고침
+        window.location.reload();
+        // 새로고침 후에는 브라우저가 기본적으로 최상단으로 이동합니다.
+        // 만약 브라우저가 스크롤 위치를 기억한다면, 아래 코드로 강제 이동
+        // (reload 직후에는 실행되지 않으므로, onload 이벤트에서 처리)
+      });
+    }
+
+    // 3. 페이지 로드 시 항상 최상단으로 이동 (새로고침 포함)
+    window.scrollTo(0, 0);
+  });
+
+  // 4. 새로고침 후에도 최상단 유지를 위한 추가 처리
+  // (pageshow 이벤트는 뒤로가기 등에서도 발생)
+  window.addEventListener('pageshow', function() {
+    window.scrollTo(0, 0);
+  });
+</script>
+
 </body>
 </html>
