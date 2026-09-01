@@ -1096,18 +1096,17 @@ async function runHL(){
         }
         console.log('[FUEL BADGE DEBUG] 모든 RQRD 매치:', allRqrdMatches);
         
-        // REFILE POINT 앞에 있는 RQRD 중 가장 가까운 것 찾기
-        const refileIdx = cfpFirstPageText.toUpperCase().indexOf('REFILE POINT');
+        // 🔥 수정: 모든 RQRD 중 가장 작은 값 찾기
         let targetRqrd = null;
-        let targetRqrdIdx = -1;
+        let minValue = Infinity;
         
         for (const r of allRqrdMatches) {
-          if (r.index < refileIdx && r.index > targetRqrdIdx) {
+          if (r.value < minValue) {
+            minValue = r.value;
             targetRqrd = r;
-            targetRqrdIdx = r.index;
           }
         }
-        console.log('[FUEL BADGE DEBUG] targetRqrd:', targetRqrd);
+        console.log('[FUEL BADGE DEBUG] 최소 RQRD:', targetRqrd);
         
         if (targetRqrd) {
           const diff = refileFuel - targetRqrd.value;
@@ -1138,7 +1137,6 @@ async function runHL(){
           }
         }
       }
-
       // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
       const cfpEndIdx = Math.min(
         numPages,
