@@ -195,6 +195,11 @@ body{
   align-items:center;
   justify-content:space-between;
   flex-wrap:wrap;
+  gap:14px;
+}
+.marker-style-group,.marker-color-group{
+  display:flex;
+  align-items:center;
   gap:10px;
 }
 .settings-subrow-label{
@@ -202,6 +207,7 @@ body{
   font-weight:700;
   color:#94a3b8;
   letter-spacing:0.5px;
+  white-space:nowrap;
 }
 .marker-mode-switch{
   display:flex;
