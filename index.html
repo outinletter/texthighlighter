@@ -76,20 +76,21 @@
         </div>
       </div>
 
-      <div class="marker-mode-row">
-        <span class="marker-mode-label underline-label">Underline</span>
-      
-        <label class="toggle">
-          <input type="checkbox" id="markerModeToggle">
-          <span class="slider"></span>
-        </label>
-      
-        <span class="marker-mode-label highlight-label">Highlight</span>
+      <div class="settings-subrow">
+        <span class="settings-subrow-label">Marker Style</span>
+        <div class="marker-mode-switch">
+          <span class="marker-mode-label" id="modeLabelUnderline">Underline</span>
+          <label class="toggle">
+            <input type="checkbox" id="markerModeToggle">
+            <span class="slider"></span>
+          </label>
+          <span class="marker-mode-label" id="modeLabelHighlight">Highlight</span>
+        </div>
       </div>
-      
-      <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between;">
-        <span style="font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.5px;">Highlight Marker Color</span>
-        <div style="display: flex; gap: 8px;">
+
+      <div class="settings-subrow">
+        <span class="settings-subrow-label">Highlight Marker Color</span>
+        <div class="color-swatch-row">
           <button class="color-chip active" id="chip-blue" onclick="selectColor('blue', [0.36, 0.78, 1.0])" style="background: #3b82f6;" title="Sky Blue"></button>
           <button class="color-chip" id="chip-pink" onclick="selectColor('pink', [1.0, 0.45, 0.65])" style="background: #ff73a6;" title="Soft Pink"></button>
           <button class="color-chip" id="chip-yellow" onclick="selectColor('yellow', [1.0, 0.75, 0.0])" style="background: #ffc000;" title="Golden Yellow"></button>
