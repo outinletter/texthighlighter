@@ -1518,9 +1518,14 @@ async function runHL(){
             if (cur) rLines.push(cur);
             const lineH = rSize * 1.4;
             for (let li = 0; li < rLines.length; li++) {
-              coaLibPage.drawText(rLines[li], {
-                x: rStartX, y: rStartY - li * lineH,
-                size: rSize, font: stdFont, color: PDFLib.rgb(1, 0, 0), opacity: 0.7
+              drawDutyTimeStyleBadge(coaLibPage, {
+                text: rLines[li],
+                x: rStartX,
+                y: rStartY - li * lineH,
+                font: stdFont,
+                fontSize: rSize,
+                bgColor: [0.88, 0.90, 0.93],
+                bgOpacity: 0.85
               });
             }
           }
