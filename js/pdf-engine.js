@@ -1015,37 +1015,51 @@ async function runHL(){
         lastY = item.transform[5];
       }
 
-      // RQRD / REFILE POINT 연료 차이 배지 추가
-      const refileMatch = cfpFirstPageText.match(/(?:PLANNED\s+R\/F\s+AT\s+)?REFILE\s+POINT\s+(\d{3,6})/i);
-      console.log('[FUEL BADGE DEBUG] refileMatch:', refileMatch);
-      if (refileMatch) {
-          let refileFuel = parseInt(refileMatch[1], 10);
-          if (refileFuel < 1000) {
-              refileFuel = refileFuel * 100; // 369 -> 36,900 lbs
-          }
-          console.log('[FUEL BADGE DEBUG] refileFuel:', refileFuel);
-          
-          const rqrdLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
-          for (const line of rqrdLines) {
-              // 모든 RQRD 항목 찾기 (하나의 라인에 여러 개 있을 수 있음)
-              const rqrdMatches = [...line.text.matchAll(/\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi)];
-              if (rqrdMatches.length > 0) {
-                  // ***** 수정된 부분: 마지막(두 번째) RQRD를 선택 *****
-                  const targetMatch = rqrdMatches[rqrdMatches.length - 1]; // 마지막 매치 사용
-                  let rqrdFuel = parseInt(targetMatch[1], 10);
-                  if (rqrdFuel < 1000) {
-                      rqrdFuel = rqrdFuel * 100; // 274 -> 27,400 lbs
-                  }
-                  
-                  const diff = refileFuel - rqrdFuel; // 36,900 - 27,400 = 9,500
-                  const sign = diff >= 0 ? '+' : '-';
-                  const formatted = Math.abs(diff).toLocaleString('en-US');
-                  const badgeText = `${sign} ${formatted} lbs`; // "+ 9,500 lbs"
-                  
-              }
-          }
-      }
-            
+    // RQRD / REFILE POINT 연료 차이 배지 추가
+    const refileMatch = cfpFirstPageText.match(/(?:PLANNED\s+R\/F\s+AT\s+)?REFILE\s+POINT\s+(\d{3,6})/i);
+    if (refileMatch) {
+        // refileFuel 계산
+        let refileFuel = parseInt(refileMatch[1], 10);
+        if (refileFuel < 1000) {
+            refileFuel = refileFuel * 100;
+        }
+    
+        const rqrdLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
+        for (const line of rqrdLines) {
+            // RQRD 매칭 (숫자는 3~5자리)
+            const rqrdMatches = [...line.text.matchAll(/\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi)];
+            if (rqrdMatches.length > 0) {
+                // 적절한 RQRD 선택 (두 개 이상이면 첫 번째 사용)
+                const targetMatch = rqrdMatches.length >= 2 ? rqrdMatches[0] : rqrdMatches[rqrdMatches.length - 1];
+                let rqrdFuel = parseInt(targetMatch[1], 10);
+                if (rqrdFuel < 1000) {
+                    rqrdFuel = rqrdFuel * 100;
+                }
+    
+                // 차이 계산 및 배지 텍스트 생성
+                const diff = refileFuel - rqrdFuel;
+                const sign = diff >= 0 ? '+' : '-';
+                const formatted = Math.abs(diff).toLocaleString('en-US');
+                const badgeText = `${sign} ${formatted} lbs`;
+    
+                // 배지 그리기
+                const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+                const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+                const srcMidY = line.y * cfpSy + srcFS * cfpSy * SOURCE_TEXT_CENTER_RATIO;
+                drawDutyTimeStyleBadge(cfpLibPage, {
+                    text: badgeText,
+                    x: (lineMaxX + 12) * cfpSx,
+                    centerY: srcMidY,
+                    font: boldFont,
+                    fontSize: 9,
+                    bgColor: [0.88, 0.90, 0.93],
+                    bgOpacity: 0.85
+                });
+                break; // 첫 번째 성공한 RQRD 라인에서만 배지를 그리고 루프 종료
+            }
+        }
+    }
+
       
       const rqrdLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
         console.log('[FUEL BADGE DEBUG] refileFuel:', refileFuel, '| rqrdLines 총 개수:', rqrdLines.length);
