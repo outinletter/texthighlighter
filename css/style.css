@@ -150,14 +150,14 @@ body{
   display:flex;
   align-items:center;
   gap:12px;
-  flex-wrap:wrap;
+  flex-wrap:nowrap;
 }
 .hl-label{
   font-size:13px;
   font-weight:400;
   color:#f1f5f9;
   flex:1;
-  min-width:120px;
+  min-width:0;
 }
 .toggle{position:relative;width:44px;height:24px;flex-shrink:0}
 .toggle input{opacity:0;width:0;height:0}
@@ -228,7 +228,7 @@ body{
   gap:8px;
 }
 
-.dropdown-wrap{position:relative}
+.dropdown-wrap{position:relative;flex-shrink:0}
 .dropdown-btn{
   padding:8px 12px;
   border:1px solid #334155;
@@ -240,6 +240,7 @@ body{
   align-items:center;
   gap:6px;
   color:#cbd5e1;
+  white-space:nowrap;
   transition:.15s;
 }
 .dropdown-btn:hover{border-color:#3b82f6;color:#3b82f6}
