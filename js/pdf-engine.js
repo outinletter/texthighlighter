@@ -1071,23 +1071,53 @@ async function runHL(){
       // ================================================================
       // RQRD / REFILE POINT 연료 차이 배지 추가 (수정됨)
       // ================================================================
+      // REFILE POINT 연료 / RQRD 텍스트는 CFP PLAN 페이지가 아니라
+      // 별도의 "REFILE FLT PLAN" 페이지에 있을 수 있으므로, CFP 페이지부터
+      // 이후 최대 20페이지 범위에서 해당 텍스트가 있는 실제 페이지를 탐색한다.
+      let refilePageIdx = -1;
+      let refilePageText = "";
+      let refilePageOffset = 0;
+      let refilePageContent = null;
+      let refileLibPage = null;
+      let refileSx = 1, refileSy = 1;
+      const refileSearchEnd = Math.min(numPages, cfpPageIdx + 20);
+      for (let rpi = cfpPageIdx; rpi < refileSearchEnd; rpi++) {
+        const rJsPage = await pdfJsDoc.getPage(rpi + 1);
+        const rContent = await rJsPage.getTextContent();
+        const rRaw = rContent.items.map(it => it.str).join(' ');
+        const rOffset = detectPageOffset(rRaw);
+        const rText = rContent.items.map(it => cleanAndDecodeItem(it.str, rOffset)).join(' ');
+        if (/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+\d{3,6}/i.test(rText)) {
+          refilePageIdx = rpi;
+          refilePageText = rText;
+          refilePageOffset = rOffset;
+          refilePageContent = rContent;
+          refileLibPage = libPages[rpi];
+          const rVp = rJsPage.getViewport({ scale: 1.0 });
+          const { width: rW, height: rH } = refileLibPage.getSize();
+          refileSx = rW / rVp.width;
+          refileSy = rH / rVp.height;
+          break;
+        }
+      }
+
       // REFILE POINT 연료 찾기
-      const refileMatch = cfpFirstPageText.match(/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+(\d{3,6})/i);
+      const refileMatch = refilePageText.match(/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+(\d{3,6})/i);
       console.log('[FUEL BADGE DEBUG] refileMatch:', refileMatch);
-      
+
       let refileFuel = null;
       if (refileMatch) {
         refileFuel = parseInt(refileMatch[1], 10) * 100;
         console.log('[FUEL BADGE DEBUG] refileFuel:', refileFuel);
       }
-      
+
       // RQRD 연료 찾기 - 더 넓은 컨텍스트 검색
-      if (refileFuel !== null) {
-        // 전체 CFP 텍스트에서 RQRD 찾기
+      if (refileFuel !== null && refilePageIdx !== -1) {
+        // REFILE FLT PLAN 페이지 텍스트에서 RQRD 찾기
         const allRqrdMatches = [];
         const rqrdRegex = /\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi;
         let rqrdMatch;
-        while ((rqrdMatch = rqrdRegex.exec(cfpFirstPageText)) !== null) {
+        while ((rqrdMatch = rqrdRegex.exec(refilePageText)) !== null) {
           allRqrdMatches.push({
             match: rqrdMatch[0],
             value: parseInt(rqrdMatch[1], 10) * 100,
@@ -1095,11 +1125,11 @@ async function runHL(){
           });
         }
         console.log('[FUEL BADGE DEBUG] 모든 RQRD 매치:', allRqrdMatches);
-        
+
         // 🔥 수정: 모든 RQRD 중 가장 작은 값 찾기
         let targetRqrd = null;
         let minValue = Infinity;
-        
+
         for (const r of allRqrdMatches) {
           if (r.value < minValue) {
             minValue = r.value;
@@ -1107,23 +1137,23 @@ async function runHL(){
           }
         }
         console.log('[FUEL BADGE DEBUG] 최소 RQRD:', targetRqrd);
-        
+
         if (targetRqrd) {
           const diff = refileFuel - targetRqrd.value;
           const sign = diff >= 0 ? '+' : '-';
           const formatted = Math.abs(diff).toLocaleString('en-US');
           const badgeText = `${sign} ${formatted} lbs`;
-          
+
           // 해당 RQRD가 있는 라인 찾기
-          const rqrdLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
+          const rqrdLines = groupTextItemsByLine(refilePageContent.items, refilePageOffset);
           for (const line of rqrdLines) {
             if (line.text.includes(targetRqrd.match)) {
               const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
               const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-              const srcMidY = line.y * cfpSy + srcFS * cfpSy * SOURCE_TEXT_CENTER_RATIO;
-              drawDutyTimeStyleBadge(cfpLibPage, {
+              const srcMidY = line.y * refileSy + srcFS * refileSy * SOURCE_TEXT_CENTER_RATIO;
+              drawDutyTimeStyleBadge(refileLibPage, {
                 text: badgeText,
-                x: (lineMaxX + 12) * cfpSx,
+                x: (lineMaxX + 12) * refileSx,
                 centerY: srcMidY,
                 font: boldFont,
                 fontSize: 9,
@@ -1137,37 +1167,10 @@ async function runHL(){
           }
         }
       }
-      // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
-      const cfpEndIdx = Math.min(
-        numPages,
-        ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
-          .filter(idx => idx !== -1 && idx > cfpPageIdx)
-      );
-      const safeCfpEndIdx = (cfpEndIdx === numPages || cfpEndIdx <= cfpPageIdx) ? Math.min(numPages, cfpPageIdx + 20) : cfpEndIdx;
 
-      let cfpFullSectionText = "";
-      for (let pi = cfpPageIdx; pi < safeCfpEndIdx; pi++) {
-        const p = await pdfJsDoc.getPage(pi + 1);
-        const tc = await p.getTextContent();
-        const raw = tc.items.map(it => it.str).join(' ');
-        const off = detectPageOffset(raw);
-        const sorted = tc.items.slice().sort((a,b)=>{
-          const ay=a.transform[5], by2=b.transform[5];
-          if(Math.abs(ay-by2)>2) return by2-ay;
-          return a.transform[4]-b.transform[4];
-        });
-        let pageLastY = null;
-        for (const item of sorted) {
-          const s = cleanAndDecodeItem(item.str, off);
-          if (pageLastY !== null && Math.abs(item.transform[5] - pageLastY) > 4.5) cfpFullSectionText += "\n";
-          cfpFullSectionText += s + " ";
-          pageLastY = item.transform[5];
-        }
-        cfpFullSectionText += "\n";
-      }
 
-      wptTimeMap = buildWptTimeMap(cfpFullSectionText);
 
+      
       // =========================================================================
       // TRIP 시간 계산 (Duty time 오버레이) - 첫 페이지 기준
       // =========================================================================
