@@ -187,6 +187,41 @@ body{
 .toggle-small .slider:before{width:14px;height:14px;left:2px;top:2px}
 .toggle-small input:checked+.slider:before{transform:translateX(16px)}
 
+.settings-subrow{
+  margin-top:14px;
+  padding-top:12px;
+  border-top:1px solid #1e293b;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.settings-subrow-label{
+  font-size:11px;
+  font-weight:700;
+  color:#94a3b8;
+  letter-spacing:0.5px;
+}
+.marker-mode-switch{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.marker-mode-label{
+  font-size:12px;
+  font-weight:600;
+  color:#64748b;
+  transition:color .2s;
+}
+.marker-mode-label.active{
+  color:#f1f5f9;
+}
+.color-swatch-row{
+  display:flex;
+  gap:8px;
+}
+
 .dropdown-wrap{position:relative}
 .dropdown-btn{
   padding:8px 12px;
