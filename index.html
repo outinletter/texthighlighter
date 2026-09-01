@@ -77,24 +77,25 @@
       </div>
 
       <div class="settings-subrow">
-        <span class="settings-subrow-label">Marker Style</span>
-        <div class="marker-mode-switch">
-          <span class="marker-mode-label" id="modeLabelUnderline">Underline</span>
-          <label class="toggle">
-            <input type="checkbox" id="markerModeToggle">
-            <span class="slider"></span>
-          </label>
-          <span class="marker-mode-label" id="modeLabelHighlight">Highlight</span>
+        <div class="marker-style-group">
+          <span class="settings-subrow-label">Marker Style</span>
+          <div class="marker-mode-switch">
+            <span class="marker-mode-label" id="modeLabelUnderline">Underline</span>
+            <label class="toggle">
+              <input type="checkbox" id="markerModeToggle">
+              <span class="slider"></span>
+            </label>
+            <span class="marker-mode-label" id="modeLabelHighlight">Highlight</span>
+          </div>
         </div>
-      </div>
-
-      <div class="settings-subrow">
-        <span class="settings-subrow-label">Highlight Marker Color</span>
-        <div class="color-swatch-row">
-          <button class="color-chip active" id="chip-blue" onclick="selectColor('blue', [0.36, 0.78, 1.0])" style="background: #3b82f6;" title="Sky Blue"></button>
-          <button class="color-chip" id="chip-pink" onclick="selectColor('pink', [1.0, 0.45, 0.65])" style="background: #ff73a6;" title="Soft Pink"></button>
-          <button class="color-chip" id="chip-yellow" onclick="selectColor('yellow', [1.0, 0.75, 0.0])" style="background: #ffc000;" title="Golden Yellow"></button>
-          <button class="color-chip" id="chip-green" onclick="selectColor('green', [0.22, 0.85, 0.48])" style="background: #38d97a;" title="Neon Green"></button>
+        <div class="marker-color-group">
+          <span class="settings-subrow-label">Marker Color</span>
+          <div class="color-swatch-row">
+            <button class="color-chip active" id="chip-blue" onclick="selectColor('blue', [0.36, 0.78, 1.0])" style="background: #3b82f6;" title="Sky Blue"></button>
+            <button class="color-chip" id="chip-pink" onclick="selectColor('pink', [1.0, 0.45, 0.65])" style="background: #ff73a6;" title="Soft Pink"></button>
+            <button class="color-chip" id="chip-yellow" onclick="selectColor('yellow', [1.0, 0.75, 0.0])" style="background: #ffc000;" title="Golden Yellow"></button>
+            <button class="color-chip" id="chip-green" onclick="selectColor('green', [0.22, 0.85, 0.48])" style="background: #38d97a;" title="Neon Green"></button>
+          </div>
         </div>
       </div>
     </div>
