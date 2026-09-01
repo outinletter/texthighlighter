@@ -567,7 +567,7 @@ async function runHL(){
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined) {
             if (bm.label === 'COPY OF ATS' && coaAnnotIdx === -1) {
-                if (/SUBMITTED\s+AT/i.test(pageText)) coaAnnotIdx = pi;
+                if (/SUBMITTED\s+AT\b/i.test(pageText)) coaAnnotIdx = pi;
             }
             continue;
         }
@@ -578,7 +578,7 @@ async function runHL(){
             if (matchItem) edtoBookmarkY = matchItem.transform[5];
           }
           if (bm.label === 'COPY OF ATS') {
-            if (/SUBMITTED\s+AT/i.test(pageText)) coaAnnotIdx = pi;
+            if (/SUBMITTED\s+AT\b/i.test(pageText)) coaAnnotIdx = pi;
           }
         }
       }
@@ -1489,7 +1489,7 @@ async function runHL(){
           let anchorY = null, anchorX = null;
           for (const item of sortedCoaItems) {
             const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
-            if (s && /SUBMITTED\s+AT/i.test(s)) {
+            if (s && /SUBMITTED\s+AT\b/i.test(s)) {
               anchorY = item.transform[5]; anchorX = item.transform[4];
             }
           }
