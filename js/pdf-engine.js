@@ -169,8 +169,8 @@ function cleanAndDecodeItem(str, offset) {
  * 기본 모드는 'underline'으로 설정
  * 폰트 크기에 따라 두께와 위치가 조정됨
  */
+
 function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
-  // highlightMode가 undefined인 경우 기본값 'underline' 사용
   const mode = (typeof highlightMode !== 'undefined') ? highlightMode : 'underline';
   
   if (mode === 'underline') {
@@ -178,11 +178,11 @@ function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
     const baseThickness = fontSize ? Math.max(fontSize * 0.10, 1.0) : 1.2;
     const thickness = Math.min(baseThickness, 2.5);
     
-    // 밑줄 위치: 텍스트 하단에 위치하도록 y + height - thickness
-    // y는 텍스트의 상단 좌표, height는 텍스트 높이
-    const underlineY = y + height - thickness;
+    // 🔥 수정: y는 텍스트 하단 좌표, descender 값을 고려하여 조정
+    // PDF 좌표계에서 y는 베이스라인 기준이므로 descender만큼 아래로 이동
+    const descenderOffset = fontSize * 0.15; // descender 비율
+    const underlineY = y - descenderOffset - thickness; // 텍스트 하단에서 밑줄 위치
     
-    // 텍스트 너비에 맞게 밑줄 그리기 (좌우 여백 없이 정확히 맞춤)
     page.drawRectangle({
       x: x,
       y: underlineY,
@@ -192,7 +192,7 @@ function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
       opacity: Math.min(opacity + 0.75, 1.0)
     });
   } else {
-    // 하이라이트 모드 - 폰트 크기에 비례한 박스 크기
+    // 하이라이트 모드
     const padY = fontSize ? Math.max(fontSize * 0.08, 1) : 2;
     page.drawRectangle({ 
       x: x, 
@@ -211,7 +211,6 @@ function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, page
   const fontSize = Math.abs(tx[3]) || 10;
   const itemWidth = item.width || 0;
 
-  // 텍스트의 실제 너비 계산
   let startXOffset = 0;
   let actualHlWidth = 0;
 
@@ -229,7 +228,6 @@ function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, page
         actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
       }
     } catch (e) {
-      // 폰트 측정 실패 시 폴백
       startXOffset = (itemWidth / Math.max(s.length, 1)) * minCharIdx;
       actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
     }
@@ -238,21 +236,24 @@ function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, page
     actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
   }
 
-  // 텍스트의 실제 높이 계산
+  // 🔥 수정: 텍스트 높이 계산 방식 변경
   const textHeight = fontSize * sy;
   const rectHeight = Math.max(textHeight, 6);
   
-  // 텍스트 상단 좌표 (PDF 좌표계에서 y는 하단 기준)
-  const textTopY = tx[5] * sy;
+  // 🔥 수정: 텍스트 상단 좌표 계산 (PDF 좌표계에서 y는 베이스라인 기준)
+  // 베이스라인에서 상단으로의 오프셋 계산
+  const baselineY = tx[5] * sy;
+  // 폰트의 ascender 비율 (일반적으로 0.8 ~ 0.9)
+  const ascenderRatio = 0.85;
+  const textTopY = baselineY + (fontSize * sy * (1 - ascenderRatio));
   
-  // 밑줄/하이라이트 그리기 - 위치 정확히 조정
   const rectX = (tx[4] + startXOffset) * sx;
   const rectWidth = Math.max(actualHlWidth * sx, 2);
   
   drawMarkerRect(
     page,
     rectX,
-    textTopY,
+    textTopY, // 수정된 y 좌표
     rectWidth,
     rectHeight,
     color,
@@ -648,49 +649,76 @@ async function runHL(){
         const isAfterEdtoHeader = (edtoPointDataPageIdx !== -1 && pi >= edtoPointDataPageIdx);
 
         for (const line of groupedLines) {
-          const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
-          const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
+  const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
+  const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
 
-          if (isDispatchPage || isNotamPage) {
-            let hasRouteStr = false;
-            const cleanLineTextUpper = lineText.toUpperCase().replace(/\s+/g, '');
+  if (isDispatchPage || isNotamPage) {
+    let hasRouteStr = false;
+    const cleanLineTextUpper = lineText.toUpperCase().replace(/\s+/g, '');
 
-            if (detectedAirports.length === 2) {
-              const a = detectedAirports[0].toUpperCase(), b = detectedAirports[1].toUpperCase();
-              if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
-                hasRouteStr = true;
-              }
-            }
+    if (detectedAirports.length === 2) {
+      const a = detectedAirports[0].toUpperCase(), b = detectedAirports[1].toUpperCase();
+      if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
+        hasRouteStr = true;
+      }
+    }
 
-            if (iataAirports.length === 2) {
-              const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
-              if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
-                hasRouteStr = true;
-              }
-            }
+    if (iataAirports.length === 2) {
+      const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
+      if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
+        hasRouteStr = true;
+      }
+    }
 
-            if (hasRouteStr) {
-              const minX = Math.min(...lineItems.map(it => it.transform[4]));
-              const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
-              const itemY = line.y;
-              const itemH = Math.abs(lineItems[0].transform[3]) || 10;
-              const rh = itemH * sy;
-              const rectHeight = Math.max(rh * 1.2, 8);
-              drawMarkerRect(
-                libPage,
-                minX * sx - 2,
-                (itemY * sy) - (rh * 0.2),
-                (maxX - minX) * sx + 4,
-                rectHeight,
-                PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                0.25,
-                itemH
-              );
-              totalHits++;
-              continue;
-            }
-          }
-
+    if (hasRouteStr) {
+      const minX = Math.min(...lineItems.map(it => it.transform[4]));
+      const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
+      const itemY = line.y;
+      const itemH = Math.abs(lineItems[0].transform[3]) || 10;
+      const rh = itemH * sy;
+      
+      // 🔥 수정: 텍스트의 정확한 베이스라인 및 상단 위치 계산
+      const baselineY = itemY * sy;
+      const ascenderRatio = 0.85;
+      const descenderRatio = 0.15;
+      
+      // 텍스트 상단 Y 좌표 (PDF 좌표계에서 y는 아래에서 위로 증가)
+      const textTopY = baselineY + (itemH * sy * (1 - ascenderRatio));
+      const textBottomY = baselineY - (itemH * sy * descenderRatio);
+      
+      // 밑줄/하이라이트 모드에 따라 다르게 처리
+      const mode = (typeof highlightMode !== 'undefined') ? highlightMode : 'underline';
+      
+      if (mode === 'underline') {
+        // 밑줄 모드: 텍스트 하단에 얇은 선
+        const thickness = Math.min(Math.max(itemH * 0.10, 1.0), 2.5);
+        const underlineY = textBottomY - thickness;
+        
+        libPage.drawRectangle({
+          x: minX * sx - 2,
+          y: underlineY,
+          width: (maxX - minX) * sx + 4,
+          height: thickness,
+          color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+          opacity: 0.85
+        });
+      } else {
+        // 하이라이트 모드: 텍스트 영역 전체
+        const padY = Math.max(itemH * 0.08, 1) * sy;
+        libPage.drawRectangle({
+          x: minX * sx - 2,
+          y: textTopY - padY,
+          width: (maxX - minX) * sx + 4,
+          height: (textBottomY - textTopY) + padY * 2,
+          color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+          opacity: 0.25
+        });
+      }
+      
+      totalHits++;
+      continue;
+    }
+  }
           const isEtpLine = /\betp\s*[1-5]/i.test(lineText);
           if (isEtpLine && isAfterEdtoHeader) {
             const minX = Math.min(...lineItems.map(it => it.transform[4]));
