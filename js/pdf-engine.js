@@ -1039,7 +1039,103 @@ async function runHL(){
     }
 
     console.log('[FUEL BADGE DEBUG] cfpPageIdx (CFP PLAN 북마크):', cfpPageIdx);
+    // ================================================================
+    // RQRD / REFILE POINT 연료 차이 배지 추가 (수정됨)
+    // ================================================================
+    // REFILE POINT 연료 / RQRD 텍스트는 CFP PLAN 페이지가 아니라
+    // 별도의 "REFILE FLT PLAN" 페이지에 있을 수 있으므로, CFP 섹션(다음 북마크 전까지) 범위에서 탐색한다.
+    let refilePageIdx = -1;
+    let refilePageText = "";
+    let refilePageOffset = 0;
+    let refilePageContent = null;
+    let refileLibPage = null;
+    let refileSx = 1, refileSy = 1;
+      const refileSearchEnd = numPages;
+      for (let rpi = 0; rpi < refileSearchEnd; rpi++) {
+      const rJsPage = await pdfJsDoc.getPage(rpi + 1);
+      const rContent = await rJsPage.getTextContent();
+      const rRaw = rContent.items.map(it => it.str).join(' ');
+      const rOffset = detectPageOffset(rRaw);
+      const rText = rContent.items.map(it => cleanAndDecodeItem(it.str, rOffset)).join(' ');
+      if (/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+\d{3,6}/i.test(rText)) {
+        refilePageIdx = rpi;
+        refilePageText = rText;
+        refilePageOffset = rOffset;
+        refilePageContent = rContent;
+        refileLibPage = libPages[rpi];
+        const rVp = rJsPage.getViewport({ scale: 1.0 });
+        const { width: rW, height: rH } = refileLibPage.getSize();
+        refileSx = rW / rVp.width;
+        refileSy = rH / rVp.height;
+        break;
+      }
+    }
 
+    // REFILE POINT 연료 찾기
+    const refileMatch = refilePageText.match(/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+(\d{3,6})/i);
+    console.log('[FUEL BADGE DEBUG] refileMatch:', refileMatch);
+
+    let refileFuel = null;
+    if (refileMatch) {
+      refileFuel = parseInt(refileMatch[1], 10) * 100;
+      console.log('[FUEL BADGE DEBUG] refileFuel:', refileFuel);
+    }
+
+    // RQRD 연료 찾기 - 더 넓은 컨텍스트 검색
+    if (refileFuel !== null && refilePageIdx !== -1) {
+      const allRqrdMatches = [];
+      const rqrdRegex = /\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi;
+      let rqrdMatch;
+      while ((rqrdMatch = rqrdRegex.exec(refilePageText)) !== null) {
+        allRqrdMatches.push({
+          match: rqrdMatch[0],
+          value: parseInt(rqrdMatch[1], 10) * 100,
+          index: rqrdMatch.index
+        });
+      }
+      console.log('[FUEL BADGE DEBUG] 모든 RQRD 매치:', allRqrdMatches);
+
+      let targetRqrd = null;
+      let minValue = Infinity;
+      for (const r of allRqrdMatches) {
+        if (r.value < minValue) {
+          minValue = r.value;
+          targetRqrd = r;
+        }
+      }
+      console.log('[FUEL BADGE DEBUG] 최소 RQRD:', targetRqrd);
+
+      if (targetRqrd) {
+        const diff = refileFuel - targetRqrd.value;
+        const sign = diff >= 0 ? '+' : '-';
+        const formatted = Math.abs(diff).toLocaleString('en-US');
+        const badgeText = `${sign} ${formatted} lbs`;
+
+        const rqrdLines = groupTextItemsByLine(refilePageContent.items, refilePageOffset);
+        for (const line of rqrdLines) {
+          if (line.text.includes(targetRqrd.match)) {
+            const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+            const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+            const srcMidY = line.y * refileSy + srcFS * refileSy * SOURCE_TEXT_CENTER_RATIO;
+            drawDutyTimeStyleBadge(refileLibPage, {
+              text: badgeText,
+              x: (lineMaxX + 12) * refileSx,
+              centerY: srcMidY,
+              font: boldFont,
+              fontSize: 9,
+              bgColor: [0.88, 0.90, 0.93],
+              bgOpacity: 0.85
+            });
+            console.log('[FUEL BADGE DEBUG] 배지 생성됨:', badgeText);
+            totalHits++;
+            break;
+          }
+        }
+      }
+    }
+
+  
+    
     if(cfpPageIdx!==undefined) {
       const cfpJsPage=await pdfJsDoc.getPage(cfpPageIdx+1);
       const cfpContent=await cfpJsPage.getTextContent();
@@ -1076,101 +1172,7 @@ async function runHL(){
       );
       const safeCfpEndIdx = (cfpEndIdx === numPages || cfpEndIdx <= cfpPageIdx) ? Math.min(numPages, cfpPageIdx + 20) : cfpEndIdx;
 
-      // ================================================================
-      // RQRD / REFILE POINT 연료 차이 배지 추가 (수정됨)
-      // ================================================================
-      // REFILE POINT 연료 / RQRD 텍스트는 CFP PLAN 페이지가 아니라
-      // 별도의 "REFILE FLT PLAN" 페이지에 있을 수 있으므로, CFP 섹션(다음 북마크 전까지) 범위에서 탐색한다.
-      let refilePageIdx = -1;
-      let refilePageText = "";
-      let refilePageOffset = 0;
-      let refilePageContent = null;
-      let refileLibPage = null;
-      let refileSx = 1, refileSy = 1;
-        const refileSearchEnd = numPages;
-        for (let rpi = 0; rpi < refileSearchEnd; rpi++) {
-        const rJsPage = await pdfJsDoc.getPage(rpi + 1);
-        const rContent = await rJsPage.getTextContent();
-        const rRaw = rContent.items.map(it => it.str).join(' ');
-        const rOffset = detectPageOffset(rRaw);
-        const rText = rContent.items.map(it => cleanAndDecodeItem(it.str, rOffset)).join(' ');
-        if (/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+\d{3,6}/i.test(rText)) {
-          refilePageIdx = rpi;
-          refilePageText = rText;
-          refilePageOffset = rOffset;
-          refilePageContent = rContent;
-          refileLibPage = libPages[rpi];
-          const rVp = rJsPage.getViewport({ scale: 1.0 });
-          const { width: rW, height: rH } = refileLibPage.getSize();
-          refileSx = rW / rVp.width;
-          refileSy = rH / rVp.height;
-          break;
-        }
-      }
-
-      // REFILE POINT 연료 찾기
-      const refileMatch = refilePageText.match(/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+(\d{3,6})/i);
-      console.log('[FUEL BADGE DEBUG] refileMatch:', refileMatch);
-
-      let refileFuel = null;
-      if (refileMatch) {
-        refileFuel = parseInt(refileMatch[1], 10) * 100;
-        console.log('[FUEL BADGE DEBUG] refileFuel:', refileFuel);
-      }
-
-      // RQRD 연료 찾기 - 더 넓은 컨텍스트 검색
-      if (refileFuel !== null && refilePageIdx !== -1) {
-        const allRqrdMatches = [];
-        const rqrdRegex = /\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi;
-        let rqrdMatch;
-        while ((rqrdMatch = rqrdRegex.exec(refilePageText)) !== null) {
-          allRqrdMatches.push({
-            match: rqrdMatch[0],
-            value: parseInt(rqrdMatch[1], 10) * 100,
-            index: rqrdMatch.index
-          });
-        }
-        console.log('[FUEL BADGE DEBUG] 모든 RQRD 매치:', allRqrdMatches);
-
-        let targetRqrd = null;
-        let minValue = Infinity;
-        for (const r of allRqrdMatches) {
-          if (r.value < minValue) {
-            minValue = r.value;
-            targetRqrd = r;
-          }
-        }
-        console.log('[FUEL BADGE DEBUG] 최소 RQRD:', targetRqrd);
-
-        if (targetRqrd) {
-          const diff = refileFuel - targetRqrd.value;
-          const sign = diff >= 0 ? '+' : '-';
-          const formatted = Math.abs(diff).toLocaleString('en-US');
-          const badgeText = `${sign} ${formatted} lbs`;
-
-          const rqrdLines = groupTextItemsByLine(refilePageContent.items, refilePageOffset);
-          for (const line of rqrdLines) {
-            if (line.text.includes(targetRqrd.match)) {
-              const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
-              const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-              const srcMidY = line.y * refileSy + srcFS * refileSy * SOURCE_TEXT_CENTER_RATIO;
-              drawDutyTimeStyleBadge(refileLibPage, {
-                text: badgeText,
-                x: (lineMaxX + 12) * refileSx,
-                centerY: srcMidY,
-                font: boldFont,
-                fontSize: 9,
-                bgColor: [0.88, 0.90, 0.93],
-                bgOpacity: 0.85
-              });
-              console.log('[FUEL BADGE DEBUG] 배지 생성됨:', badgeText);
-              totalHits++;
-              break;
-            }
-          }
-        }
-      }
-
+      
       // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
       let cfpFullSectionText = "";
       for (let pi = cfpPageIdx; pi < safeCfpEndIdx; pi++) {
