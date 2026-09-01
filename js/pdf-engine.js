@@ -165,6 +165,25 @@ function cleanAndDecodeItem(str, offset) {
   return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
 }
 
+/**
+ * Highlight/Underline 모드 공용 드로잉 헬퍼
+ * highlightMode(app.js 전역, 'highlight' | 'underline')에 따라
+ * 전체 박스(highlight) 또는 텍스트 하단 얇은 밑줄(underline)을 그림
+ */
+function drawMarkerRect(page, x, y, width, height, color, opacity) {
+  if (typeof highlightMode !== 'undefined' && highlightMode === 'underline') {
+    const thickness = Math.max(height * 0.14, 1.2);
+    page.drawRectangle({
+      x, y, width,
+      height: thickness,
+      color,
+      opacity: Math.min(opacity + 0.75, 1.0)
+    });
+  } else {
+    page.drawRectangle({ x, y, width, height, color, opacity });
+  }
+}
+
 function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity, font) {
   const s = cleanAndDecodeItem(item.str, pageOffset) || '';
   const tx = item.transform;
@@ -192,13 +211,14 @@ function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, page
     actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
   }
 
-  page.drawRectangle({
-    x: (tx[4] + startXOffset) * sx - 1,
-    y: (tx[5] * sy) - (fontSize * sy * 0.15),
-    width: Math.max(actualHlWidth * sx + 2, 4),
-    height: Math.max(fontSize * sy * 1.15, 8),
+  drawMarkerRect(
+    page,
+    (tx[4] + startXOffset) * sx - 1,
+    (tx[5] * sy) - (fontSize * sy * 0.15),
+    Math.max(actualHlWidth * sx + 2, 4),
+    Math.max(fontSize * sy * 1.15, 8),
     color, opacity
-  });
+  );
 }
 
 
@@ -671,12 +691,11 @@ async function runHL(){
                   const rw = actualHlWidth * sx;
                   const rh = itemH * sy;
 
-                  libPage.drawRectangle({
-                    x: rx - 1, y: ry - (rh * 0.15),
-                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.15, 8),
-                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                    opacity: 0.25
-                  });
+                  drawMarkerRect(
+                    libPage, rx - 1, ry - (rh * 0.15),
+                    Math.max(rw + 2, 4), Math.max(rh * 1.15, 8),
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25
+                  );
                   totalHits++;
                 }
                 }
@@ -822,12 +841,11 @@ async function runHL(){
                   const ry = itemY * sy;
                   const rw = matchCharCount * charW * sx;
                   const rh = itemH * sy;
-                  libPage.drawRectangle({
-                    x: rx, y: ry - (rh * 0.2),
-                    width: Math.max(rw, 4), height: Math.max(rh * 1.2, 8),
-                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                    opacity: 0.25
-                  });
+                  drawMarkerRect(
+                    libPage, rx, ry - (rh * 0.2),
+                    Math.max(rw, 4), Math.max(rh * 1.2, 8),
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25
+                  );
                   totalHits++;
                 }
               }
@@ -851,12 +869,11 @@ async function runHL(){
                   const ry = tx[5] * sy;
                   const rw = targetMsaStr.length * charW * sx;
                   const rh = (Math.abs(tx[3]) || 10) * sy;
-                  libPage.drawRectangle({
-                    x: rx - 1, y: ry - 1 - (rh * 0.2),
-                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.2 + 2, 8),
-                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                    opacity: 0.25
-                  });
+                  drawMarkerRect(
+                    libPage, rx - 1, ry - 1 - (rh * 0.2),
+                    Math.max(rw + 2, 4), Math.max(rh * 1.2 + 2, 8),
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25
+                  );
                   totalHits++;
                 } else if (s === targetMsaStr) {
                   const tx = item.transform;
@@ -864,12 +881,11 @@ async function runHL(){
                   const ry = tx[5] * sy;
                   const rw = (item.width || 0) * sx;
                   const rh = (Math.abs(tx[3]) || 10) * sy;
-                  libPage.drawRectangle({
-                    x: rx - 1, y: ry - 1 - (rh * 0.2),
-                    width: Math.max(rw + 2, 4), height: Math.max(rh * 1.2 + 2, 8),
-                    color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-                    opacity: 0.25
-                  });
+                  drawMarkerRect(
+                    libPage, rx - 1, ry - 1 - (rh * 0.2),
+                    Math.max(rw + 2, 4), Math.max(rh * 1.2 + 2, 8),
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25
+                  );
                   totalHits++;
                 }
               }
