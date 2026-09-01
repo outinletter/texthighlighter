@@ -1168,7 +1168,36 @@ async function runHL(){
         }
       }
 
+      // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
+      const cfpEndIdx = Math.min(
+        numPages,
+        ...[resolvedCoaPageIdx, dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx]
+          .filter(idx => idx !== -1 && idx > cfpPageIdx)
+      );
+      const safeCfpEndIdx = (cfpEndIdx === numPages || cfpEndIdx <= cfpPageIdx) ? Math.min(numPages, cfpPageIdx + 20) : cfpEndIdx;
 
+      let cfpFullSectionText = "";
+      for (let pi = cfpPageIdx; pi < safeCfpEndIdx; pi++) {
+        const p = await pdfJsDoc.getPage(pi + 1);
+        const tc = await p.getTextContent();
+        const raw = tc.items.map(it => it.str).join(' ');
+        const off = detectPageOffset(raw);
+        const sorted = tc.items.slice().sort((a,b)=>{
+          const ay=a.transform[5], by2=b.transform[5];
+          if(Math.abs(ay-by2)>2) return by2-ay;
+          return a.transform[4]-b.transform[4];
+        });
+        let pageLastY = null;
+        for (const item of sorted) {
+          const s = cleanAndDecodeItem(item.str, off);
+          if (pageLastY !== null && Math.abs(item.transform[5] - pageLastY) > 4.5) cfpFullSectionText += "\n";
+          cfpFullSectionText += s + " ";
+          pageLastY = item.transform[5];
+        }
+        cfpFullSectionText += "\n";
+      }
+
+      wptTimeMap = buildWptTimeMap(cfpFullSectionText);
 
       
       // =========================================================================
