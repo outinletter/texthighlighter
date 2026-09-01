@@ -1016,20 +1016,33 @@ async function runHL(){
       }
 
       // RQRD / REFILE POINT 연료 차이 배지 추가
-      const refileMatch = cfpFirstPageText.match(/REFILE\s+POINT\s+(\d{3,6})/i);
+      // "PLANNED R/F AT REFILE POINT" 또는 "REFILE POINT" 모두 매칭
+      const refileMatch = cfpFirstPageText.match(/(?:PLANNED\s+R\/F\s+AT\s+)?REFILE\s+POINT\s+(\d{3,6})/i);
       console.log('[FUEL BADGE DEBUG] refileMatch:', refileMatch, '| REFILE 주변 텍스트:', cfpFirstPageText.slice(Math.max(0, cfpFirstPageText.toUpperCase().indexOf('REFILE') - 20), cfpFirstPageText.toUpperCase().indexOf('REFILE') + 60));
       if (refileMatch) {
-        const refileFuel = parseInt(refileMatch[1], 10) * 100;
+        // 문서에 따라 100을 곱하거나 그대로 사용 (예: 00369 -> 36,900 lbs로 변환)
+        let refileFuel = parseInt(refileMatch[1], 10);
+        // 숫자가 1000 미만이면 100을 곱함 (예: 369 -> 36,900)
+        if (refileFuel < 1000) {
+            refileFuel = refileFuel * 100;
+        }
         const rqrdLines = groupTextItemsByLine(cfpContent.items, cfpOffset);
         console.log('[FUEL BADGE DEBUG] refileFuel:', refileFuel, '| rqrdLines 총 개수:', rqrdLines.length);
         for (const line of rqrdLines) {
           if (/RQRD/i.test(line.text)) {
             console.log('[FUEL BADGE DEBUG] RQRD 포함 라인 텍스트:', JSON.stringify(line.text));
           }
+          // 문서의 구조에 따라 적절한 RQRD 선택
+          // 예: "RQRD 1792 14.35"와 "RQRD 0274 02.54" 중 첫 번째가 REFILE POINT 이전의 RQRD
           const rqrdMatches = [...line.text.matchAll(/\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi)];
           if (rqrdMatches.length > 0) {
-            const lastMatch = rqrdMatches[rqrdMatches.length - 1];
-            const rqrdFuel = parseInt(lastMatch[1], 10) * 100;
+              // 두 개의 RQRD가 있을 경우, 첫 번째는 메인 루트, 두 번째는 대체 루트일 가능성 높음
+              const targetMatch = rqrdMatches.length >= 2 ? rqrdMatches[0] : rqrdMatches[rqrdMatches.length - 1];
+              let rqrdFuel = parseInt(targetMatch[1], 10);
+              // RQRD 연료도 1000 미만이면 100을 곱함
+              if (rqrdFuel < 1000) {
+                  rqrdFuel = rqrdFuel * 100;
+              }
             const diff = refileFuel - rqrdFuel;
             const sign = diff >= 0 ? '+' : '-';
             const formatted = Math.abs(diff).toLocaleString('en-US');
