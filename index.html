@@ -156,32 +156,79 @@
 <script src="js/pdf-engine.js"></script>
 <script src="js/app.js"></script>
 
-<!-- 추가된 JavaScript: 제목 클릭 시 새로고침 + 최상단 이동 -->
+<!-- 수정된 JavaScript: 제목 클릭 시 새로고침 + 최상단 이동 -->
 <script>
-  document.addEventListener('DOMContentLoaded', function() {
-    // 1. 제목 요소 가져오기
-    const appTitle = document.getElementById('appTitle');
-    
-    // 2. 클릭 이벤트 등록
-    if (appTitle) {
-      appTitle.addEventListener('click', function(e) {
-        // 페이지 새로고침
-        window.location.reload();
-        // 새로고침 후에는 브라우저가 기본적으로 최상단으로 이동합니다.
-        // 만약 브라우저가 스크롤 위치를 기억한다면, 아래 코드로 강제 이동
-        // (reload 직후에는 실행되지 않으므로, onload 이벤트에서 처리)
-      });
+  (function() {
+    // ============================================================
+    // 1. 브라우저의 스크롤 복원 기능 완전히 비활성화 (가장 중요!)
+    // ============================================================
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
     }
 
-    // 3. 페이지 로드 시 항상 최상단으로 이동 (새로고침 포함)
-    window.scrollTo(0, 0);
-  });
+    // ============================================================
+    // 2. 페이지 로드 시 즉시 최상단으로 이동 (강제)
+    // ============================================================
+    function scrollToTop() {
+      // 즉시 실행
+      window.scrollTo(0, 0);
+      
+      // 추가 안전장치: 0ms, 50ms, 100ms 후에도 재실행
+      setTimeout(function() { window.scrollTo(0, 0); }, 0);
+      setTimeout(function() { window.scrollTo(0, 0); }, 50);
+      setTimeout(function() { window.scrollTo(0, 0); }, 100);
+    }
 
-  // 4. 새로고침 후에도 최상단 유지를 위한 추가 처리
-  // (pageshow 이벤트는 뒤로가기 등에서도 발생)
-  window.addEventListener('pageshow', function() {
-    window.scrollTo(0, 0);
-  });
+    // DOMContentLoaded에서 실행
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', scrollToTop);
+    } else {
+      scrollToTop();
+    }
+
+    // load 이벤트에서도 실행 (모든 리소스 로드 후)
+    window.addEventListener('load', function() {
+      window.scrollTo(0, 0);
+      // Safari 대응: 약간의 지연 후 다시 실행
+      setTimeout(function() { window.scrollTo(0, 0); }, 200);
+    });
+
+    // pageshow 이벤트 (뒤로가기/새로고침 후)
+    window.addEventListener('pageshow', function(event) {
+      // persisted가 true면 bfcache에서 복원된 경우
+      window.scrollTo(0, 0);
+      setTimeout(function() { window.scrollTo(0, 0); }, 0);
+    });
+
+    // ============================================================
+    // 3. 제목 클릭 시 새로고침 + 최상단 이동
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+      const appTitle = document.getElementById('appTitle');
+      
+      if (appTitle) {
+        appTitle.addEventListener('click', function(e) {
+          e.preventDefault();
+          
+          // 페이지 새로고침
+          window.location.reload();
+          
+          // 참고: reload 후에는 위의 scrollRestoration = 'manual'과
+          // load/pageshow 이벤트가 자동으로 최상단을 보장함
+        });
+      }
+    });
+
+    // ============================================================
+    // 4. 추가 안전장치: beforeunload에서 스크롤 위치 초기화
+    // ============================================================
+    window.addEventListener('beforeunload', function() {
+      // 새로고침 직전에 스크롤 위치를 0으로 설정 (일부 브라우저 대응)
+      window.scrollTo(0, 0);
+    });
+
+    console.log('[Scroll] Scroll restoration disabled, always at top.');
+  })();
 </script>
 
 </body>
