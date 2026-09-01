@@ -165,11 +165,32 @@ function cleanAndDecodeItem(str, offset) {
 }
 
 /**
+ * 텍스트의 정확한 바운딩 박스를 계산하는 헬퍼 함수
+ */
+function getTextMetrics(item, sy, fontSize) {
+  const baselineY = item.transform[5] * sy;
+  const itemH = fontSize || Math.abs(item.transform[3]) || 10;
+  const ascenderRatio = 0.85;
+  const descenderRatio = 0.15;
+  
+  const textTopY = baselineY + (itemH * sy * (1 - ascenderRatio));
+  const textBottomY = baselineY - (itemH * sy * descenderRatio);
+  const textHeight = textTopY - textBottomY;
+  
+  return {
+    baselineY,
+    textTopY,
+    textBottomY,
+    textHeight,
+    itemH
+  };
+}
+
+/**
  * Highlight/Underline 모드 공용 드로잉 헬퍼
  * 기본 모드는 'underline'으로 설정
  * 폰트 크기에 따라 두께와 위치가 조정됨
  */
-
 function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
   const mode = (typeof highlightMode !== 'undefined') ? highlightMode : 'underline';
   
@@ -178,10 +199,8 @@ function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
     const baseThickness = fontSize ? Math.max(fontSize * 0.10, 1.0) : 1.2;
     const thickness = Math.min(baseThickness, 2.5);
     
-    // 🔥 수정: y는 텍스트 하단 좌표, descender 값을 고려하여 조정
-    // PDF 좌표계에서 y는 베이스라인 기준이므로 descender만큼 아래로 이동
-    const descenderOffset = fontSize * 0.15; // descender 비율
-    const underlineY = y - descenderOffset - thickness; // 텍스트 하단에서 밑줄 위치
+    // y는 이미 텍스트 하단 좌표 (textBottomY)가 전달됨
+    const underlineY = y - thickness;
     
     page.drawRectangle({
       x: x,
@@ -236,26 +255,17 @@ function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, page
     actualHlWidth = (itemWidth / Math.max(s.length, 1)) * (maxCharIdx - minCharIdx + 1);
   }
 
-  // 🔥 수정: 텍스트 높이 계산 방식 변경
-  const textHeight = fontSize * sy;
-  const rectHeight = Math.max(textHeight, 6);
-  
-  // 🔥 수정: 텍스트 상단 좌표 계산 (PDF 좌표계에서 y는 베이스라인 기준)
-  // 베이스라인에서 상단으로의 오프셋 계산
-  const baselineY = tx[5] * sy;
-  // 폰트의 ascender 비율 (일반적으로 0.8 ~ 0.9)
-  const ascenderRatio = 0.85;
-  const textTopY = baselineY + (fontSize * sy * (1 - ascenderRatio));
-  
+  // 통일된 텍스트 메트릭스 계산
+  const metrics = getTextMetrics(item, sy, fontSize);
   const rectX = (tx[4] + startXOffset) * sx;
   const rectWidth = Math.max(actualHlWidth * sx, 2);
   
   drawMarkerRect(
     page,
     rectX,
-    textTopY, // 수정된 y 좌표
+    metrics.textBottomY, // 하단 기준 전달
     rectWidth,
-    rectHeight,
+    metrics.textHeight,
     color,
     opacity,
     fontSize
@@ -461,6 +471,29 @@ function canRunEngine() {
   return true;
 }
 
+/**
+ * 라인 단위 강조 표시를 위한 헬퍼 함수
+ */
+function drawLineHighlight(libPage, lineItems, lineY, sx, sy, color, opacity) {
+  const minX = Math.min(...lineItems.map(it => it.transform[4]));
+  const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
+  const itemH = Math.abs(lineItems[0].transform[3]) || 10;
+  
+  // 통일된 텍스트 메트릭스 계산
+  const metrics = getTextMetrics({ transform: [0, 0, 0, itemH, 0, lineY] }, sy, itemH);
+  
+  drawMarkerRect(
+    libPage,
+    minX * sx,
+    metrics.textBottomY,
+    (maxX - minX) * sx,
+    metrics.textHeight,
+    color,
+    opacity,
+    itemH
+  );
+}
+
 async function runHL(){
   if(!canRunEngine())return;
   if(!libsReady){setStatus('error','Required libraries not fully loaded.');return;}
@@ -649,98 +682,44 @@ async function runHL(){
         const isAfterEdtoHeader = (edtoPointDataPageIdx !== -1 && pi >= edtoPointDataPageIdx);
 
         for (const line of groupedLines) {
-  const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
-  const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
+          const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
+          const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
 
-  if (isDispatchPage || isNotamPage) {
-    let hasRouteStr = false;
-    const cleanLineTextUpper = lineText.toUpperCase().replace(/\s+/g, '');
+          // 경로 라인 강조 (hasRouteStr)
+          if (isDispatchPage || isNotamPage) {
+            let hasRouteStr = false;
+            const cleanLineTextUpper = lineText.toUpperCase().replace(/\s+/g, '');
 
-    if (detectedAirports.length === 2) {
-      const a = detectedAirports[0].toUpperCase(), b = detectedAirports[1].toUpperCase();
-      if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
-        hasRouteStr = true;
-      }
-    }
+            if (detectedAirports.length === 2) {
+              const a = detectedAirports[0].toUpperCase(), b = detectedAirports[1].toUpperCase();
+              if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
+                hasRouteStr = true;
+              }
+            }
 
-    if (iataAirports.length === 2) {
-      const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
-      if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
-        hasRouteStr = true;
-      }
-    }
+            if (iataAirports.length === 2) {
+              const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
+              if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
+                hasRouteStr = true;
+              }
+            }
 
-    if (hasRouteStr) {
-      const minX = Math.min(...lineItems.map(it => it.transform[4]));
-      const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
-      const itemY = line.y;
-      const itemH = Math.abs(lineItems[0].transform[3]) || 10;
-      const rh = itemH * sy;
-      
-      // 🔥 수정: 텍스트의 정확한 베이스라인 및 상단 위치 계산
-      const baselineY = itemY * sy;
-      const ascenderRatio = 0.85;
-      const descenderRatio = 0.15;
-      
-      // 텍스트 상단 Y 좌표 (PDF 좌표계에서 y는 아래에서 위로 증가)
-      const textTopY = baselineY + (itemH * sy * (1 - ascenderRatio));
-      const textBottomY = baselineY - (itemH * sy * descenderRatio);
-      
-      // 밑줄/하이라이트 모드에 따라 다르게 처리
-      const mode = (typeof highlightMode !== 'undefined') ? highlightMode : 'underline';
-      
-      if (mode === 'underline') {
-        // 밑줄 모드: 텍스트 하단에 얇은 선
-        const thickness = Math.min(Math.max(itemH * 0.10, 1.0), 2.5);
-        const underlineY = textBottomY - thickness;
-        
-        libPage.drawRectangle({
-          x: minX * sx - 2,
-          y: underlineY,
-          width: (maxX - minX) * sx + 4,
-          height: thickness,
-          color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-          opacity: 0.85
-        });
-      } else {
-        // 하이라이트 모드: 텍스트 영역 전체
-        const padY = Math.max(itemH * 0.08, 1) * sy;
-        libPage.drawRectangle({
-          x: minX * sx - 2,
-          y: textTopY - padY,
-          width: (maxX - minX) * sx + 4,
-          height: (textBottomY - textTopY) + padY * 2,
-          color: PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-          opacity: 0.25
-        });
-      }
-      
-      totalHits++;
-      continue;
-    }
-  }
+            if (hasRouteStr) {
+              drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+              totalHits++;
+              continue;
+            }
+          }
+
+          // ETP 라인 강조
           const isEtpLine = /\betp\s*[1-5]/i.test(lineText);
           if (isEtpLine && isAfterEdtoHeader) {
-            const minX = Math.min(...lineItems.map(it => it.transform[4]));
-            const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
-            const itemY = line.y;
-            const itemH = Math.abs(lineItems[0].transform[3]) || 10;
-            const rh = itemH * sy;
-            const rectHeight = Math.max(rh * 1.2, 8);
-            drawMarkerRect(
-              libPage,
-              minX * sx,
-              (itemY * sy) - (rh * 0.2),
-              (maxX - minX) * sx,
-              rectHeight,
-              PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-              0.25,
-              itemH
-            );
+            drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
             totalHits++;
             continue;
           }
 
+          // FIR 라인 강조
           const isParLine = /\/\s*[A-Z]{4}\s+FIR/i.test(lineText);
           if (isParLine) {
             const firRegex = /\bFIR\b/i;
@@ -767,13 +746,12 @@ async function runHL(){
                     const actualHlWidth = fullMeasuredW > 0 ? (matchMeasuredW / fullMeasuredW) * itemW : (itemW / s.length) * targetWord.length;
 
                     const rx = (itemX + startXOffset) * sx;
-                    const ry = itemY * sy;
                     const rw = actualHlWidth * sx;
-                    const rh = itemH * sy;
-
+                    
+                    const metrics = getTextMetrics(item, sy, itemH);
                     drawMarkerRect(
-                      libPage, rx - 1, ry - (rh * 0.15),
-                      Math.max(rw + 2, 4), Math.max(rh * 1.15, 8),
+                      libPage, rx - 1, metrics.textBottomY,
+                      Math.max(rw + 2, 4), metrics.textHeight,
                       PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
                     );
                     totalHits++;
@@ -784,28 +762,15 @@ async function runHL(){
             continue;
           }
 
+          // 문장 키워드 강조
           const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
           if (hasSentenceKw) {
-            const minX = Math.min(...lineItems.map(it => it.transform[4]));
-            const maxX = Math.max(...lineItems.map(it => it.transform[4] + (it.width || 0)));
-            const itemY = line.y;
-            const itemH = Math.abs(lineItems[0].transform[3]) || 10;
-            const rh = itemH * sy;
-            const rectHeight = Math.max(rh * 1.2, 8);
-            drawMarkerRect(
-              libPage,
-              minX * sx,
-              (itemY * sy) - (rh * 0.2),
-              (maxX - minX) * sx,
-              rectHeight,
-              PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-              0.25,
-              itemH
-            );
+            drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
             totalHits++;
             continue;
           }
 
+          // 문자 단위 매핑
           const charMapping = [];
           for (let i = 0; i < lineItems.length; i++) {
             const item = lineItems[i];
@@ -818,6 +783,7 @@ async function runHL(){
           const lineTextFromMapping = charMapping.map(m => m.isSeparator ? ' ' : m.char).join('');
           const cleanLineText = lineTextFromMapping.replace(/[^A-Za-z0-9]/g, ' ');
 
+          // 키워드 강조
           for (const kw of keywords) {
             const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[^A-Za-z0-9]+');
             let re;
@@ -860,7 +826,7 @@ async function runHL(){
             }
           }
 
-          // Highlight DOF
+          // DOF 강조
           {
             const dofLineRegex = /\bDOF\s+(\d{6})\b/i;
             const dofLineM = dofLineRegex.exec(cleanLineText);
@@ -889,6 +855,7 @@ async function runHL(){
             }
           }
 
+          // Shear 값 강조
           const shearRegex = /\b\d{5}[A-Za-z ]\d{3}\s+([0-9]{2})\b/g;
           let shrM;
           let lastShrIdx = -1;
@@ -923,12 +890,12 @@ async function runHL(){
                   const itemH = Math.abs(tx[3]) || 10;
                   const charW = itemW / Math.max(s.length, 1);
                   const rx = (itemX + minCharIdx * charW) * sx;
-                  const ry = itemY * sy;
                   const rw = matchCharCount * charW * sx;
-                  const rh = itemH * sy;
+                  
+                  const metrics = getTextMetrics(item, sy, itemH);
                   drawMarkerRect(
-                    libPage, rx, ry - (rh * 0.2),
-                    Math.max(rw, 4), Math.max(rh * 1.2, 8),
+                    libPage, rx, metrics.textBottomY,
+                    Math.max(rw, 4), metrics.textHeight,
                     PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
                   );
                   totalHits++;
@@ -937,6 +904,7 @@ async function runHL(){
             }
           }
 
+          // MSA 값 강조
           const msaRegex = /---\s*\/\s*(\d{3})\b/i;
           const msaMatch = lineText.match(msaRegex);
           if (msaMatch) {
@@ -951,25 +919,25 @@ async function runHL(){
                   const tx = item.transform;
                   const charW = (item.width || 0) / Math.max(item.str.length, 1);
                   const rx = (tx[4] + idx * charW) * sx;
-                  const ry = tx[5] * sy;
                   const rw = targetMsaStr.length * charW * sx;
-                  const rh = (Math.abs(tx[3]) || 10) * sy;
+                  const itemH = Math.abs(tx[3]) || 10;
+                  const metrics = getTextMetrics(item, sy, itemH);
                   drawMarkerRect(
-                    libPage, rx - 1, ry - 1 - (rh * 0.2),
-                    Math.max(rw + 2, 4), Math.max(rh * 1.2 + 2, 8),
-                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, Math.abs(tx[3]) || 10
+                    libPage, rx - 1, metrics.textBottomY,
+                    Math.max(rw + 2, 4), metrics.textHeight,
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
                   );
                   totalHits++;
                 } else if (s === targetMsaStr) {
                   const tx = item.transform;
                   const rx = tx[4] * sx;
-                  const ry = tx[5] * sy;
                   const rw = (item.width || 0) * sx;
-                  const rh = (Math.abs(tx[3]) || 10) * sy;
+                  const itemH = Math.abs(tx[3]) || 10;
+                  const metrics = getTextMetrics(item, sy, itemH);
                   drawMarkerRect(
-                    libPage, rx - 1, ry - 1 - (rh * 0.2),
-                    Math.max(rw + 2, 4), Math.max(rh * 1.2 + 2, 8),
-                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, Math.abs(tx[3]) || 10
+                    libPage, rx - 1, metrics.textBottomY,
+                    Math.max(rw + 2, 4), metrics.textHeight,
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
                   );
                   totalHits++;
                 }
@@ -1408,7 +1376,10 @@ async function runHL(){
                     const charW = (item.width || 0) / Math.max(s.length, 1);
                     const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
                     const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
-                    const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
+                    
+                    const metrics = getTextMetrics(item, coaSy, Math.abs(tx[3]) || 10);
+                    const underlineY = metrics.textBottomY;
+                    
                     coaLibPage.drawLine({
                         start: { x: underlineX1, y: underlineY },
                         end: { x: underlineX2, y: underlineY },
@@ -1470,7 +1441,10 @@ async function runHL(){
                         const charW = (item.width || 0) / Math.max(s.length, 1);
                         const underlineX1 = (tx[4] + minCharIdx * charW) * coaSx;
                         const underlineX2 = underlineX1 + Math.max(matchCharCount * charW * coaSx, 4);
-                        const underlineY = (tx[5] * coaSy) - ((Math.abs(tx[3]) || 10) * coaSy * 0.1);
+                        
+                        const metrics = getTextMetrics(item, coaSy, Math.abs(tx[3]) || 10);
+                        const underlineY = metrics.textBottomY;
+                        
                         coaLibPage.drawLine({
                             start: { x: underlineX1, y: underlineY },
                             end: { x: underlineX2, y: underlineY },
