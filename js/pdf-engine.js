@@ -1087,8 +1087,8 @@ async function runHL(){
       let refilePageContent = null;
       let refileLibPage = null;
       let refileSx = 1, refileSy = 1;
-      const refileSearchEnd = safeCfpEndIdx;
-      for (let rpi = cfpPageIdx; rpi < refileSearchEnd; rpi++) {
+        const refileSearchEnd = numPages;
+        for (let rpi = 0; rpi < refileSearchEnd; rpi++) {
         const rJsPage = await pdfJsDoc.getPage(rpi + 1);
         const rContent = await rJsPage.getTextContent();
         const rRaw = rContent.items.map(it => it.str).join(' ');
