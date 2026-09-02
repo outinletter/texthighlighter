@@ -534,7 +534,7 @@ async function runHL(){
     const extraKws = [];
     if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
     const keywords = [...sel, ...extraKws].sort((a,b)=>b.length-a.length);
-    const hlRGB = activeHlColorRGB || [0.2, 0.4, 0.8];
+    const hlRGB = window.activeHlColorRGB || [1.0, 0.45, 0.65];
 
     const numPages=pdfJsDoc.numPages;
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
