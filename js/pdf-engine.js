@@ -986,7 +986,20 @@ async function runHL(){
         const childDest = (typeof item.y === 'number')
           ? ctx.obj([childPageRef, PDFLib.PDFName.of('XYZ'), PDFLib.PDFNumber.of(0), PDFLib.PDFNumber.of(topY), PDFLib.PDFNumber.of(0)])
           : ctx.obj([childPageRef, PDFLib.PDFName.of('Fit')]);
-        const childTitle = item.title || `${item.tag} ${item.code}`.trim();
+        let childTitle = item.title;
+
+        if (childTitle) {
+          childTitle = childTitle
+            .replace(/^\s*\[\s*/, '')
+            .replace(/\s*\]\s*/, ' ')
+            .replace(/\s*\/\s*/, ' ')
+            .replace(/\s*,.*$/, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        } else {
+          childTitle = `${item.tag} ${item.code}`.trim();
+        }
+        
         const childDict=ctx.obj({Title:PDFLib.PDFString.of(childTitle),Dest:childDest,Parent:parentRef});
         return ctx.register(childDict);
       });
