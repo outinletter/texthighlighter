@@ -196,7 +196,7 @@ function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
   
   if (mode === 'underline') {
     // 폰트 크기에 비례한 밑줄 두께 (최소 1.0, 최대 2.5)
-    const baseThickness = fontSize ? Math.max(fontSize * 0.10, 1.0) : 1.2;
+    const baseThickness = fontSize ? Math.max(fontSize * 0.14, 1.5) : 1.5;
     const thickness = Math.min(baseThickness, 2.5);
     
     // y는 이미 텍스트 하단 좌표 (textBottomY)가 전달됨
@@ -1411,7 +1411,7 @@ async function runHL(){
                     coaLibPage.drawLine({
                         start: { x: underlineX1, y: underlineY },
                         end: { x: underlineX2, y: underlineY },
-                        color: PDFLib.rgb(1, 0, 0), thickness: 2.0, opacity: 0.5
+                        color: PDFLib.rgb(1, 0, 0), thickness: 1.5, opacity: 0.5
                     });
                     totalHits++;
                 }
