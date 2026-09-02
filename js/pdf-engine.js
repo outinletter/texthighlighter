@@ -390,7 +390,29 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
       while ((m = re.exec(line.text)) !== null) {
         const tagLabel = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
         const code = m[2].toUpperCase();
-        results.push({ tag: tagLabel, code, pageIdx: pi, y: line.y });
+        let airportName = '';
+        // 1. 같은 줄에서 패턴 추출 (예: [ERA]ZSPD/ PVG/ Shanghai...)
+        //    - 태그와 코드를 찾은 후, '/' 뒤에 나오는 도시 이름을 찾습니다.
+        const nameMatch = line.text.match(new RegExp(`\\[\\s*${tagLabel}\\s*\\]\\s*${code}\\s*\\/\\s*[A-Z]{3,}\\s*\\/\\s*([^,]+)`, 'i'));
+        if (nameMatch) {
+            // 쉼표(,) 앞부분을 공항 이름으로 사용하고 앞뒤 공백을 제거합니다.
+            airportName = nameMatch[1].split(',')[0].trim();
+        } else {
+            // 2. 만약 패턴이 맞지 않으면, FIR의 경우처럼 코드 뒤의 단어를 사용합니다.
+            const firNameMatch = line.text.match(new RegExp(`\\[\\s*${tagLabel}\\s*\\]\\s*${code}\\s+([A-Z]{3,})`, 'i'));
+            if (firNameMatch) {
+                airportName = firNameMatch[1].toUpperCase();
+            }
+        }
+        
+        // 추출된 정보를 results에 저장합니다.
+        results.push({ 
+            tag: tagLabel, 
+            code, 
+            pageIdx: pi, 
+            y: line.y, 
+            name: airportName // 공항 이름 저장
+        });
       }
     }
   }
@@ -997,7 +1019,11 @@ async function runHL(){
             .replace(/\s+/g, ' ')
             .trim();
         } else {
-          childTitle = `${item.tag} ${item.code}`.trim();
+          let childTitle = `${item.tag} ${item.code}`;
+          if (item.name) {
+              childTitle += ` ${item.name}`;
+          }
+          childTitle = childTitle.trim();
         }
         
         const childDict=ctx.obj({Title:PDFLib.PDFString.of(childTitle),Dest:childDest,Parent:parentRef});
