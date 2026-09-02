@@ -9,6 +9,7 @@ const PRESETS=['3 PCT','A/C','ACTUAL','AGTOW','ALERT LEVEL','ALTN','AMD','AMEND'
 
 let currentThemeName = 'pink';
 let activeHlColorRGB = [1.0, 0.45, 0.65];
+window.activeHlColorRGB = activeHlColorRGB;
 
 // Default marker mode: underline
 let highlightMode = 'underline';
@@ -32,14 +33,15 @@ function setStatus(cls,txt){
 }
 
 function selectColor(name, rgbArray) {
-  currentThemeName = name;
-  activeHlColorRGB = rgbArray;
-  
-  document.querySelectorAll('.color-chip').forEach(chip => chip.classList.remove('active'));
-  document.getElementById('chip-' + name).classList.add('active');
-  
-  done = false;
-  updRun();
+    currentThemeName = name;
+    activeHlColorRGB = rgbArray;
+    window.activeHlColorRGB = rgbArray;
+
+    document.querySelectorAll('.color-chip').forEach(chip => chip.classList.remove('active'));
+    document.getElementById('chip-' + name).classList.add('active');
+
+    done = false;
+    updRun();
 }
 
 function setHighlightMode(mode) {
