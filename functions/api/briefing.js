@@ -1115,7 +1115,8 @@ Use exactly the following structure:
 
 ### 🔴 PRIMARY THREAT
 
-**[Threat Category] — [Threat Title]**
+[THREAT TYPE] DUE TO [ROOT CAUSE]
+(e.g., "UNSTABILIZED APPROACH DUE TO TAILWIND", "FUEL SHORTFALL DUE TO ALTN DIVERSION", "RVSM LOSS DUE TO ALTIMETER FAULT")
 
 [Concise Korean explanation.]
 ([English translation.])
@@ -1124,32 +1125,34 @@ Use exactly the following structure:
 
 ### 🟠 SECONDARY THREATS
 
-**1. [Threat Category] — [Threat Title]**
+[THREAT TYPE] DUE TO [ROOT CAUSE]
+(e.g., "UNSTABILIZED APPROACH DUE TO TAILWIND", "FUEL SHORTFALL DUE TO ALTN DIVERSION", "RVSM LOSS DUE TO ALTIMETER FAULT")
 
 [Concise Korean explanation.]
 ([English translation.])
 
-**2. [Threat Category] — [Threat Title]**
+[THREAT TYPE] DUE TO [ROOT CAUSE]
+(e.g., "UNSTABILIZED APPROACH DUE TO TAILWIND", "FUEL SHORTFALL DUE TO ALTN DIVERSION", "RVSM LOSS DUE TO ALTIMETER FAULT")
 
 [Concise Korean explanation.]
 ([English translation.])
 
-**3. [Threat Category] — [Threat Title]**
-
+[THREAT TYPE] DUE TO [ROOT CAUSE]
+(e.g., "UNSTABILIZED APPROACH DUE TO TAILWIND", "FUEL SHORTFALL DUE TO ALTN DIVERSION", "RVSM LOSS DUE TO ALTIMETER FAULT")
 [Concise Korean explanation.]
 ([English translation.])
 
 ---
 
-### ⛽ FUEL / EDTO
-
+[THREAT TYPE] DUE TO [ROOT CAUSE]
+(e.g., "UNSTABILIZED APPROACH DUE TO TAILWIND", "FUEL SHORTFALL DUE TO ALTN DIVERSION", "RVSM LOSS DUE TO ALTIMETER FAULT")
 [Concise Korean summary of the most important Fuel/EDTO finding.]
 ([English translation.])
 
 ---
 
-### 🔗 CRITICAL THREAT INTERACTION
-
+[THREAT TYPE] DUE TO [ROOT CAUSE]
+(e.g., "UNSTABILIZED APPROACH DUE TO TAILWIND", "FUEL SHORTFALL DUE TO ALTN DIVERSION", "RVSM LOSS DUE TO ALTIMETER FAULT")
 **[Threat A] + [Threat B] → [Operational Consequence]**
 
 [Concise Korean explanation of the interaction.]
@@ -1157,16 +1160,12 @@ Use exactly the following structure:
 
 ---
 
-### ⚠️ CREW FOCUS
+[THREAT TYPE] DUE TO [ROOT CAUSE]
+(e.g., "UNSTABILIZED APPROACH DUE TO TAILWIND", "FUEL SHORTFALL DUE TO ALTN DIVERSION", "RVSM LOSS DUE TO ALTIMETER FAULT")
 
 * [Korean crew focus item.]
   ([English translation.])
 
-* [Korean crew focus item.]
-  ([English translation.])
-
-* [Korean crew focus item.]
-  ([English translation.])
 
 ---
 
@@ -1183,12 +1182,12 @@ The output must be highly concise.
 
 Target approximately:
 
-* PRIMARY THREAT: 1 item
-* SECONDARY THREATS: 0–3 items
-* FUEL / EDTO: 1–2 sentences
-* CRITICAL THREAT INTERACTION: 1 interaction
-* CREW FOCUS: 1–3 items
-* BOTTOM LINE: 1 sentence
+* PRIMARY THREAT: 1 item, explanation ≤ 1 sentence
+* SECONDARY THREATS: 0–2 items, each explanation ≤ 1 sentence
+* FUEL / EDTO: 1 sentence (omit this section entirely if nothing notable)
+* CRITICAL THREAT INTERACTION: 1 interaction, or omit entirely if no interaction exists
+* CREW FOCUS: 1–2 items, each ≤ 1 short sentence
+* BOTTOM LINE: 1 sentence, ≤ 20 words
 
 Remove:
 
