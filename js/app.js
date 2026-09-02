@@ -65,63 +65,7 @@ function setHighlightMode(mode) {
 }
 
 
-async function forceDownload(event, url, filename) {
-  event.preventDefault();
-  const btn = event.currentTarget;
-  const originalText = btn.textContent;
-  
-  btn.textContent = 'Saving...';
-  btn.style.pointerEvents = 'none';
-  btn.style.opacity = '0.6';
-  
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    const localUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = localUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(localUrl), 300);
-  } catch (e) {
-    window.open(url, '_blank');
-  } finally {
-    btn.textContent = originalText;
-    btn.style.pointerEvents = '';
-    btn.style.opacity = '';
-  }
-}
 
-function downloadSelf() {
-  const clone = document.documentElement.cloneNode(true);
-  
-  const fileNameEl = clone.querySelector('#fileName');
-  if (fileNameEl) fileNameEl.textContent = '';
-  const uploadArea = clone.querySelector('#uploadArea');
-  if (uploadArea) uploadArea.classList.remove('has-file');
-  const sb = clone.querySelector('#sb');
-  if (sb) sb.className = 'status-bar';
-  const st = clone.querySelector('#st');
-  if (st) st.textContent = 'Engine ready. Select keywords and upload PDF to start.';
-  const tagList = clone.querySelector('#tagList');
-  if (tagList) tagList.innerHTML = '';
-  const previewCard = clone.querySelector('#previewCard');
-  if (previewCard) previewCard.style.display = 'none';
-  
-  const htmlContent = "<!DOCTYPE html>\n" + clone.outerHTML;
-  const blob = new Blob([htmlContent], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'Text_Highlighter_Offline.html';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 300);
-}
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {

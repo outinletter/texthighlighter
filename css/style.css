@@ -528,3 +528,13 @@ body{
   font-size: 10px;
   letter-spacing: 2px;
 }
+
+/* Header interactions */
+.header-text h1 {
+  cursor: pointer;
+  user-select: none;
+}
+.header-text h1:hover {
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}

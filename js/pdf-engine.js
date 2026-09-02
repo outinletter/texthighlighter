@@ -152,16 +152,23 @@ function decodeStr(str, offset) {
   return decoded;
 }
 
-function cleanAndDecodeItem(str, offset) {
+function baseDecode(str, offset) {
   if (!str) return '';
-  let finalStr = str;
-  if (offset) {
-    const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    const decrypted = decodeStr(str, offset);
-    const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    if (decStandardCount > origStandardCount) finalStr = decrypted;
-  }
+  if (!offset) return str;
+  const decrypted = decodeStr(str, offset);
+  const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
+  const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
+  return (decStandardCount > origStandardCount) ? decrypted : str;
+}
+
+function cleanAndDecodeItem(str, offset) {
+  const finalStr = baseDecode(str, offset);
   return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
+}
+
+function decodeForTagScan(str, offset) {
+  const finalStr = baseDecode(str, offset);
+  return finalStr.replace(/[^\x20-\x7E]/g, ' ');
 }
 
 /**
@@ -172,11 +179,11 @@ function getTextMetrics(item, sy, fontSize) {
   const itemH = fontSize || Math.abs(item.transform[3]) || 10;
   const ascenderRatio = 0.85;
   const descenderRatio = 0.15;
-  
+
   const textTopY = baselineY + (itemH * sy * (1 - ascenderRatio));
   const textBottomY = baselineY - (itemH * sy * descenderRatio);
   const textHeight = textTopY - textBottomY;
-  
+
   return {
     baselineY,
     textTopY,
@@ -193,12 +200,12 @@ function getTextMetrics(item, sy, fontSize) {
  */
 function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
   const mode = (typeof highlightMode !== 'undefined') ? highlightMode : 'underline';
-  
+
   if (mode === 'underline') {
     // 폰트 크기에 비례한 밑줄 두께 (최소 1.0, 최대 2.5)
     const baseThickness = fontSize ? Math.max(fontSize * 0.14, 1.5) : 1.5;
     const thickness = Math.min(baseThickness, 2.5);
-    
+
     // y는 이미 텍스트 하단 좌표 (textBottomY)가 전달됨
     const underlineY = y - thickness;
     
@@ -322,17 +329,6 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
   return airports;
 }
 
-function decodeForTagScan(str, offset) {
-  if (!str) return '';
-  let finalStr = str;
-  if (offset) {
-    const origStandardCount = (str.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    const decrypted = decodeStr(str, offset);
-    const decStandardCount = (decrypted.match(/[A-Z0-9\s\/\.\-\(\)]/ig) || []).length;
-    if (decStandardCount > origStandardCount) finalStr = decrypted;
-  }
-  return finalStr.replace(/[^\x20-\x7E]/g, ' ');
-}
 
 async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
   const found = {};
@@ -1790,7 +1786,7 @@ async function runHL(){
             airports: (detectedAirports.length === 2 ? detectedAirports : iataAirports)
           };
 
-          if (typeof renderBriefing === 'function') renderBriefing(flightData, rawTextSubset);
+          // if (typeof renderBriefing === 'function') renderBriefing(flightData, rawTextSubset);
         } catch (briefErr) {
           console.error('Briefing prep failed:', briefErr);
         }
