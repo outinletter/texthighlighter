@@ -953,7 +953,8 @@ async function runHL(){
     const bmLabelToRef={};
 
     for(const bm of BOOKMARK_PATTERNS){
-      const pi=bmPages[bm.label];if(pi===undefined)continue;
+      let pi=bmPages[bm.label];if(pi===undefined)continue;
+      if (bm.label === 'COPY OF ATS' && coaAnnotIdx !== -1) pi = coaAnnotIdx;
       const pageRef=pdfLibDoc.getPage(pi).ref;
       let dest;
       if (bm.label === 'EQUAL TIME POINT DATA' && typeof edtoBookmarkY === 'number') {
