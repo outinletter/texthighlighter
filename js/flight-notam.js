@@ -115,4 +115,9 @@ function extractNotamInfo(fullNotamText) {
   return { sections, weatherThreats };
 }
 
-module.exports = { extractNotamInfo, splitIntoSections, scanRisksInSection, classifySeverity, extractWeatherThreats, SENTENCE_KW, HARD_KW };
+// Node(테스트)와 브라우저(<script> 태그) 양쪽에서 동작하도록 분기
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { extractFlightInfo, parseFuelTimeRows, parseEtdEta, formatFuel, formatTime };
+} else {
+  window.extractFlightInfo = extractFlightInfo;
+}
