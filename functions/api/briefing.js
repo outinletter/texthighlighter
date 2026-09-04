@@ -12,12 +12,21 @@ You MUST follow this 2-step process for every analysis:
 
 [1단계: 핵심 데이터 추출 및 필터링 (Internal Thinking)]
 Perform this step internally to ground your analysis. Do NOT output this step directly unless it's relevant to a threat.
-1. 운항 시간 파악 (Flight Timing): Identify ETD, ETA, and entry times for each FIR/ETP.
-2. NOTAM 필터링 (NOTAM Filtering): Compare NOTAM validity periods (Effective Period) with the flight schedule. DISCARD any NOTAMs that do not overlap with the operational window.
+IMPORTANT: The user message contains a "STRUCTURED DATA" JSON block that was already deterministically
+parsed from the document (fuel/time figures, NOTAM sections grouped by airport with severity, FIR-crossing
+ETOs). Treat STRUCTURED DATA as your PRIMARY and AUTHORITATIVE source for these figures - do NOT re-derive
+them from raw text, and do NOT contradict them. Use the "RAW TEXT" block only to fill in details the
+structured data does not cover (e.g. TAF/METAR wording, MEL remarks, free-text NOTAM context).
+1. 운항 시간 파악 (Flight Timing): Read ETD/ETA from structuredData.fuelTime, and FIR entry times from
+   structuredData.eetTimeline (already computed as ETD + elapsed time, in Z).
+2. NOTAM 필터링 (NOTAM Filtering): structuredData.notam.sections already lists each airport's NOTAMs with a
+   severity (HIGH/MEDIUM/NONE) and matched risk lines. structuredData.eetTimeline links each FIR crossing time
+   to its relatedAirports, so you can tell WHEN the aircraft is near a HIGH-severity airport. Prioritize
+   sections with severity HIGH, especially ones tied to DEP/DEST/REFILE tags or an ETO close to takeoff/landing.
 3. 핵심 수치 추출 (Key Metrics Extraction):
-   - 기상 (Weather): TAF/METAR (Weather phenomena, Visibility, Wind, CB/Turbulence) during the flight window.
-   - 연료/EDTO (Fuel/EDTO): TOF, Trip Fuel, CFR (Critical Fuel Required) and FOB at ETPs, and Wind Component.
-   - 공항/항법 (Airport/Nav): Runway/Taxiway closures, ILS/DME/RAIM U/S status.
+   - 연료 (Fuel): structuredData.fuelTime.items has TRIP/RESERVE/FINAL_RES/DISC/FOD/ALTN etc. with fuelLbs and time already computed - use these values directly.
+   - 항공기제한 (Airport/Nav): structuredData.notam.sections[].risks lists the exact CLSD/U/S/NOT AVBL lines per airport - quote from there, not from raw text.
+   - 기상 (Weather): structuredData.notam.weatherThreats has EXPECTED FROM/TO turbulence & CB segments; for TAF/METAR detail not in structured data, consult RAW TEXT.
 
 [2단계: Critical Threat 분석 (Output)]
 Generate the report using ONLY the filtered data from Step 1. Focus on high-impact operational threats.
@@ -33,7 +42,7 @@ OUTPUT POLICY - KOREAN & ENGLISH ONLY
 ==================================================
 CORE ANALYSIS & FOD RULES
 ==================================================
-1. DOCUMENT GROUNDING: Use ONLY information contained in the uploaded document. Do NOT invent operational facts.
+1. DOCUMENT GROUNDING: Use ONLY information contained in STRUCTURED DATA or RAW TEXT below. Do NOT invent operational facts.
 2. FOD INTERPRETATION: "FOD 0148 01.25" means 14,800 lb and 1h 25m of fuel remaining at destination. This is NOT a shortage.
 3. FINAL RESERVE: Final Reserve is a regulatory requirement, NOT a fuel threat itself. Only report fuel threats if operational margins are insufficient or vulnerable.
 4. THREAT INTERACTION: Actively search for relationships (e.g., Weather + Fuel, NOTAM + Runway, MEL + Performance).
@@ -84,7 +93,7 @@ export async function onRequestPost(context) {
         { role: 'system', content: BRIEFING_SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `Data: ${JSON.stringify(flightData)}\nText: ${rawTextSubset}\n\n[1단계: 핵심 데이터 추출]을 내부적으로 먼저 수행한 후, 이를 바탕으로 [2단계: Critical Threat 분석] 결과를 한-영 병기로 작성하라. 타 언어(한자 등)는 절대 사용하지 마라.`
+          content: `[STRUCTURED DATA - authoritative, pre-parsed]\n${JSON.stringify(flightData)}\n\n[RAW TEXT - supplementary only, for details not in STRUCTURED DATA]\n${rawTextSubset}\n\n[1단계: 핵심 데이터 추출]을 STRUCTURED DATA를 기준으로 내부적으로 먼저 수행한 후, 이를 바탕으로 [2단계: Critical Threat 분석] 결과를 한-영 병기로 작성하라. 타 언어(한자 등)는 절대 사용하지 마라.`
         }
       ],
       max_tokens: 4096,
