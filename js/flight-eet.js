@@ -104,4 +104,9 @@ function extractEetTimeline(atsFplText, notamSections) {
   return { etd, timeline };
 }
 
-module.exports = { parseEtd, parseEet, computeEto, linkFirToNotamSections, extractEetTimeline, hhmmToMinutes, minutesToHHMM };
+// Node(테스트)와 브라우저(<script> 태그) 양쪽에서 동작하도록 분기
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { extractFlightInfo, parseFuelTimeRows, parseEtdEta, formatFuel, formatTime };
+} else {
+  window.extractFlightInfo = extractFlightInfo;
+}
