@@ -211,6 +211,8 @@ function dlPDF(){
 }
 
 async function renderBriefing(flightData, rawTextSubset) {
+  const cardEl = document.getElementById('briefingCard');
+  if (cardEl) cardEl.style.display = 'block';
   const el = document.getElementById('briefingContent');
   if (!el) return;
   el.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>Analyzing flight package for safety concerns...</span></div>';
