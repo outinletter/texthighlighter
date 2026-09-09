@@ -1767,7 +1767,8 @@ async function runHL(){
         if (sub.tag === 'FIR' && sub.maxX !== undefined) {
           const eet = firEetMap[sub.code];
           if (eet) {
-            const timeBadge = addEetToEtd(etdZulu, eet);
+            const timeValue = addEetToEtd(etdZulu, eet);
+            const timeBadge = `FIR ENTRY ${timeValue}`;
             const pi = sub.pageIdx;
             if (!firScaleCache[pi]) {
               const jsP = await pdfJsDoc.getPage(pi + 1);
