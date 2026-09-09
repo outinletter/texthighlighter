@@ -1727,18 +1727,22 @@ async function runHL(){
               const vp = jsP.getViewport({ scale: 1.0 });
               const lp = libPages[pi];
               const { width: lw, height: lh } = lp.getSize();
-              firScaleCache[pi] = { sx: lw / vp.width, sy: lh / vp.height };
+              firScaleCache[pi] = { sx: lw / vp.width, sy: lh / vp.height, lw };
             }
-            const { sx, sy } = firScaleCache[pi];
+            const { sx, sy, lw } = firScaleCache[pi];
             const srcFS = sub.fontSize || 10;
             const srcMidY = sub.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
+            const badgeSize = 9;
+            const textWidth = boldFont.widthOfTextAtSize(timeBadge, badgeSize);
+            const drawX = lw - textWidth - 36;
+
             drawDutyTimeStyleBadge(libPages[pi], {
               text: timeBadge,
-              x: (sub.maxX + 12) * sx,
+              x: drawX,
               centerY: srcMidY,
               font: boldFont,
-              fontSize: 9,
+              fontSize: badgeSize,
               bgColor: [0.88, 0.90, 0.93],
               bgOpacity: 0.75
             });
