@@ -180,7 +180,7 @@ function getTextMetrics(item, sy, fontSize) {
   const ascenderRatio = 0.85;
   const descenderRatio = 0.15;
 
-  const textTopY = baselineY + (itemH * sy * (1 - ascenderRatio));
+  const textTopY = baselineY + (itemH * sy * ascenderRatio);
   const textBottomY = baselineY - (itemH * sy * descenderRatio);
   const textHeight = textTopY - textBottomY;
 
