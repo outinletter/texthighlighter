@@ -386,7 +386,9 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
       while ((m = re.exec(line.text)) !== null) {
         const tagLabel = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
         const code = m[2].toUpperCase();
-        results.push({ tag: tagLabel, code, pageIdx: pi, y: line.y });
+        const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
+        const lineFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+        results.push({ tag: tagLabel, code, pageIdx: pi, y: line.y, maxX: lineMaxX, fontSize: lineFS });
       }
     }
   }
@@ -1034,6 +1036,8 @@ async function runHL(){
     let routeTokens = [];
     let discFuel = '', discTime = '';
     let extractedEtd = '', extractedEta = '';
+    let etdZulu = '';
+    let firEetMap = {};
     let suitableMap = {};
     let wptTimeMap = new Map();
 
@@ -1308,6 +1312,7 @@ async function runHL(){
       if (etdEtaMatch) {
         extractedEtd = `${etdEtaMatch[1].toUpperCase()} ${etdEtaMatch[2].toUpperCase()}`;
         extractedEta = `${etdEtaMatch[3].toUpperCase()} ${etdEtaMatch[4].toUpperCase()}`;
+        etdZulu = etdEtaMatch[2].substring(0, 4); // 숫자 4자리 추출
       }
 
       if (finalCoaAnnotIdx !== -1) {
@@ -1347,6 +1352,17 @@ async function runHL(){
              if (!/[A-Z0-9\/\-]/.test(charToMatch)) charToMatch = ' ';
              coaFullTextWithNewlines += charToMatch;
              coaCharMapping.push({ itemIndex: i, charIndex: c });
+          }
+        }
+
+        // EET/ 필드 파싱 (FIR 진입시간 계산용)
+        const eetMatch = coaFullTextWithNewlines.match(/EET\/([\s\S]+?)(?=\s[A-Z]{3,}\/|(?:\n[A-Z]{3,}\/)|$)/i);
+        if (eetMatch) {
+          const eetContent = eetMatch[1].replace(/\n/g, ' ');
+          const eetParts = eetContent.trim().split(/\s+/);
+          for (const part of eetParts) {
+            const m = part.match(/^([A-Z]{4})(\d{4})$/);
+            if (m) firEetMap[m[1]] = m[2];
           }
         }
 
@@ -1682,6 +1698,53 @@ async function runHL(){
           bgColor: [0.88, 0.90, 0.93],
           bgOpacity: 0.75
         });
+      }
+    }
+
+    // FIR 시간 배지 표시 (NOTAM 3)
+    if (notam3SubAirports.length > 0 && etdZulu && Object.keys(firEetMap).length > 0) {
+      const addEetToEtd = (etdStr, eetStr) => {
+        const etdH = parseInt(etdStr.substring(0, 2), 10);
+        const etdM = parseInt(etdStr.substring(2, 4), 10);
+        const eetH = parseInt(eetStr.substring(0, 2), 10);
+        const eetM = parseInt(eetStr.substring(2, 4), 10);
+        let resM = etdM + eetM;
+        let resH = etdH + eetH + Math.floor(resM / 60);
+        resM %= 60;
+        resH %= 24;
+        return `${resH.toString().padStart(2, '0')}:${resM.toString().padStart(2, '0')}Z`;
+      };
+
+      const firScaleCache = {};
+      for (const sub of notam3SubAirports) {
+        if (sub.tag === 'FIR' && sub.maxX !== undefined) {
+          const eet = firEetMap[sub.code];
+          if (eet) {
+            const timeBadge = addEetToEtd(etdZulu, eet);
+            const pi = sub.pageIdx;
+            if (!firScaleCache[pi]) {
+              const jsP = await pdfJsDoc.getPage(pi + 1);
+              const vp = jsP.getViewport({ scale: 1.0 });
+              const lp = libPages[pi];
+              const { width: lw, height: lh } = lp.getSize();
+              firScaleCache[pi] = { sx: lw / vp.width, sy: lh / vp.height };
+            }
+            const { sx, sy } = firScaleCache[pi];
+            const srcFS = sub.fontSize || 10;
+            const srcMidY = sub.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
+
+            drawDutyTimeStyleBadge(libPages[pi], {
+              text: timeBadge,
+              x: (sub.maxX + 12) * sx,
+              centerY: srcMidY,
+              font: boldFont,
+              fontSize: 9,
+              bgColor: [0.88, 0.90, 0.93],
+              bgOpacity: 0.75
+            });
+            totalHits++;
+          }
+        }
       }
     }
 
