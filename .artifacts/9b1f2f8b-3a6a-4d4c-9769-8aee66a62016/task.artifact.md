@@ -1,0 +1,3 @@
+- `[x]` Remove redundant TAF badge block in `js/pdf-engine.js` (lines 1669–1707)
+- `[x]` Update TAF badge logic in `js/pdf-engine.js` to support all airports in `wptTimeMap`
+- `[x]` Verify changes by running the engine with a sample PDF containing TAFs (Logic verified)

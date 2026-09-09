@@ -1666,10 +1666,10 @@ async function runHL(){
       }
     }
 
-    // WEATHER BRIEFING 섹션 내 TAF 공항 시간 배지 표시
-    if (weatherBriefingIdx !== -1 && (extractedEtd || extractedEta) && detectedAirports.length === 2) {
-      const depCode = detectedAirports[0].toUpperCase();
-      const arrCode = detectedAirports[1].toUpperCase();
+    // WEATHER BRIEFING 섹션 내 TAF 공항 시간 배지 표시 (CFP 웨이포인트 시간 매칭 포함)
+    if (weatherBriefingIdx !== -1) {
+      const depCode = detectedAirports.length >= 1 ? detectedAirports[0].toUpperCase() : null;
+      const arrCode = detectedAirports.length >= 2 ? detectedAirports[1].toUpperCase() : null;
       const weatherEndIdx = (pkg1PageIdx !== -1) ? pkg1PageIdx : (pkg3StartIdx !== -1 ? pkg3StartIdx : numPages);
 
       for (let pi = weatherBriefingIdx; pi < weatherEndIdx; pi++) {
@@ -1684,12 +1684,20 @@ async function runHL(){
         const sy = lh / vp.height;
 
         for (const line of lines) {
-          // TAF [ICAO] 패턴 검색
-          const tafRegex = new RegExp(`^TAF\\s+(${depCode}|${arrCode})\\b`, 'i');
+          // TAF [COR/AMD] [ICAO] 패턴 검색
+          const tafRegex = /^TAF(?:\s+(?:COR|AMD))?\s+([A-Z]{4})\b/i;
           const m = tafRegex.exec(line.text.trim());
           if (m) {
             const airportMatch = m[1].toUpperCase();
-            const timeText = (airportMatch === depCode) ? extractedEtd : extractedEta;
+            let timeText = null;
+
+            if (depCode && airportMatch === depCode && extractedEtd) timeText = extractedEtd;
+            else if (arrCode && airportMatch === arrCode && extractedEta) timeText = extractedEta;
+            else if (wptTimeMap.has(airportMatch)) {
+              const wptTime = wptTimeMap.get(airportMatch); // "HH.MM"
+              timeText = `${airportMatch} ${wptTime.replace('.', '')}Z`;
+            }
+
             if (!timeText) continue;
 
             const badgeSize = 9;
@@ -1800,52 +1808,6 @@ async function runHL(){
       }
     }
 
-    // WEATHER BRIEFING 섹션 내 TAF 공항 시간 배지 표시
-    if (weatherBriefingIdx !== -1 && (extractedEtd || extractedEta) && detectedAirports.length === 2) {
-      const depCode = detectedAirports[0].toUpperCase();
-      const arrCode = detectedAirports[1].toUpperCase();
-      const weatherEndIdx = (pkg1PageIdx !== -1) ? pkg1PageIdx : (pkg3StartIdx !== -1 ? pkg3StartIdx : numPages);
-
-      for (let pi = weatherBriefingIdx; pi < weatherEndIdx; pi++) {
-        const jsPage = await pdfJsDoc.getPage(pi + 1);
-        const tc = await jsPage.getTextContent();
-        const rawText = tc.items.map(it => it.str).join(' ');
-        const offset = detectPageOffset(rawText);
-        const lines = groupTextItemsByLine(tc.items, offset);
-        const libPage = libPages[pi];
-        const { width: lw, height: lh } = libPage.getSize();
-        const vp = jsPage.getViewport({ scale: 1.0 });
-        const sy = lh / vp.height;
-
-        for (const line of lines) {
-          // TAF [ICAO] 패턴 검색
-          const tafRegex = new RegExp(`^TAF\\s+(${depCode}|${arrCode})\\b`, 'i');
-          const m = tafRegex.exec(line.text.trim());
-          if (m) {
-            const airportMatch = m[1].toUpperCase();
-            const timeText = (airportMatch === depCode) ? extractedEtd : extractedEta;
-            if (!timeText) continue;
-
-            const badgeSize = 9;
-            const textWidth = boldFont.widthOfTextAtSize(timeText, badgeSize);
-            const drawX = lw - textWidth - 36;
-            const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-            const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
-
-            drawDutyTimeStyleBadge(libPage, {
-              text: timeText,
-              x: drawX,
-              centerY: srcMidY,
-              font: boldFont,
-              fontSize: badgeSize,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.75
-            });
-            totalHits++;
-          }
-        }
-      }
-    }
 
     // =========================================================================
     // FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
