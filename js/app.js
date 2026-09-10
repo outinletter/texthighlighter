@@ -210,68 +210,6 @@ function dlPDF(){
   }
 }
 
-async function renderBriefing(flightData, rawTextSubset) {
-  const el = document.getElementById('briefingContent');
-  if (!el) return;
-  el.innerHTML = '<div class="loading-briefing"><div class="spinner"></div><span>Analyzing flight package for safety concerns...</span></div>';
-
-  try {
-    let res;
-    try {
-      res = await fetch('/api/briefing', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flightData, rawTextSubset })
-      });
-    } catch (fetchErr) {
-      throw new Error('FETCH_ERROR[' + fetchErr.name + ']: ' + fetchErr.message);
-    }
-    if (!res.ok) {
-      let bodyText = '';
-      try { bodyText = await res.text(); } catch (_) {}
-      throw new Error('HTTP_' + res.status + ': ' + bodyText.slice(0, 300));
-    }
-    if (!res.body) throw new Error('NO_STREAM_BODY: response.body unsupported in this browser');
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-    let fullText = '';
-
-    el.innerHTML = '';
-    const textEl = document.createElement('div');
-    textEl.style.whiteSpace = 'pre-wrap';
-    el.appendChild(textEl);
-
-    while (true) {
-      const { value, done: streamDone } = await reader.read();
-      if (streamDone) break;
-      buffer += decoder.decode(value, { stream: true });
-
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data:')) continue;
-        const payload = trimmed.slice(5).trim();
-        if (!payload || payload === '[DONE]') continue;
-        try {
-          const json = JSON.parse(payload);
-          if (json.response) {
-            fullText += json.response;
-            textEl.textContent = fullText;
-          }
-        } catch (parseErr) { /* 불완전한 청크는 건너뜀 */ }
-      }
-    }
-
-    if (!fullText) {
-      el.innerHTML = '<div class="loading-briefing"><span>No safety concerns could be generated from this document.</span></div>';
-    }
-  } catch (e) {
-    el.innerHTML = `<div class="loading-briefing"><span>AI briefing failed: ${e.message}</span></div>`;
-  }
-}
 
 
 // 이벤트 리스너 바인딩 및 초기화

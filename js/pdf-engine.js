@@ -537,8 +537,8 @@ async function runHL(){
     const numPages=pdfJsDoc.numPages;
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
     const libPages=pdfLibDoc.getPages();
-    const stdFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.Helvetica);
-    const boldFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    const stdFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.Courier);
+    const boldFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.CourierBold);
 
     const BOOKMARK_PATTERNS=[
       {label:'CFP PLAN',pattern:/CFP\s+PLAN/i},
@@ -1891,56 +1891,6 @@ async function runHL(){
 
     dlPDF();
 
-    setTimeout(() => {
-      (async () => {
-        try {
-          // 전체 페이지를 줄바꿈 보존 방식(y좌표 4.5px 갭 기준)으로 이어붙인다.
-          // cfpFullSectionText 빌드(위 TRIP 계산부)와 동일한 로직 - flight-parser.js/
-          // flight-notam.js/flight-eet.js는 줄 단위 정규식 매칭이라 line break가 필수.
-          let fullDocText = '';
-          for (let p = 1; p <= numPages; p++) {
-            const briefJsPage = await pdfJsDoc.getPage(p);
-            const briefTc = await briefJsPage.getTextContent();
-            const briefOffset = detectPageOffset(briefTc.items.map(it => it.str).join(' '));
-            const sortedItems = briefTc.items.slice().sort((a, b) => {
-              const ay = a.transform[5], by2 = b.transform[5];
-              if (Math.abs(ay - by2) > 2) return by2 - ay;
-              return a.transform[4] - b.transform[4];
-            });
-            let pageLastY = null;
-            for (const item of sortedItems) {
-              const s = cleanAndDecodeItem(item.str, briefOffset);
-              if (pageLastY !== null && Math.abs(item.transform[5] - pageLastY) > 4.5) fullDocText += '\n';
-              fullDocText += s + ' ';
-              pageLastY = item.transform[5];
-            }
-            fullDocText += '\n\f'; // 페이지 구분 (flight-notam.js가 \f를 제거하고 처리)
-          }
-
-          const fuelTime = (typeof extractFlightInfo === 'function') ? extractFlightInfo(fullDocText) : null;
-          const notamInfo = (typeof extractNotamInfo === 'function') ? extractNotamInfo(fullDocText) : null;
-          const eetTimeline = (typeof extractEetTimeline === 'function' && notamInfo)
-            ? extractEetTimeline(fullDocText, notamInfo.sections)
-            : null;
-
-          const flightData = {
-            flightNumber: extractedFlightNum || '',
-            date: extractedFileDate || '',
-            aircraftReg: extractedAcReg || '',
-            airports: (detectedAirports.length === 2 ? detectedAirports : iataAirports),
-            fuelTime,
-            notam: notamInfo,
-            eetTimeline
-          };
-
-          const rawTextSubset = fullDocText.slice(0, 20000);
-
-          if (typeof renderBriefing === 'function') renderBriefing(flightData, rawTextSubset);
-        } catch (briefErr) {
-          console.error('Briefing prep failed:', briefErr);
-        }
-      })();
-    }, 500);
   } catch(err) {
     setStatus('error','Execution error: '+err.message);
     runBtn.className='action-btn run-btn active';
