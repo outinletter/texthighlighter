@@ -5,10 +5,14 @@
 let resolvedWorkerUrl = '';
 let libsReady = false;
 
-const PRESETS=['3 PCT','A/C','ACTUAL','AGTOW','ALERT LEVEL','ALTN','AMD','AMEND','AMDT','APMS','APPLY','789','781','CAUTION','CCF','CDL','CFP PLAN','CHANGES','CLOSURE','CRZ','DIFFERENCE','DISC','DO NOT USE','EDTO','EFB','ELDW','EMERGENCY','ENTRY POINT','ERA','ETP','EXC SKED', 'EXC  SKED','FOD','FOM','ILS','KAL','KE NOT','KE ROUTE','LDW','MEL','MINIMA','MOD TURB','MTOW','NO AFFECTED','NO KE','NO OPS RTE', 'NOT TO','OUT OF SERVICE','OUTAGE','OVC','RA','REFILE','RQRD','RUNWAY','SH','TAKE OFF WEIGHT','TOW','TRIP','TS','U/S','UNRELIABLE','UNSERVICEABLE','WX DEV'];
+const PRESETS=['3 PCT','A/C','ACTUAL','AGTOW','ALERT LEVEL','ALTN','AMD','AMEND','AMDT','APMS','APPLY','789','781','CAUTION','CCF','CDL','CFP PLAN','CHANGES','CLOSURE','CRZ','DIFFERENCE','DISC','DO NOT USE','EDTO','EFB','ELDW','EMERGENCY','ENTRY POINT','ERA','ETP','EXC SKED', 'EXC  SKED','FOD','FOM','ILS','KAL','KE NOT','KE ROUTE','LDW','MEL','MINIMA','MOD TURB','MTOW','NO AFFECTED','NO KE','NO COMPANY','NO OPS RTE', 'NOT TO','OUT OF SERVICE','OUTAGE','OVC','RA','REFILE','RQRD','RUNWAY','SH','TAKE OFF WEIGHT','TOW','TRIP','TS','U/S','UNRELIABLE','UNSERVICEABLE','WX DEV'];
 
-let currentThemeName = 'blue';
-let activeHlColorRGB = [0.36, 0.78, 1.0];
+let currentThemeName = 'pink';
+let activeHlColorRGB = [1.0, 0.45, 0.65];
+window.activeHlColorRGB = activeHlColorRGB;
+
+// Default marker mode: underline
+let highlightMode = 'underline';
 
 let sel=new Set(), custom=[], pdfBytes=null, fname='document', done=false, outBytes=null;
 let detectedAirports = [];
@@ -29,73 +33,39 @@ function setStatus(cls,txt){
 }
 
 function selectColor(name, rgbArray) {
-  currentThemeName = name;
-  activeHlColorRGB = rgbArray;
-  
-  document.querySelectorAll('.color-chip').forEach(chip => chip.classList.remove('active'));
-  document.getElementById('chip-' + name).classList.add('active');
-  
+    currentThemeName = name;
+    activeHlColorRGB = rgbArray;
+    window.activeHlColorRGB = rgbArray;
+
+    document.querySelectorAll('.color-chip').forEach(chip => chip.classList.remove('active'));
+    document.getElementById('chip-' + name).classList.add('active');
+
+    done = false;
+    updRun();
+}
+
+function setHighlightMode(mode) {
+  highlightMode = mode === 'highlight' ? 'highlight' : 'underline';
+
+  const toggle = document.getElementById('markerModeToggle');
+
+  if (toggle) {
+    toggle.checked = highlightMode === 'highlight';
+  }
+
+  const underlineLabel = document.getElementById('modeLabelUnderline');
+  const highlightLabel = document.getElementById('modeLabelHighlight');
+  if (underlineLabel && highlightLabel) {
+    underlineLabel.classList.toggle('active', highlightMode === 'underline');
+    highlightLabel.classList.toggle('active', highlightMode === 'highlight');
+  }
+
   done = false;
   updRun();
 }
 
-async function forceDownload(event, url, filename) {
-  event.preventDefault();
-  const btn = event.currentTarget;
-  const originalText = btn.textContent;
-  
-  btn.textContent = 'Saving...';
-  btn.style.pointerEvents = 'none';
-  btn.style.opacity = '0.6';
-  
-  try {
-    const response = await fetch(url);
-    const blob = await response.blob();
-    const localUrl = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = localUrl;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(localUrl), 300);
-  } catch (e) {
-    window.open(url, '_blank');
-  } finally {
-    btn.textContent = originalText;
-    btn.style.pointerEvents = '';
-    btn.style.opacity = '';
-  }
-}
 
-function downloadSelf() {
-  const clone = document.documentElement.cloneNode(true);
-  
-  const fileNameEl = clone.querySelector('#fileName');
-  if (fileNameEl) fileNameEl.textContent = '';
-  const uploadArea = clone.querySelector('#uploadArea');
-  if (uploadArea) uploadArea.classList.remove('has-file');
-  const sb = clone.querySelector('#sb');
-  if (sb) sb.className = 'status-bar';
-  const st = clone.querySelector('#st');
-  if (st) st.textContent = 'Engine ready. Select keywords and upload PDF to start.';
-  const tagList = clone.querySelector('#tagList');
-  if (tagList) tagList.innerHTML = '';
-  const previewCard = clone.querySelector('#previewCard');
-  if (previewCard) previewCard.style.display = 'none';
-  
-  const htmlContent = "<!DOCTYPE html>\n" + clone.outerHTML;
-  const blob = new Blob([htmlContent], { type: 'text/html' });
-  const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'Text_Highlighter_Offline.html';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 300);
-}
+
 
 function loadScript(src) {
   return new Promise((resolve, reject) => {
@@ -110,37 +80,14 @@ function loadScript(src) {
 
 async function initLibraries() {
   try {
-    await loadScript('./pdf.min.js');
-  } catch (e) {
-    try {
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js');
-    } catch (err) {
-      setStatus('error', 'Failed to load main PDF.js core. Verify local guide or connection.');
-      return;
-    }
-  }
-
-  try {
-    await loadScript('./pdf.worker.min.js');
-    resolvedWorkerUrl = './pdf.worker.min.js';
-  } catch (e) {
-    try {
-      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js');
-      resolvedWorkerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-    } catch (err) {
-      console.warn('Worker script pre-load skipped.');
-    }
-  }
-
-  try {
-    await loadScript('./pdf-lib.min.js');
-  } catch (e) {
-    try {
-      await loadScript('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js');
-    } catch (err) {
-      setStatus('error', 'Failed to load PDF-Lib engine. Verify local guide or connection.');
-      return;
-    }
+    // CDN을 우선적으로 사용하여 MIME Type 에러 및 파일 누락 방지
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js');
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js');
+    resolvedWorkerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    await loadScript('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js');
+  } catch (err) {
+    setStatus('error', 'Failed to load PDF libraries from CDN.');
+    return;
   }
 
   if (window.location.protocol === 'file:') {
@@ -263,6 +210,8 @@ function dlPDF(){
   }
 }
 
+
+
 // 이벤트 리스너 바인딩 및 초기화
 document.addEventListener('DOMContentLoaded', () => {
   initLibraries();
@@ -292,6 +241,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     updBadge(); done=false; updRun();
   });
+
+  const markerModeToggle = document.getElementById('markerModeToggle');
+
+  if (markerModeToggle) {
+    markerModeToggle.checked = false;
+    setHighlightMode('underline');
+
+    markerModeToggle.addEventListener('change', e => {
+      setHighlightMode(e.target.checked ? 'highlight' : 'underline');
+    });
+  }
 
   document.getElementById('bmEnabled').addEventListener('change', e => {
     bmEnabled = e.target.checked;

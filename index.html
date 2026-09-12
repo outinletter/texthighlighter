@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NOTAM HIGHLIGHTER (Offline Ready)</title>
+  <title>NOTAM HIGHLIGHTER </title>
   <meta name="theme-color" content="#0b0f19">
   <link rel="icon" type="image/png" href="notamhighlighter.png">
   <link rel="apple-touch-icon" href="notamhighlighter.png">
@@ -14,8 +14,10 @@
 
 <div class="header">
   <div class="header-container">
-    <div class="header-text">
+    <!-- 클릭 이벤트를 위한 id 추가 -->
+    <div class="header-text" id="appTitle">
       <h1>NOTAM <span class="highlight">HIGHLIGHTER</span> <span class="version">v2.1</span></h1>
+
       <p>Offline Ready Smart NOTAM Highlighter & Route Matcher</p>
     </div>
     
@@ -28,37 +30,17 @@
 <div class="body">
   <div class="app">
     
-    <div class="card">
-      <div class="card-title">Key Features of NOTAM HIGHLIGHTER</div>
-      <div class="offline-instruction" style="margin-bottom: 0; text-align: left;">
-        <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; font-size: 11px;">
-          <li>
-            <b>✓ Smart Auto-Highlighting:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Scans critical NOTAM keywords and route restrictions within your flight package (PDF) and highlights them in designated colors.
-            </div>
-          </li>
-          <li>
-            <b>✓ Intelligent Bookmark Generation:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Automatically inserts PDF bookmarks for key sections such as 'CFP PLAN', 'COPY OF ATS FPL', and 'WEATHER BRIEFING'.
-            </div>
-          </li>
-          <li>
-            <b>✓ Custom Word Tags:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Add your own custom keywords to the highlighter in addition to the built-in aviation terminology database.
-            </div>
-          </li>
-          <li>
-            <b>✓ PDF Text Decoding Engine:</b>
-            <div style="padding-left: 16px; margin-top: 4px; color: #cbd5e1; line-height: 1.4;">
-              Automatically detects and resolves text encoding offsets in encrypted or legacy PDF documents for accurate extraction.
-            </div>
-          </li>
-        </ul>
+    <a href="https://pilot-briefing.outinletter.workers.dev/" target="_blank" class="safety-banner">
+      <div class="safety-banner-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="28" height="28" rx="6" fill="#0f4c81"></rect>
+          <path d="M6 18L13 9l3 5 3-3 3 4" stroke="#38bdf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+        </svg>
       </div>
-    </div>
+      <div class="safety-banner-text">
+        AIRPORT SAFETY BRIEFING
+      </div>
+    </a>
 
     <div class="card">
       <div class="card-title">1. PDF FLIGHT PACKAGE</div>
@@ -79,7 +61,7 @@
         <div style="display: flex; align-items: center; gap: 12px;">
           <label class="toggle"><input type="checkbox" id="hlEnabled"><span class="slider"></span></label>
           <span class="hl-label" style="font-size: 13px; font-weight: 400;">
-            Select Keywords & Function
+            Keywords & Function
             <span style="font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 8px;">
               (
               <label class="toggle toggle-small" style="display: inline-flex; margin: 0 6px; vertical-align: middle;"><input type="checkbox" id="bmEnabled"><span class="slider"></span></label>
@@ -99,13 +81,26 @@
         </div>
       </div>
 
-      <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid #1e293b; display: flex; align-items: center; justify-content: space-between;">
-        <span style="font-size: 11px; font-weight: 700; color: #94a3b8; letter-spacing: 0.5px;">Highlight Marker Color</span>
-        <div style="display: flex; gap: 8px;">
-          <button class="color-chip active" id="chip-blue" onclick="selectColor('blue', [0.36, 0.78, 1.0])" style="background: #3b82f6;" title="Sky Blue"></button>
-          <button class="color-chip" id="chip-pink" onclick="selectColor('pink', [1.0, 0.45, 0.65])" style="background: #ff73a6;" title="Soft Pink"></button>
-          <button class="color-chip" id="chip-yellow" onclick="selectColor('yellow', [1.0, 0.75, 0.0])" style="background: #ffc000;" title="Golden Yellow"></button>
-          <button class="color-chip" id="chip-green" onclick="selectColor('green', [0.22, 0.85, 0.48])" style="background: #38d97a;" title="Neon Green"></button>
+      <div class="settings-subrow">
+        <div class="marker-style-group">
+          <span class="settings-subrow-label">Marker Style</span>
+          <div class="marker-mode-switch">
+            <span class="marker-mode-label" id="modeLabelUnderline">Underline</span>
+            <label class="toggle">
+              <input type="checkbox" id="markerModeToggle">
+              <span class="slider"></span>
+            </label>
+            <span class="marker-mode-label" id="modeLabelHighlight">Highlight</span>
+          </div>
+        </div>
+        <div class="marker-color-group">
+          <span class="settings-subrow-label">Marker Color</span>
+          <div class="color-swatch-row">
+            <button class="color-chip" id="chip-blue" onclick="selectColor('blue', [0.36, 0.78, 1.0])" style="background: #3b82f6;" title="Sky Blue"></button>
+            <button class="color-chip active" id="chip-pink" onclick="selectColor('pink', [1.0, 0.45, 0.65])" style="background: #ff73a6;" title="Soft Pink"></button>
+            <button class="color-chip" id="chip-yellow" onclick="selectColor('yellow', [1.0, 0.75, 0.0])" style="background: #ffc000;" title="Golden Yellow"></button>
+            <button class="color-chip" id="chip-green" onclick="selectColor('green', [0.22, 0.85, 0.48])" style="background: #38d97a;" title="Neon Green"></button>
+          </div>
         </div>
       </div>
     </div>
@@ -133,6 +128,7 @@
       </div>
     </div>
 
+
     <div class="card" id="previewCard" style="display:none">
       <div class="card-title">5. SAVE OPTIMIZED DOCUMENT</div>
       <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">
@@ -150,7 +146,87 @@
   </div>
 </footer>
 
+
+<script src="js/flight-parser.js"></script>
+<script src="js/flight-notam.js"></script>
+<script src="js/flight-eet.js"></script>  
 <script src="js/pdf-engine.js"></script>
 <script src="js/app.js"></script>
+
+<!-- 수정된 JavaScript: 제목 클릭 시 새로고침 + 최상단 이동 -->
+<script>
+  (function() {
+    // ============================================================
+    // 1. 브라우저의 스크롤 복원 기능 완전히 비활성화 (가장 중요!)
+    // ============================================================
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+
+    // ============================================================
+    // 2. 페이지 로드 시 즉시 최상단으로 이동 (강제)
+    // ============================================================
+    function scrollToTop() {
+      // 즉시 실행
+      window.scrollTo(0, 0);
+      
+      // 추가 안전장치: 0ms, 50ms, 100ms 후에도 재실행
+      setTimeout(function() { window.scrollTo(0, 0); }, 0);
+      setTimeout(function() { window.scrollTo(0, 0); }, 50);
+      setTimeout(function() { window.scrollTo(0, 0); }, 100);
+    }
+
+    // DOMContentLoaded에서 실행
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', scrollToTop);
+    } else {
+      scrollToTop();
+    }
+
+    // load 이벤트에서도 실행 (모든 리소스 로드 후)
+    window.addEventListener('load', function() {
+      window.scrollTo(0, 0);
+      // Safari 대응: 약간의 지연 후 다시 실행
+      setTimeout(function() { window.scrollTo(0, 0); }, 200);
+    });
+
+    // pageshow 이벤트 (뒤로가기/새로고침 후)
+    window.addEventListener('pageshow', function(event) {
+      // persisted가 true면 bfcache에서 복원된 경우
+      window.scrollTo(0, 0);
+      setTimeout(function() { window.scrollTo(0, 0); }, 0);
+    });
+
+    // ============================================================
+    // 3. 제목 클릭 시 새로고침 + 최상단 이동
+    // ============================================================
+    document.addEventListener('DOMContentLoaded', function() {
+      const appTitle = document.getElementById('appTitle');
+      
+      if (appTitle) {
+        appTitle.addEventListener('click', function(e) {
+          e.preventDefault();
+          
+          // 페이지 새로고침
+          window.location.reload();
+          
+          // 참고: reload 후에는 위의 scrollRestoration = 'manual'과
+          // load/pageshow 이벤트가 자동으로 최상단을 보장함
+        });
+      }
+    });
+
+    // ============================================================
+    // 4. 추가 안전장치: beforeunload에서 스크롤 위치 초기화
+    // ============================================================
+    window.addEventListener('beforeunload', function() {
+      // 새로고침 직전에 스크롤 위치를 0으로 설정 (일부 브라우저 대응)
+      window.scrollTo(0, 0);
+    });
+
+    console.log('[Scroll] Scroll restoration disabled, always at top.');
+  })();
+</script>
+
 </body>
 </html>
