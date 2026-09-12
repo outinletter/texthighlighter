@@ -622,8 +622,8 @@ async function runHL(){
 
     let totalHits=0;
 
-    // 하이라이트/밑줄 레이어 생성 (키워드 선택 시에만 동작)
-    if(sel.size > 0){
+    // 하이라이트/밑줄 레이어 생성 및 주석(Badge) 추가
+    if(sel.size > 0 || (typeof bmEnabled !== 'undefined' && bmEnabled)){
       setStatus('processing','Calculating highlight/underline positions and drawing...');
       for(let pi=0;pi<numPages;pi++){
         const jsPage=await pdfJsDoc.getPage(pi+1);
@@ -710,7 +710,7 @@ async function runHL(){
             }
 
             if (hasRouteStr) {
-              drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+              if (sel.size > 0) drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
 
               if (iataMatch) {
                 const srcFS = Math.abs(lineItems[0].transform[3]) || 10;
@@ -735,15 +735,15 @@ async function runHL(){
                 });
               }
 
-              totalHits++;
-              continue;
+              if (sel.size > 0 || iataMatch) totalHits++;
+              if (sel.size > 0) continue;
             }
           }
 
           // ETP 라인 강조
           const isEtpLine = /\betp\s*[1-5]/i.test(lineText);
           if (isEtpLine && isAfterEdtoHeader) {
-            drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+            if (sel.size > 0) drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
             totalHits++;
             continue;
           }
@@ -778,11 +778,13 @@ async function runHL(){
                     const rw = actualHlWidth * sx;
                     
                     const metrics = getTextMetrics(item, sy, itemH);
-                    drawMarkerRect(
-                      libPage, rx - 1, metrics.textBottomY,
-                      Math.max(rw + 2, 4), metrics.textHeight,
-                      PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
-                    );
+                    if (sel.size > 0) {
+                      drawMarkerRect(
+                        libPage, rx - 1, metrics.textBottomY,
+                        Math.max(rw + 2, 4), metrics.textHeight,
+                        PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
+                      );
+                    }
                     totalHits++;
                   }
                 }
@@ -794,7 +796,7 @@ async function runHL(){
           // 문장 키워드 강조
           const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
           if (hasSentenceKw) {
-            drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+            if (sel.size > 0) drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
             totalHits++;
             continue;
           }
@@ -848,8 +850,10 @@ async function runHL(){
                 const minCharIdx = Math.min(...charIndices);
                 const maxCharIdx = Math.max(...charIndices);
                 const item = lineItems[itemIdx];
-                drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
+                if (sel.size > 0) {
+                  drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
+                }
                 totalHits++;
               }
             }
@@ -877,8 +881,10 @@ async function runHL(){
                 const minCharIdx = Math.min(...charIndices);
                 const maxCharIdx = Math.max(...charIndices);
                 const item = lineItems[itemIdx];
-                drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                  PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
+                if (sel.size > 0) {
+                  drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
+                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
+                }
                 totalHits++;
               }
             }
@@ -922,11 +928,13 @@ async function runHL(){
                   const rw = matchCharCount * charW * sx;
                   
                   const metrics = getTextMetrics(item, sy, itemH);
-                  drawMarkerRect(
-                    libPage, rx, metrics.textBottomY,
-                    Math.max(rw, 4), metrics.textHeight,
-                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
-                  );
+                  if (sel.size > 0) {
+                    drawMarkerRect(
+                      libPage, rx, metrics.textBottomY,
+                      Math.max(rw, 4), metrics.textHeight,
+                      PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
+                    );
+                  }
                   totalHits++;
                 }
               }
@@ -951,11 +959,13 @@ async function runHL(){
                   const rw = targetMsaStr.length * charW * sx;
                   const itemH = Math.abs(tx[3]) || 10;
                   const metrics = getTextMetrics(item, sy, itemH);
-                  drawMarkerRect(
-                    libPage, rx - 1, metrics.textBottomY,
-                    Math.max(rw + 2, 4), metrics.textHeight,
-                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
-                  );
+                  if (sel.size > 0) {
+                    drawMarkerRect(
+                      libPage, rx - 1, metrics.textBottomY,
+                      Math.max(rw + 2, 4), metrics.textHeight,
+                      PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
+                    );
+                  }
                   totalHits++;
                 } else if (s === targetMsaStr) {
                   const tx = item.transform;
@@ -963,11 +973,13 @@ async function runHL(){
                   const rw = (item.width || 0) * sx;
                   const itemH = Math.abs(tx[3]) || 10;
                   const metrics = getTextMetrics(item, sy, itemH);
-                  drawMarkerRect(
-                    libPage, rx - 1, metrics.textBottomY,
-                    Math.max(rw + 2, 4), metrics.textHeight,
-                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
-                  );
+                  if (sel.size > 0) {
+                    drawMarkerRect(
+                      libPage, rx - 1, metrics.textBottomY,
+                      Math.max(rw + 2, 4), metrics.textHeight,
+                      PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, itemH
+                    );
+                  }
                   totalHits++;
                 }
               }
@@ -1560,7 +1572,7 @@ async function runHL(){
             }
           }
           if (anchorY !== null) {
-            const rSize = 11;
+            const rSize = 9;
             const rStartX = (anchorX || 36) * coaSx;
             const rMaxW = coaW * 0.75;
             const rStartY = (anchorY - 14 - rSize * 1.4) * coaSy;
@@ -1569,7 +1581,7 @@ async function runHL(){
             let cur = '';
             for (const w of words) {
               const test = cur ? cur + ' ' + w : w;
-              if (stdFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
+              if (boldFont.widthOfTextAtSize(test, rSize) <= rMaxW) cur = test;
               else { if (cur) rLines.push(cur); cur = w; }
             }
             if (cur) rLines.push(cur);
@@ -1579,7 +1591,7 @@ async function runHL(){
                 text: rLines[li],
                 x: rStartX,
                 y: rStartY - li * lineH,
-                font: stdFont,
+                font: boldFont,
                 fontSize: rSize,
                 bgColor: [0.88, 0.90, 0.93],
                 bgOpacity: 0.85
