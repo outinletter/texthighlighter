@@ -553,7 +553,7 @@ async function runHL(){
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
     const libPages=pdfLibDoc.getPages();
     const stdFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.Courier);
-    const boldFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+    const boldFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.TimesBold);
 
     const BOOKMARK_PATTERNS=[
       {label:'CFP PLAN',pattern:/CFP\s+PLAN/i},
