@@ -21,6 +21,7 @@ let bmEnabled = false;
 let extractedFileDate = '';
 let extractedFlightNum = '';
 let extractedAcReg = '';
+let extractedRoute = '';
 
 function canRun(){return (sel.size>0 || bmEnabled) && pdfBytes!==null;}
 function updRun(){document.getElementById('runBtn').className='action-btn run-btn'+(canRun()?' active':'');}
@@ -162,7 +163,7 @@ function loadFile(file){
   document.getElementById('uploadArea').classList.add('has-file');
   pdfBytes=null; done=false; outBytes=null; 
   detectedAirports=[]; iataAirports=[];
-  extractedFileDate = ''; extractedFlightNum = ''; extractedAcReg = '';
+  extractedFileDate = ''; extractedFlightNum = ''; extractedAcReg = ''; extractedRoute = '';
   document.getElementById('previewCard').style.display = 'none';
   updRun();
   setStatus('processing','Loading local memory dump...');
@@ -192,10 +193,11 @@ function dlPDF(){
     }
 
     let downloadName = '';
+    const routeSuffix = extractedRoute ? `_${extractedRoute}` : '';
     if (extractedFileDate && extractedFlightNum) {
-      downloadName = `${extractedFileDate}_${extractedFlightNum}${routeCode}_highlighted.pdf`;
+      downloadName = `${extractedFileDate}_${extractedFlightNum}${routeSuffix}${routeCode}_highlighted.pdf`;
     } else if (extractedFlightNum) {
-      downloadName = `${extractedFlightNum}${routeCode}_highlighted.pdf`;
+      downloadName = `${extractedFlightNum}${routeSuffix}${routeCode}_highlighted.pdf`;
     } else {
       downloadName = fname + '_highlighted.pdf';
     }

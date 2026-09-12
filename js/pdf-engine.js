@@ -308,7 +308,7 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
       if (iataAirports.length === 0 && isDispatchReleasePage) {
         const mIata = /\b([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/g;
         let match;
-        while ((match = mIata.exec(decodedRawText)) !== null) {
+        while ((match = mIata.exec(decodedRawText)) !== null) {// js/pdf-engine.js (추출 로직 일부)
           const a = match[1].toUpperCase(), b = match[2].toUpperCase();
           const ignoreList = ['MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN','FEB','MAR','APR'];
           if (!ignoreList.includes(a) && !ignoreList.includes(b)) {
@@ -414,6 +414,11 @@ async function extractMetadata(pdfJsDoc) {
     const acRegMatch = decodedText.match(/\bHL[0-9]{4,5}\b/i);
     if (acRegMatch) {
       extractedAcReg = acRegMatch[0].toUpperCase();
+    }
+
+    const routeMatch = decodedText.match(/([A-Z]{2}-[A-Z]{2})\s+([A-Z0-9]{2,5})\s+[A-Z]\s+(?:BRK|WX|PROGS)/i);
+    if (routeMatch) {
+      extractedRoute = routeMatch[2].toUpperCase();
     }
 
     const monthsMap = {
@@ -683,9 +688,10 @@ async function runHL(){
           const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
           const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
 
-          // 경로 라인 강조 (hasRouteStr)
+          // 경로 라인 강조 (hasRouteStr) 및 IATA 배지 추가
           if (isDispatchPage || isNotamPage) {
             let hasRouteStr = false;
+            let iataMatch = false;
             const cleanLineTextUpper = lineText.toUpperCase().replace(/\s+/g, '');
 
             if (detectedAirports.length === 2) {
@@ -699,11 +705,36 @@ async function runHL(){
               const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
               if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
                 hasRouteStr = true;
+                iataMatch = true;
               }
             }
 
             if (hasRouteStr) {
               drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+
+              if (iataMatch) {
+                const srcFS = Math.abs(lineItems[0].transform[3]) || 10;
+                const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
+
+                // IATA 코드와 루트명(예: R11)을 결합
+                const routeInfo = (typeof extractedRoute !== 'undefined' && extractedRoute) ? ` ${extractedRoute}` : '';
+                const badgeText = `${iataAirports[0]}/${iataAirports[1]}${routeInfo}`;
+
+                const badgeSize = 9;
+                const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
+                const drawX = lw - textWidth - 36;
+
+                drawDutyTimeStyleBadge(libPage, {
+                  text: badgeText,
+                  x: drawX,
+                  centerY: srcMidY,
+                  font: boldFont,
+                  fontSize: 9,
+                  bgColor: [0.88, 0.90, 0.93],
+                  bgOpacity: 0.85
+                });
+              }
+
               totalHits++;
               continue;
             }
