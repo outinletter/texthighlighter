@@ -6,6 +6,16 @@ const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE"
 const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
 const SOURCE_TEXT_CENTER_RATIO = 0.36;
 
+// 모든 배지(badge) 텍스트의 공통 스타일 설정 (단일 소스)
+const BADGE_STYLE = {
+  fontSize: 9,
+  bgColor: [0.88, 0.90, 0.93],
+  textColor: [0.15, 0.20, 0.25],
+  bgOpacity: 0.75,
+  padH: 4,
+  padV: 2.5
+};
+
 /**
  * 'Duty Time' / Accent Style Badge Drawer
  */
@@ -16,12 +26,12 @@ function drawDutyTimeStyleBadge(libPage, options) {
     y,
     centerY,
     font,
-    fontSize = 8.5,
-    bgColor = [0.75, 0.77, 0.80],
-    textColor = [0.15, 0.20, 0.25],
-    bgOpacity = 0.75,
-    padH = 4,
-    padV = 2.5
+    fontSize = BADGE_STYLE.fontSize,
+    bgColor = BADGE_STYLE.bgColor,
+    textColor = BADGE_STYLE.textColor,
+    bgOpacity = BADGE_STYLE.bgOpacity,
+    padH = BADGE_STYLE.padH,
+    padV = BADGE_STYLE.padV
   } = options;
 
   const textWidth = font.widthOfTextAtSize(text, fontSize);
@@ -720,7 +730,7 @@ async function runHL(){
                 const routeInfo = (typeof extractedRoute !== 'undefined' && extractedRoute) ? ` ${extractedRoute}` : '';
                 const badgeText = `${iataAirports[0]}/${iataAirports[1]}${routeInfo}`;
 
-                const badgeSize = 9;
+                const badgeSize = BADGE_STYLE.fontSize;
                 const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
                 const drawX = lw - textWidth - 36;
 
@@ -728,10 +738,7 @@ async function runHL(){
                   text: badgeText,
                   x: drawX,
                   centerY: srcMidY,
-                  font: boldFont,
-                  fontSize: 9,
-                  bgColor: [0.88, 0.90, 0.93],
-                  bgOpacity: 0.85
+                  font: boldFont
                 });
               }
 
@@ -1178,10 +1185,7 @@ async function runHL(){
               text: badgeText,
               x: (lineMaxX + 12) * refileSx,
               centerY: srcMidY,
-              font: boldFont,
-              fontSize: 9,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.85
+              font: boldFont
             });
             console.log('[FUEL BADGE DEBUG] 배지 생성됨:', badgeText);
             totalHits++;
@@ -1303,10 +1307,7 @@ async function runHL(){
               text: formattedCalcText,
               x: drawX,
               centerY: srcMidY * cfpSy,
-              font: boldFont,
-              fontSize: 9,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.75
+              font: boldFont
             });
             totalHits++;
           }
@@ -1572,7 +1573,7 @@ async function runHL(){
             }
           }
           if (anchorY !== null) {
-            const rSize = 9;
+            const rSize = BADGE_STYLE.fontSize;
             const rStartX = (anchorX || 36) * coaSx;
             const rMaxW = coaW * 0.75;
             const rStartY = (anchorY - 14 - rSize * 1.4) * coaSy;
@@ -1591,10 +1592,7 @@ async function runHL(){
                 text: rLines[li],
                 x: rStartX,
                 y: rStartY - li * lineH,
-                font: boldFont,
-                fontSize: rSize,
-                bgColor: [0.88, 0.90, 0.93],
-                bgOpacity: 0.85
+                font: boldFont
               });
             }
           }
@@ -1638,10 +1636,7 @@ async function runHL(){
           text: `DISC FUEL INFO  ${discFuel}  ${discTime}`,
           x: (notesRightX + 10) * drSx,
           centerY: notesMidY * drSy,
-          font: boldFont,
-          fontSize: 9,
-          bgColor: [0.88, 0.90, 0.93],
-          bgOpacity: 0.75
+          font: boldFont
         });
       }
     }
@@ -1688,7 +1683,7 @@ async function runHL(){
           while ((m = tagRe.exec(line.text)) !== null) {
             const airport = m[2].toUpperCase();
             if (!suitableMap[airport]) continue;
-            const annotSize = 9;
+            const annotSize = BADGE_STYLE.fontSize;
             const fullText = `${airport} ${suitableMap[airport]}`;
             const textWidth = boldFont.widthOfTextAtSize(fullText, annotSize);
             const annotStartX = lw - textWidth - 36;
@@ -1698,10 +1693,7 @@ async function runHL(){
               text: fullText,
               x: annotStartX,
               centerY: srcMidY,
-              font: boldFont,
-              fontSize: annotSize,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.75
+              font: boldFont
             });
             totalHits++;
           }
@@ -1743,7 +1735,7 @@ async function runHL(){
 
             if (!timeText) continue;
 
-            const badgeSize = 9;
+            const badgeSize = BADGE_STYLE.fontSize;
             const textWidth = boldFont.widthOfTextAtSize(timeText, badgeSize);
             const drawX = lw - textWidth - 36;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
@@ -1753,10 +1745,7 @@ async function runHL(){
               text: timeText,
               x: drawX,
               centerY: srcMidY,
-              font: boldFont,
-              fontSize: badgeSize,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.75
+              font: boldFont
             });
             totalHits++;
           }
@@ -1783,7 +1772,7 @@ async function runHL(){
           pageScaleCache[pi] = { sx: lw / vp.width, sy: lh / vp.height };
         }
         const { sx, sy } = pageScaleCache[pi];
-        const depAnnotSize = 9;
+        const depAnnotSize = BADGE_STYLE.fontSize;
         const depSrcFS = subAirport.fontSize || 10;
         const depSrcMidY = subAirport.y * sy + depSrcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
@@ -1791,10 +1780,7 @@ async function runHL(){
           text: timeText,
           x: (subAirport.maxX + 8) * sx,
           centerY: depSrcMidY,
-          font: boldFont,
-          fontSize: depAnnotSize,
-          bgColor: [0.88, 0.90, 0.93],
-          bgOpacity: 0.75
+          font: boldFont
         });
       }
     }
@@ -1832,7 +1818,7 @@ async function runHL(){
             const srcFS = sub.fontSize || 10;
             const srcMidY = sub.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
-            const badgeSize = 9;
+            const badgeSize = BADGE_STYLE.fontSize;
             const textWidth = boldFont.widthOfTextAtSize(timeBadge, badgeSize);
             const drawX = lw - textWidth - 36;
 
@@ -1840,10 +1826,7 @@ async function runHL(){
               text: timeBadge,
               x: drawX,
               centerY: srcMidY,
-              font: boldFont,
-              fontSize: badgeSize,
-              bgColor: [0.88, 0.90, 0.93],
-              bgOpacity: 0.75
+              font: boldFont
             });
             totalHits++;
           }
@@ -1894,7 +1877,7 @@ async function runHL(){
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
     
-            const badgeSize = 9;
+            const badgeSize = BADGE_STYLE.fontSize;
             const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
             expectedBadges.push({
               text: badgeText,
@@ -1914,10 +1897,7 @@ async function runHL(){
             text: badge.text,
             x: rightEdge - badge.textWidth - 4,
             centerY: badge.centerY,
-            font: boldFont,
-            fontSize: badge.size,
-            bgColor: [0.88, 0.90, 0.93],
-            bgOpacity: 0.85
+            font: boldFont
           });
           totalHits++;
         }
