@@ -17,7 +17,7 @@ const BADGE_STYLE = {
 };
 
 /**
- * 'Duty Time' / Accent Style Badge Drawer
+ * 'DUTY TIME' / Accent Style Badge Drawer
  */
 function drawDutyTimeStyleBadge(libPage, options) {
   const {
@@ -1259,7 +1259,7 @@ async function runHL(){
       wptTimeMap = buildWptTimeMap(cfpFullSectionText);
       
       // =========================================================================
-      // TRIP 시간 계산 (Duty time 오버레이) - 첫 페이지 기준
+      // TRIP 시간 계산 (DUTY TIME 오버레이) - 첫 페이지 기준
       // =========================================================================
       const tripMatch = cfpFirstPageText.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
       if (tripMatch) {
@@ -1276,11 +1276,11 @@ async function runHL(){
         let formattedCalcText = "";
         if (totalMinutes >= 690) {
           const halfMin = Math.round(totalMinutes / 2);
-          formattedCalcText = `Duty time ${formatTime(halfMin)}`;
+          formattedCalcText = `DUTY TIME ${formatTime(halfMin)}`;
         } else if (totalMinutes >= 450) {
           const twoThirdsMin = Math.round((totalMinutes * 2) / 3);
           const oneThirdMin = Math.round(totalMinutes / 3);
-          formattedCalcText = `Duty Time ${formatTime(twoThirdsMin)} (${formatTime(oneThirdMin)})`;
+          formattedCalcText = `DUTY TIME ${formatTime(twoThirdsMin)} (${formatTime(oneThirdMin)})`;
         }
 
         if (formattedCalcText) {
