@@ -466,3 +466,41 @@ body{
   opacity: 0.8;
   transition: opacity 0.2s;
 }
+
+/* Airport Safety Briefing Banner */
+.safety-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #111827;
+  border-radius: 12px;
+  padding: 16px;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  border: 1px solid #1e293b;
+  margin-bottom: 16px;
+}
+.safety-banner:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+  background: #1f2937;
+  border-color: #3b82f6;
+}
+.safety-banner-text {
+  color: #ffffff;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.safety-banner-icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+
