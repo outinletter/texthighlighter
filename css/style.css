@@ -503,4 +503,27 @@ body{
   flex-shrink: 0;
 }
 
+/* Demo blink effect */
+.demo-blink {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ef4444; /* Red color */
+  background: rgba(239, 68, 68, 0.15);
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  animation: demoPulse 1.5s infinite;
+  text-transform: uppercase;
+}
+
+@keyframes demoPulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+
 
