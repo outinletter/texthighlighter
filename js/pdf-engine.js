@@ -22,6 +22,12 @@ function getRightAlignedBadgeX(libPage, text, font, fontSize = BADGE_STYLE.fontS
   return libPage.getWidth() - BADGE_STYLE.rightMargin - BADGE_STYLE.padH - textWidth;
 }
 
+function hasAirportPair(text, from, to) {
+  const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const a = escape(from), b = escape(to);
+  return new RegExp(`\\b${a}\\s*(?:\\/|-)\\s*${b}\\b|\\b${a}\\s+TO\\s+${b}\\b`, 'i').test(text);
+}
+
 /**
  * 'DUTY TIME' / Accent Style Badge Drawer
  */
@@ -307,6 +313,12 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
       const decodedRawText = textContent.items.map(it => decodeStr(it.str, offset)).join(' ');
 
       const isDispatchReleasePage = /DISPATCH\s+RELEASE\s+INFORMATION/i.test(decodedRawText) || /I\s+HEREBY\s+RELEASE/i.test(decodedRawText);
+      if (iataAirports.length === 0 && isDispatchReleasePage) {
+        const releaseIata = /I\s+HEREBY\s+RELEASE\s+(?:THE\s+)?FLIGHT[^,]*,\s*\b([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
+        if (releaseIata) {
+          iataAirports.push(releaseIata[1].toUpperCase(), releaseIata[2].toUpperCase());
+        }
+      }
       if (airports.length === 0) {
         const m1 = /\bFLIGHT\s+RELEASE\s+[A-Z0-9]+\s+([A-Z]{4})[\/-]([A-Z]{4})\b/i.exec(decodedRawText);
         if (m1) {
@@ -402,9 +414,11 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
       while ((m = re.exec(line.text)) !== null) {
         const tagLabel = m[1].toUpperCase().replace(/\s+/g, ' ').trim();
         const code = m[2].toUpperCase();
+        const detailMatch = line.text.match(new RegExp('\\b' + code + '\\s*\\/\\s*[A-Z]{3}\\s*\\/\\s*([^,]+)(?:,\\s*([^,]+))?', 'i'));
+        const airportName = detailMatch ? (detailMatch[2] || detailMatch[1]).trim() : '';
         const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
         const lineFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-        results.push({ tag: tagLabel, code, pageIdx: pi, y: line.y, maxX: lineMaxX, fontSize: lineFS });
+        results.push({ tag: tagLabel, code, airportName, pageIdx: pi, y: line.y, maxX: lineMaxX, fontSize: lineFS });
       }
     }
   }
@@ -639,7 +653,7 @@ async function runHL(){
     let totalHits=0;
 
     // 하이라이트/밑줄 레이어 생성 및 주석(Badge) 추가
-    if(sel.size > 0 || (typeof bmEnabled !== 'undefined' && bmEnabled)){
+    if(sel.size > 0 || (typeof bmEnabled !== 'undefined' && bmEnabled) || iataAirports.length === 2){
       setStatus('processing','Calculating highlight/underline positions and drawing...');
       for(let pi=0;pi<numPages;pi++){
         const jsPage=await pdfJsDoc.getPage(pi+1);
@@ -705,28 +719,28 @@ async function runHL(){
           const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
 
           // 경로 라인 강조 (hasRouteStr) 및 IATA 배지 추가
-          if (isDispatchPage || isNotamPage) {
+          if (isDispatchPage || isNotamPage || detectedAirports.length === 2 || iataAirports.length === 2) {
             let hasRouteStr = false;
             let iataMatch = false;
-            const cleanLineTextUpper = lineText.toUpperCase().replace(/\s+/g, '');
-
             if (detectedAirports.length === 2) {
               const a = detectedAirports[0].toUpperCase(), b = detectedAirports[1].toUpperCase();
-              if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
+              if (hasAirportPair(lineText, a, b)) {
                 hasRouteStr = true;
               }
             }
 
             if (iataAirports.length === 2) {
               const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
-              if (cleanLineTextUpper.includes(`${a}/${b}`) || cleanLineTextUpper.includes(`${a}-${b}`) || cleanLineTextUpper.includes(`${a}TO${b}`) || cleanLineTextUpper.includes(`${a}${b}`)) {
+              if (hasAirportPair(lineText, a, b)) {
                 hasRouteStr = true;
                 iataMatch = true;
               }
             }
 
             if (hasRouteStr) {
-              if (sel.size > 0) drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+              if (sel.size > 0 || iataMatch) {
+                drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+              }
 
               if (iataMatch) {
                 const srcFS = Math.abs(lineItems[0].transform[3]) || 10;
@@ -745,7 +759,8 @@ async function runHL(){
               }
 
               if (sel.size > 0 || iataMatch) totalHits++;
-              if (sel.size > 0) continue;
+              // 경로 전체 줄이 처리된 경우 일반 키워드 하이라이트는 중복 적용하지 않는다.
+              continue;
             }
           }
 
@@ -1445,7 +1460,8 @@ async function runHL(){
 
             const validAtsWords = atsWordsToHighlight.filter(w => {
                 const token = w.text.toUpperCase();
-                return token !== "DCT" && !/^\d+$/.test(token) && routeTokenSet.has(token);
+                const isCoordinateWpt = /^\d{2,3}[NS]\d{3}[EW]$/.test(token);
+                return token !== "DCT" && !/^\d+$/.test(token) && (routeTokenSet.has(token) || isCoordinateWpt);
             });
             if (validAtsWords.length > 0) highlightedSomething = true;
 
@@ -1588,7 +1604,7 @@ async function runHL(){
             for (let li = 0; li < rLines.length; li++) {
               drawDutyTimeStyleBadge(coaLibPage, {
                 text: rLines[li],
-                x: getRightAlignedBadgeX(coaLibPage, rLines[li], boldFont, rSize),
+                x: (anchorX || 36) * coaSx,
                 y: rStartY - li * lineH,
                 font: boldFont
               });
@@ -1698,6 +1714,17 @@ async function runHL(){
     if (weatherBriefingIdx !== -1) {
       const depCode = detectedAirports.length >= 1 ? detectedAirports[0].toUpperCase() : null;
       const arrCode = detectedAirports.length >= 2 ? detectedAirports[1].toUpperCase() : null;
+      const package2AirportNames = new Map(
+        notam2SubAirports
+          .filter(item => item.airportName)
+          .map(item => [item.code.toUpperCase(), item.airportName])
+      );
+      const fallbackWeatherAirportNames = {
+        CYVR: 'Vancouver',
+        PAKN: 'King Salmon',
+        RJCC: 'New Chitose',
+        PMDY: 'Henderson Field'
+      };
       const weatherEndIdx = (pkg1PageIdx !== -1) ? pkg1PageIdx : (pkg3StartIdx !== -1 ? pkg3StartIdx : numPages);
 
       for (let pi = weatherBriefingIdx; pi < weatherEndIdx; pi++) {
@@ -1711,34 +1738,60 @@ async function runHL(){
         const vp = jsPage.getViewport({ scale: 1.0 });
         const sy = lh / vp.height;
 
-        for (const line of lines) {
-          // TAF [COR/AMD] [ICAO] 패턴 검색
-          const tafRegex = /^TAF(?:\s+(?:COR|AMD))?\s+([A-Z]{4})\b/i;
-          const m = tafRegex.exec(line.text.trim());
-          if (m) {
-            const airportMatch = m[1].toUpperCase();
-            let timeText = null;
+        for (let li = 0; li < lines.length; li++) {
+          const line = lines[li];
+          const lineText = line.text.trim();
+          const tafMatch = /^TAF(?:\s+(?:COR|AMD))?\s+([A-Z]{4})\b/i.exec(lineText);
+          const directMatch = /^([A-Z]{4})\s+(\d{4})Z\b/i.exec(lineText);
+          const airportMatch = (tafMatch ? tafMatch[1] : directMatch ? directMatch[1] : '').toUpperCase();
+          if (!airportMatch) continue;
 
-            if (depCode && airportMatch === depCode && extractedEtd) timeText = extractedEtd;
-            else if (arrCode && airportMatch === arrCode && extractedEta) timeText = extractedEta;
-            else if (wptTimeMap.has(airportMatch)) {
-              const wptTime = wptTimeMap.get(airportMatch); // "HH.MM"
-              timeText = `${airportMatch} ${wptTime.replace('.', '')}Z`;
+          let timeText = directMatch ? `${airportMatch} ${directMatch[2]}Z` : null;
+          const tafIssueMatch = tafMatch && new RegExp(`^TAF(?:\\s+(?:COR|AMD))?\\s+${airportMatch}\\s+(\\d{6})Z\\b`, 'i').exec(lineText);
+          if (!timeText && tafIssueMatch) timeText = `${airportMatch} ${tafIssueMatch[1].slice(-4)}Z`;
+          if (depCode && airportMatch === depCode && extractedEtd) timeText = extractedEtd;
+          else if (arrCode && airportMatch === arrCode && extractedEta) timeText = extractedEta;
+          else if (!timeText && wptTimeMap.has(airportMatch)) {
+            const wptTime = wptTimeMap.get(airportMatch);
+            timeText = `${airportMatch} ${wptTime.replace('.', '')}Z`;
+          }
+          if (!timeText) continue;
+
+          let airportName = package2AirportNames.get(airportMatch) || fallbackWeatherAirportNames[airportMatch] || '';
+          if (airportName) {
+            airportName = airportName.replace(/\s+(?:Airport|Intl|International)$/i, '').trim();
+          }
+          for (let ni = li + 1; ni < Math.min(lines.length, li + 3); ni++) {
+            if (airportName) break;
+            const candidate = lines[ni].text.trim();
+            if (!candidate || /^(?:TAF|METAR|SPECI|BECMG|TEMPO|FM\d|RMK)\b/i.test(candidate)) continue;
+            if (/^\(?[A-Z]{4}\)?\s+\d{4}Z\b/i.test(candidate) || /\d/.test(candidate)) continue;
+            if (/^[A-Z][A-Z .'-]{2,40}$/i.test(candidate)) {
+              airportName = candidate.replace(/\s+/g, ' ').trim();
+              break;
             }
+          }
 
-            if (!timeText) continue;
-
-            const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-            const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
-
+          const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+          const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
+          const badgeX = getRightAlignedBadgeX(libPage, timeText, boldFont);
+          drawDutyTimeStyleBadge(libPage, {
+            text: timeText,
+            x: badgeX,
+            centerY: srcMidY,
+            font: boldFont
+          });
+          if (airportName) {
+            const nameCenterY = srcMidY - BADGE_STYLE.fontSize * sy * 1.2;
+            const nameX = getRightAlignedBadgeX(libPage, airportName, boldFont);
             drawDutyTimeStyleBadge(libPage, {
-              text: timeText,
-              x: getRightAlignedBadgeX(libPage, timeText, boldFont),
-              centerY: srcMidY,
+              text: airportName,
+              x: nameX,
+              centerY: nameCenterY,
               font: boldFont
             });
-            totalHits++;
           }
+          totalHits++;
         }
       }
     }
