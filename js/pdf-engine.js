@@ -17,6 +17,53 @@ const BADGE_STYLE = {
   rightMargin: 16
 };
 
+const badgeObstacles = new WeakMap();
+
+function arrivalDayLabel(etd, eta, trip) {
+  const minutes = value => {
+    const m = /^(\d{2})[.:]?(\d{2})Z?$/.exec(value || '');
+    return m && +m[2] < 60 ? +m[1] * 60 + +m[2] : null;
+  };
+  const start = minutes(etd), end = minutes(eta), duration = minutes(trip);
+  if (start === null || end === null || duration === null || start >= 1440 || end >= 1440) return '';
+  if ((start + duration) % 1440 !== end) return '';
+  const days = Math.floor((start + duration) / 1440);
+  return days ? ` ARR +${days} DAY (UTC)` : '';
+}
+
+function flightDifferences(cfp, ats) {
+  const differences = [];
+  const compare = (label, a, b) => {
+    if (a && b && a !== b) differences.push(`CHECK ${label}: CFP ${a} / ATS ${b}`);
+  };
+  compare('REG', cfp.match(/\bHL\d{4,5}\b/i)?.[0]?.toUpperCase(), ats.match(/REG\s*\/\s*(HL\d{4,5})\b/i)?.[1]?.toUpperCase());
+  compare('DEP', cfp.match(/\bETD\s+([A-Z]{4})\b/i)?.[1], ats.match(/-\s*([A-Z]{4})\s*\d{4}\s*-\s*[NKM]\d/i)?.[1]);
+  compare('DEST', cfp.match(/\bETA\s+([A-Z]{4})\b/i)?.[1], ats.match(/-\s*([A-Z]{4})\s*\d{4}(?:\s+[A-Z]{4})*\s*-\s*(?:PBN|DOF|REG|EET|SEL|STS|NAV|COM|DAT|SUR)\//i)?.[1]);
+  const date = cfp.match(/\bON\s+(\d{2})\/([A-Z]{3})\/(\d{2})\b/i);
+  const month = date ? ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'].indexOf(date[2].toUpperCase()) + 1 : 0;
+  compare('DOF', month ? date[3] + String(month).padStart(2, '0') + date[1] : null, ats.match(/DOF\s*\/\s*(\d{6})\b/i)?.[1]);
+  return differences;
+}
+
+function routeComparisonTokens(text) {
+  return text.toUpperCase().replace(/\/[NKM]\d+[FASM]\d+/g, '')
+    .split(/[^A-Z0-9]+/).filter(token => token && token !== 'DCT')
+    .map(token => token.replace(/^([NS])(\d{2})([EW])(\d{3})$/, '$2$1$4$3'));
+}
+
+function findBadgePosition(box, obstacles, bottom = 12) {
+  const gap = 2;
+  let y = box.y;
+  while (y >= bottom) {
+    const collisions = obstacles.filter(other =>
+      box.x < other.x + other.width + gap && box.x + box.width + gap > other.x &&
+      y < other.y + other.height + gap && y + box.height + gap > other.y);
+    if (!collisions.length) return { ...box, y };
+    y = Math.min(...collisions.map(other => other.y)) - box.height - gap;
+  }
+  return null;
+}
+
 function getRightAlignedBadgeX(libPage, text, font, fontSize = BADGE_STYLE.fontSize) {
   const textWidth = font.widthOfTextAtSize(text, fontSize);
   return libPage.getWidth() - BADGE_STYLE.rightMargin - BADGE_STYLE.padH - textWidth;
@@ -48,7 +95,19 @@ function drawDutyTimeStyleBadge(libPage, options) {
 
   const textWidth = font.widthOfTextAtSize(text, fontSize);
   const textHeight = font.heightAtSize(fontSize, { descender: false });
-  const textBaseY = centerY === undefined ? y : centerY - textHeight / 2;
+  let textBaseY = centerY === undefined ? y : centerY - textHeight / 2;
+  const obstacles = badgeObstacles.get(libPage) || [];
+  const box = findBadgePosition({
+    x: x - padH, y: textBaseY - padV,
+    width: textWidth + padH * 2, height: textHeight + padV * 2
+  }, obstacles);
+  if (!box) {
+    console.warn('No free space below for badge:', text);
+    return false;
+  }
+  textBaseY = box.y + padV;
+  obstacles.push(box);
+  badgeObstacles.set(libPage, obstacles);
 
   libPage.drawRectangle({
     x: x - padH,
@@ -319,6 +378,12 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
           iataAirports.push(releaseIata[1].toUpperCase(), releaseIata[2].toUpperCase());
         }
       }
+      if (iataAirports.length === 0) {
+        const flightHeaderIata = /\b(?:KAL|KE)\s*\d+\s*\/\s*\d{2}[A-Z]{3}\s*,\s*([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
+        if (flightHeaderIata) {
+          iataAirports.push(flightHeaderIata[1].toUpperCase(), flightHeaderIata[2].toUpperCase());
+        }
+      }
       if (airports.length === 0) {
         const m1 = /\bFLIGHT\s+RELEASE\s+[A-Z0-9]+\s+([A-Z]{4})[\/-]([A-Z]{4})\b/i.exec(decodedRawText);
         if (m1) {
@@ -333,20 +398,8 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
           }
         }
       }
-      if (iataAirports.length === 0 && isDispatchReleasePage) {
-        const mIata = /\b([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/g;
-        let match;
-        while ((match = mIata.exec(decodedRawText)) !== null) {// js/pdf-engine.js (추출 로직 일부)
-          const a = match[1].toUpperCase(), b = match[2].toUpperCase();
-          const ignoreList = ['MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC','JAN','FEB','MAR','APR'];
-          if (!ignoreList.includes(a) && !ignoreList.includes(b)) {
-            iataAirports.push(a, b);
-            break;
-          }
-        }
-      }
       if (iataAirports.length === 0) {
-         const mHeader = /\b(?:KAL|KE)\s*\d+\s*\/\s*([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
+         const mHeader = /\b(?:KAL|KE)\s*\d+\s*(?:\/\s*)?([A-Z]{3})\s*[\/-]\s*([A-Z]{3})\b/i.exec(decodedRawText);
          if (mHeader) iataAirports.push(mHeader[1].toUpperCase().trim(), mHeader[2].toUpperCase().trim());
       }
       if (airports.length === 2 && iataAirports.length === 2) break;
@@ -496,6 +549,25 @@ function buildWptTimeMap(fullPdfText) {
   return wptTimeMap;
 }
 
+function estimateWptTimeFromEtp(fullPdfText, waypoint, assumedGroundSpeedKt = 400) {
+  const wptMatch = /^W(\d{3})$/.exec((waypoint || '').toUpperCase());
+  if (!wptMatch || !fullPdfText || assumedGroundSpeedKt <= 0) return null;
+  const etpRe = /ETP\s+LOCATION\s+N(\d{1,2})\s*(\d{2}(?:\.\d+)?)\s+W(\d{1,3})\s*(\d{2}(?:\.\d+)?)\s+ETE\s+(\d{2})\.(\d{2})/gi;
+  let match;
+  while ((match = etpRe.exec(fullPdfText)) !== null) {
+    const latitude = Number(match[1]) + Number(match[2]) / 60;
+    const etpLongitude = Number(match[3]) + Number(match[4]) / 60;
+    const waypointLongitude = Number(wptMatch[1]);
+    const westwardDistanceNm = (waypointLongitude - etpLongitude) * 60 * Math.cos(latitude * Math.PI / 180);
+    if (westwardDistanceNm < 0 || westwardDistanceNm > 300) continue;
+    const etpMinutes = Number(match[5]) * 60 + Number(match[6]);
+    const estimatedMinutes = Math.round(etpMinutes - westwardDistanceNm / assumedGroundSpeedKt * 60);
+    if (estimatedMinutes < 0) continue;
+    return `${String(Math.floor(estimatedMinutes / 60)).padStart(2, '0')}.${String(estimatedMinutes % 60).padStart(2, '0')}`;
+  }
+  return null;
+}
+
 function canRunEngine() {
   if (!pdfBytes || pdfBytes.byteLength === 0) {
     alert('PDF 파일을 먼저 선택하거나 업로드하세요.');
@@ -572,6 +644,23 @@ async function runHL(){
     const numPages=pdfJsDoc.numPages;
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
     const libPages=pdfLibDoc.getPages();
+    // Reserve original text before any badge is drawn, including keyword-free pages.
+    for (let pi = 0; pi < libPages.length; pi++) {
+      const page = await pdfJsDoc.getPage(pi + 1);
+      const viewport = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      const sx = libPages[pi].getWidth() / viewport.width;
+      const sy = libPages[pi].getHeight() / viewport.height;
+      badgeObstacles.set(libPages[pi], content.items.filter(item => item.str && item.str.trim()).map(item => {
+        const height = Math.hypot(item.transform[2], item.transform[3]) || item.height || 10;
+        return {
+          x: item.transform[4] * sx,
+          y: (item.transform[5] - height * 0.2) * sy,
+          width: item.width * sx,
+          height: height * 1.2 * sy
+        };
+      }));
+    }
     const stdFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.Courier);
     const boldFont = await pdfLibDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
 
@@ -1107,6 +1196,9 @@ async function runHL(){
     let firEetMap = {};
     let suitableMap = {};
     let wptTimeMap = new Map();
+    let tripElapsedTime = '';
+    let cfpFullSectionText = '';
+    const estimatedWpts = new Set();
 
     const cfpPageIdx = bmPages['CFP PLAN'];
     const resolvedCoaPageIdx = bmPages['COPY OF ATS'] !== undefined ? bmPages['COPY OF ATS'] : -1;
@@ -1251,7 +1343,7 @@ async function runHL(){
 
       
       // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
-      let cfpFullSectionText = "";
+      cfpFullSectionText = "";
       for (let pi = cfpPageIdx; pi < safeCfpEndIdx; pi++) {
         const p = await pdfJsDoc.getPage(pi + 1);
         const tc = await p.getTextContent();
@@ -1273,11 +1365,19 @@ async function runHL(){
       }
 
       wptTimeMap = buildWptTimeMap(cfpFullSectionText);
+      const estimatedW145 = estimateWptTimeFromEtp(cfpFullSectionText, 'W145');
+      if (estimatedW145 && !wptTimeMap.has('W145')) {
+        wptTimeMap.set('W145', estimatedW145);
+        estimatedWpts.add('W145');
+      }
       
       // =========================================================================
       // TRIP 시간 계산 (DUTY TIME 오버레이) - 첫 페이지 기준
       // =========================================================================
       const tripMatch = cfpFirstPageText.match(/\bTRIP\s+(\d{3,5})\s+(\d{2})\.(\d{2})\b/i);
+      if (tripMatch && Number(tripMatch[3]) < 60) {
+        tripElapsedTime = `${tripMatch[2]}.${tripMatch[3]}`;
+      }
       if (tripMatch) {
         const hours = parseInt(tripMatch[2], 10);
         const minutes = parseInt(tripMatch[3], 10);
@@ -1366,6 +1466,8 @@ async function runHL(){
         extractedEtd = `${etdEtaMatch[1].toUpperCase()} ${etdEtaMatch[2].toUpperCase()}`;
         extractedEta = `${etdEtaMatch[3].toUpperCase()} ${etdEtaMatch[4].toUpperCase()}`;
         etdZulu = etdEtaMatch[2].substring(0, 4); // 숫자 4자리 추출
+        const trip = cfpFullSectionText.match(/\bTRIP\s+\d+\s+(\d{2}\.\d{2})\b/i);
+        extractedEta += arrivalDayLabel(etdEtaMatch[2], etdEtaMatch[4], trip?.[1]);
       }
 
       if (finalCoaAnnotIdx !== -1) {
@@ -1408,6 +1510,17 @@ async function runHL(){
           }
         }
 
+        const differences = flightDifferences(cfpFullSectionText, coaFullTextWithNewlines);
+        for (let di = 0; di < differences.length; di++) {
+          drawDutyTimeStyleBadge(coaLibPage, {
+            text: differences[di],
+            x: getRightAlignedBadgeX(coaLibPage, differences[di], boldFont),
+            centerY: coaH - 24 - di * 18,
+            font: boldFont,
+            bgColor: [1, 0.8, 0.55]
+          });
+        }
+
         // EET/ 필드 파싱 (FIR 진입시간 계산용)
         const eetMatch = coaFullTextWithNewlines.match(/EET\/([\s\S]+?)(?=\s[A-Z]{3,}\/|(?:\n[A-Z]{3,}\/)|$)/i);
         if (eetMatch) {
@@ -1429,6 +1542,19 @@ async function runHL(){
         let highlightedSomething = false;
         const routeTokenSet = new Set(routeTokens.map(token => token.toUpperCase()));
         const routeBoundsFound = Boolean(startMatch && endMatch && startMatch.index < endMatch.index);
+        if (routeBoundsFound && extractedRoute && detectedAirports.length === 2) {
+          const cfpTokens = routeComparisonTokens(extractedRoute);
+          const atsTokens = routeComparisonTokens(coaFullTextWithNewlines.slice(startMatch.index + startMatch[0].length, endMatch.index));
+          if (cfpTokens[0] === detectedAirports[0] && cfpTokens.at(-1) === detectedAirports[1] && atsTokens.length) {
+            if (cfpTokens.slice(1, -1).join(' ') !== atsTokens.join(' ')) {
+              const text = 'CHECK ROUTE: CFP / ATS TEXT DIFFERENCE';
+              drawDutyTimeStyleBadge(coaLibPage, {
+                text, x: getRightAlignedBadgeX(coaLibPage, text, boldFont),
+                centerY: coaH - 24, font: boldFont, bgColor: [1, 0.8, 0.55]
+              });
+            }
+          }
+        }
 
         if (routeBoundsFound) {
             const routeStart = startMatch.index + startMatch[0].length;
@@ -1747,15 +1873,20 @@ async function runHL(){
           if (!airportMatch) continue;
 
           let timeText = directMatch ? `${airportMatch} ${directMatch[2]}Z` : null;
-          const tafIssueMatch = tafMatch && new RegExp(`^TAF(?:\\s+(?:COR|AMD))?\\s+${airportMatch}\\s+(\\d{6})Z\\b`, 'i').exec(lineText);
-          if (!timeText && tafIssueMatch) timeText = `${airportMatch} ${tafIssueMatch[1].slice(-4)}Z`;
           if (depCode && airportMatch === depCode && extractedEtd) timeText = extractedEtd;
           else if (arrCode && airportMatch === arrCode && extractedEta) timeText = extractedEta;
           else if (!timeText && wptTimeMap.has(airportMatch)) {
             const wptTime = wptTimeMap.get(airportMatch);
             timeText = `${airportMatch} ${wptTime.replace('.', '')}Z`;
           }
-          if (!timeText) continue;
+          if (!timeText) timeText = `${airportMatch} TIME N/A`;
+          const roles = new Set();
+          if (airportMatch === depCode) roles.add('DEP');
+          if (airportMatch === arrCode) roles.add('DEST');
+          for (const entry of [...notam1SubAirports, ...notam2SubAirports]) {
+            if (entry.code === airportMatch) roles.add(entry.tag);
+          }
+          if (roles.size) timeText = `${[...roles].join('/')} ${timeText}`;
 
           let airportName = package2AirportNames.get(airportMatch) || fallbackWeatherAirportNames[airportMatch] || '';
           if (airportName) {
@@ -1908,10 +2039,13 @@ async function runHL(){
             fromTime = wptTimeMap.get(fromWpt);
           }
     
-          const toTime = wptTimeMap.get(toWpt);
+          // The destination may be absent from the waypoint table; TRIP is elapsed flight time.
+          const toTime = wptTimeMap.get(toWpt) ||
+            (toWpt === detectedAirports[1]?.toUpperCase() ? tripElapsedTime : '');
     
           if (fromTime && toTime) {
-            const badgeText = `${fromTime} ~ ${toTime}`;
+            const estimatedStart = estimatedWpts.has(fromWpt);
+            const badgeText = `${estimatedStart ? '~' : ''}${fromTime} ~ ${toTime}`;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
     
