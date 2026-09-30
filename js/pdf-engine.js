@@ -13,8 +13,14 @@ const BADGE_STYLE = {
   textColor: [0.15, 0.20, 0.25],
   bgOpacity: 0.75,
   padH: 4,
-  padV: 2.5
+  padV: 2.5,
+  rightMargin: 16
 };
+
+function getRightAlignedBadgeX(libPage, text, font, fontSize = BADGE_STYLE.fontSize) {
+  const textWidth = font.widthOfTextAtSize(text, fontSize);
+  return libPage.getWidth() - BADGE_STYLE.rightMargin - BADGE_STYLE.padH - textWidth;
+}
 
 /**
  * 'DUTY TIME' / Accent Style Badge Drawer
@@ -730,13 +736,9 @@ async function runHL(){
                 const routeInfo = (typeof extractedRoute !== 'undefined' && extractedRoute) ? ` ${extractedRoute}` : '';
                 const badgeText = `${iataAirports[0]}/${iataAirports[1]}${routeInfo}`;
 
-                const badgeSize = BADGE_STYLE.fontSize;
-                const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
-                const drawX = lw - textWidth - 36;
-
                 drawDutyTimeStyleBadge(libPage, {
                   text: badgeText,
-                  x: drawX,
+                  x: getRightAlignedBadgeX(libPage, badgeText, boldFont),
                   centerY: srcMidY,
                   font: boldFont
                 });
@@ -1178,12 +1180,11 @@ async function runHL(){
         const rqrdLines = groupTextItemsByLine(refilePageContent.items, refilePageOffset);
         for (const line of rqrdLines) {
           if (line.text.replace(/\s+/g, '').includes(targetRqrd.match.replace(/\s+/g, ''))) {
-            const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * refileSy + srcFS * refileSy * SOURCE_TEXT_CENTER_RATIO;
             drawDutyTimeStyleBadge(refileLibPage, {
               text: badgeText,
-              x: (lineMaxX + 12) * refileSx,
+              x: getRightAlignedBadgeX(refileLibPage, badgeText, boldFont),
               centerY: srcMidY,
               font: boldFont
             });
@@ -1284,7 +1285,7 @@ async function runHL(){
         }
 
         if (formattedCalcText) {
-          let secondLineY = null, secondLineMaxX = null, secondLineFS = 10;
+          let secondLineY = null, secondLineFS = 10;
           for (const item of cfpItems) {
             const s = cleanAndDecodeItem(item.str, cfpOffset);
             if (/2ND/i.test(s)) {
@@ -1294,18 +1295,11 @@ async function runHL(){
             }
           }
           if (secondLineY !== null) {
-            for (const item of cfpItems) {
-              if (Math.abs(item.transform[5] - secondLineY) < 4.0) {
-                const itemRightX = item.transform[4] + (item.width || 0);
-                if (secondLineMaxX === null || itemRightX > secondLineMaxX) secondLineMaxX = itemRightX;
-              }
-            }
             const srcMidY = secondLineY + secondLineFS * SOURCE_TEXT_CENTER_RATIO;
-            const drawX = (secondLineMaxX + 10) * cfpSx;
 
             drawDutyTimeStyleBadge(cfpLibPage, {
               text: formattedCalcText,
-              x: drawX,
+              x: getRightAlignedBadgeX(cfpLibPage, formattedCalcText, boldFont),
               centerY: srcMidY * cfpSy,
               font: boldFont
             });
@@ -1418,8 +1412,10 @@ async function runHL(){
         const startMatch = coaFullTextWithNewlines.match(speedAltRegex);
         const endMatch = coaFullTextWithNewlines.match(destRegex);
         let highlightedSomething = false;
+        const routeTokenSet = new Set(routeTokens.map(token => token.toUpperCase()));
+        const routeBoundsFound = Boolean(startMatch && endMatch && startMatch.index < endMatch.index);
 
-        if (startMatch && endMatch && startMatch.index < endMatch.index) {
+        if (routeBoundsFound) {
             const routeStart = startMatch.index + startMatch[0].length;
             const routeEnd = endMatch.index;
             let currentWord = { text: "", chars: [] };
@@ -1447,7 +1443,10 @@ async function runHL(){
             }
             if (currentWord.text.length > 0) atsWordsToHighlight.push(currentWord);
 
-            const validAtsWords = atsWordsToHighlight.filter(w => w.text.toUpperCase() !== "DCT" && !/^\d+$/.test(w.text));
+            const validAtsWords = atsWordsToHighlight.filter(w => {
+                const token = w.text.toUpperCase();
+                return token !== "DCT" && !/^\d+$/.test(token) && routeTokenSet.has(token);
+            });
             if (validAtsWords.length > 0) highlightedSomething = true;
 
             for (const wordObj of validAtsWords) {
@@ -1487,7 +1486,7 @@ async function runHL(){
             }
         }
 
-        if (!highlightedSomething && routeTokens.length > 0) {
+        if (!routeBoundsFound && !highlightedSomething && routeTokens.length > 0) {
             let searchStartIndex = 0;
             const coaTokens = [];
             let currentToken = null;
@@ -1509,7 +1508,7 @@ async function runHL(){
                 let bestMatchIdx = -1;
                 for (let i = searchStartIndex; i < coaTokens.length; i++) {
                     const cToken = coaTokens[i].text.toUpperCase();
-                    if (cToken === expectedToken || cToken.includes(expectedToken) || expectedToken.includes(cToken)) {
+                    if (cToken === expectedToken) {
                         bestMatchIdx = i;
                         break;
                     }
@@ -1574,7 +1573,6 @@ async function runHL(){
           }
           if (anchorY !== null) {
             const rSize = BADGE_STYLE.fontSize;
-            const rStartX = (anchorX || 36) * coaSx;
             const rMaxW = coaW * 0.75;
             const rStartY = (anchorY - 14 - rSize * 1.4) * coaSy;
             const words = routeDisplay.split(' ');
@@ -1590,7 +1588,7 @@ async function runHL(){
             for (let li = 0; li < rLines.length; li++) {
               drawDutyTimeStyleBadge(coaLibPage, {
                 text: rLines[li],
-                x: rStartX,
+                x: getRightAlignedBadgeX(coaLibPage, rLines[li], boldFont, rSize),
                 y: rStartY - li * lineH,
                 font: boldFont
               });
@@ -1609,7 +1607,7 @@ async function runHL(){
       const { width: drW, height: drH } = drLibPage.getSize();
       const drVp = drJsPage.getViewport({ scale: 1.0 });
       const drSx = drW / drVp.width, drSy = drH / drVp.height;
-      let notesY = null, notesRightX = null, notesFS = 10;
+      let notesY = null, notesFS = 10;
       let dispatchItem = null;
 
       for (const item of drContent.items) {
@@ -1618,14 +1616,12 @@ async function runHL(){
         if (/DISPATCH\s*NOTES/i.test(s)) {
           notesY = item.transform[5];
           notesFS = Math.abs(item.transform[3]) || 10;
-          notesRightX = item.transform[4] + (item.width || 0);
           break;
         }
         if (su === 'DISPATCH') { dispatchItem = item; continue; }
         if (su === 'NOTES' && dispatchItem && Math.abs(item.transform[5] - dispatchItem.transform[5]) < 5) {
           notesY = item.transform[5];
           notesFS = Math.abs(item.transform[3]) || 10;
-          notesRightX = item.transform[4] + (item.width || 0);
           break;
         }
       }
@@ -1634,7 +1630,7 @@ async function runHL(){
         const notesMidY = notesY + notesFS * SOURCE_TEXT_CENTER_RATIO;
         drawDutyTimeStyleBadge(drLibPage, {
           text: `DISC FUEL INFO  ${discFuel}  ${discTime}`,
-          x: (notesRightX + 10) * drSx,
+          x: getRightAlignedBadgeX(drLibPage, `DISC FUEL INFO  ${discFuel}  ${discTime}`, boldFont),
           centerY: notesMidY * drSy,
           font: boldFont
         });
@@ -1683,15 +1679,12 @@ async function runHL(){
           while ((m = tagRe.exec(line.text)) !== null) {
             const airport = m[2].toUpperCase();
             if (!suitableMap[airport]) continue;
-            const annotSize = BADGE_STYLE.fontSize;
             const fullText = `${airport} ${suitableMap[airport]}`;
-            const textWidth = boldFont.widthOfTextAtSize(fullText, annotSize);
-            const annotStartX = lw - textWidth - 36;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
             drawDutyTimeStyleBadge(libPage, {
               text: fullText,
-              x: annotStartX,
+              x: getRightAlignedBadgeX(libPage, fullText, boldFont),
               centerY: srcMidY,
               font: boldFont
             });
@@ -1735,15 +1728,12 @@ async function runHL(){
 
             if (!timeText) continue;
 
-            const badgeSize = BADGE_STYLE.fontSize;
-            const textWidth = boldFont.widthOfTextAtSize(timeText, badgeSize);
-            const drawX = lw - textWidth - 36;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
             drawDutyTimeStyleBadge(libPage, {
               text: timeText,
-              x: drawX,
+              x: getRightAlignedBadgeX(libPage, timeText, boldFont),
               centerY: srcMidY,
               font: boldFont
             });
@@ -1769,16 +1759,16 @@ async function runHL(){
           const vp = jsP.getViewport({ scale: 1.0 });
           const lp = libPages[pi];
           const { width: lw, height: lh } = lp.getSize();
-          pageScaleCache[pi] = { sx: lw / vp.width, sy: lh / vp.height };
+          pageScaleCache[pi] = { sy: lh / vp.height };
         }
-        const { sx, sy } = pageScaleCache[pi];
+        const { sy } = pageScaleCache[pi];
         const depAnnotSize = BADGE_STYLE.fontSize;
         const depSrcFS = subAirport.fontSize || 10;
         const depSrcMidY = subAirport.y * sy + depSrcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
         drawDutyTimeStyleBadge(libPages[pi], {
           text: timeText,
-          x: (subAirport.maxX + 8) * sx,
+          x: getRightAlignedBadgeX(libPages[pi], timeText, boldFont),
           centerY: depSrcMidY,
           font: boldFont
         });
@@ -1818,13 +1808,9 @@ async function runHL(){
             const srcFS = sub.fontSize || 10;
             const srcMidY = sub.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
-            const badgeSize = BADGE_STYLE.fontSize;
-            const textWidth = boldFont.widthOfTextAtSize(timeBadge, badgeSize);
-            const drawX = lw - textWidth - 36;
-
             drawDutyTimeStyleBadge(libPages[pi], {
               text: timeBadge,
-              x: drawX,
+              x: getRightAlignedBadgeX(libPages[pi], timeBadge, boldFont),
               centerY: srcMidY,
               font: boldFont
             });
@@ -1873,7 +1859,6 @@ async function runHL(){
     
           if (fromTime && toTime) {
             const badgeText = `${fromTime} ~ ${toTime}`;
-            const lineMaxX = Math.max(...line.parts.map(p => p.item.transform[4] + (p.item.width || 0)));
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
     
@@ -1884,18 +1869,17 @@ async function runHL(){
               centerY: srcMidY,
               size: badgeSize,
               textWidth,
-              naturalRightX: (lineMaxX + 12) * sx + textWidth + 4
+              textWidth
             });
           }
         }
       }
 
       if (expectedBadges.length > 0) {
-        const rightEdge = Math.max(...expectedBadges.map(badge => badge.naturalRightX));
         for (const badge of expectedBadges) {
           drawDutyTimeStyleBadge(libPage, {
             text: badge.text,
-            x: rightEdge - badge.textWidth - 4,
+            x: getRightAlignedBadgeX(libPage, badge.text, boldFont, badge.size),
             centerY: badge.centerY,
             font: boldFont
           });
