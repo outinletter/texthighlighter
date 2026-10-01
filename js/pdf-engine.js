@@ -1821,15 +1821,18 @@ async function runHL(){
           while ((m = tagRe.exec(line.text)) !== null) {
             const airport = m[2].toUpperCase();
             if (!suitableMap[airport]) continue;
-            const fullText = `${airport} ${suitableMap[airport]}`;
             const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
             const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
-            drawDutyTimeStyleBadge(libPage, {
-              text: fullText,
-              x: getRightAlignedBadgeX(libPage, fullText, boldFont),
-              centerY: srcMidY,
-              font: boldFont
-            });
+            const badgeLines = [airport, suitableMap[airport]];
+            for (let lineIndex = 0; lineIndex < badgeLines.length; lineIndex++) {
+              const badgeText = badgeLines[lineIndex];
+              drawDutyTimeStyleBadge(libPage, {
+                text: badgeText,
+                x: getRightAlignedBadgeX(libPage, badgeText, boldFont),
+                centerY: srcMidY + (0.5 - lineIndex) * BADGE_STYLE.fontSize * 1.2,
+                font: boldFont
+              });
+            }
             totalHits++;
           }
         }
