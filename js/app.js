@@ -17,7 +17,8 @@ let highlightMode = 'underline';
 let sel=new Set(), custom=[], pdfBytes=null, fname='document', done=false, outBytes=null;
 let detectedAirports = [];
 let iataAirports = [];
-let bmEnabled = false; 
+let bmEnabled = false;
+let processingMode = 'keywords';
 let extractedFileDate = '';
 let extractedFlightNum = '';
 let extractedAcReg = '';
@@ -232,17 +233,25 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   pl.appendChild(frag);
 
-  document.getElementById('hlEnabled').addEventListener('change', e => {
-    if(e.target.checked){
-      PRESETS.forEach(w=>sel.add(w));
-      pl.querySelectorAll('input').forEach(c=>c.checked=true);
-      custom.forEach(w=>sel.add(w));
-    } else {
-      sel.clear();
-      pl.querySelectorAll('input').forEach(c=>c.checked=false);
-    }
-    updBadge(); done=false; updRun();
+  document.querySelectorAll('input[name="engineMode"]').forEach(modeInput => {
+    modeInput.addEventListener('change', e => {
+      if (!e.target.checked) return;
+      processingMode = e.target.value;
+      bmEnabled = processingMode === 'bookmarks';
+      if(processingMode === 'keywords'){
+        PRESETS.forEach(w=>sel.add(w));
+        pl.querySelectorAll('input').forEach(c=>c.checked=true);
+        custom.forEach(w=>sel.add(w));
+      } else {
+        sel.clear();
+        pl.querySelectorAll('input').forEach(c=>c.checked=false);
+      }
+      updBadge(); done=false; updRun();
+    });
   });
+  PRESETS.forEach(w => sel.add(w));
+  pl.querySelectorAll('input').forEach(c => c.checked = true);
+  updBadge();
 
   const markerModeToggle = document.getElementById('markerModeToggle');
 
@@ -254,11 +263,6 @@ document.addEventListener('DOMContentLoaded', () => {
       setHighlightMode(e.target.checked ? 'highlight' : 'underline');
     });
   }
-
-  document.getElementById('bmEnabled').addEventListener('change', e => {
-    bmEnabled = e.target.checked;
-    done = false; updRun();
-  });
 
   document.getElementById('cwInput').addEventListener('keydown', e => {
     if(e.key === 'Enter') addCustom();

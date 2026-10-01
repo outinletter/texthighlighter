@@ -58,18 +58,16 @@
     <div class="card">
       <div class="card-title">2. HIGHLIGHT SETTINGS</div>
       <div class="hl-row" style="justify-content: space-between;">
-        <div style="display: flex; align-items: center; gap: 12px;">
-          <label class="toggle"><input type="checkbox" id="hlEnabled"><span class="slider"></span></label>
-          <span class="hl-label" style="font-size: 13px; font-weight: 400;">
-            Keywords & Function
-            <span style="font-size: 11px; font-weight: 400; color: #94a3b8; margin-left: 8px;">
-              (
-              <label class="toggle toggle-small" style="display: inline-flex; margin: 0 6px; vertical-align: middle;"><input type="checkbox" id="bmEnabled"><span class="slider"></span></label>
-              <span style="vertical-align: middle;">Only Bookmark & Annotation</span>
-              )
-            </span>
-          </span>
-        </div>
+        <fieldset class="engine-mode" aria-label="Processing mode">
+          <label class="engine-mode-option">
+            <input type="radio" name="engineMode" value="keywords" checked>
+            <span>Keywords &amp; Function</span>
+          </label>
+          <label class="engine-mode-option">
+            <input type="radio" name="engineMode" value="bookmarks">
+            <span>Only Bookmark &amp; Annotation</span>
+          </label>
+        </fieldset>
         <div class="dropdown-wrap">
           <button class="dropdown-btn" id="dropBtn" onclick="toggleDD()">
             Select Words <span class="badge-count" id="selCount">0</span><span class="arrow"> ▼</span>

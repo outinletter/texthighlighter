@@ -1979,7 +1979,7 @@ async function runHL(){
           const eet = firEetMap[sub.code];
           if (eet) {
             const timeValue = addEetToEtd(etdZulu, eet);
-            const timeBadge = `FIR ENTRY ${timeValue}`;
+            const timeBadgeLines = ['FIR ENTRY', timeValue];
             const pi = sub.pageIdx;
             if (!firScaleCache[pi]) {
               const jsP = await pdfJsDoc.getPage(pi + 1);
@@ -1992,12 +1992,15 @@ async function runHL(){
             const srcFS = sub.fontSize || 10;
             const srcMidY = sub.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
-            drawDutyTimeStyleBadge(libPages[pi], {
-              text: timeBadge,
-              x: getRightAlignedBadgeX(libPages[pi], timeBadge, boldFont),
-              centerY: srcMidY,
-              font: boldFont
-            });
+            for (let lineIndex = 0; lineIndex < timeBadgeLines.length; lineIndex++) {
+              const lineText = timeBadgeLines[lineIndex];
+              drawDutyTimeStyleBadge(libPages[pi], {
+                text: lineText,
+                x: getRightAlignedBadgeX(libPages[pi], lineText, boldFont),
+                centerY: srcMidY + (0.5 - lineIndex) * BADGE_STYLE.fontSize * 1.2,
+                font: boldFont
+              });
+            }
             totalHits++;
           }
         }

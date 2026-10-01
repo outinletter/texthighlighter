@@ -183,9 +183,35 @@ body{
 .toggle input:checked+.slider{background:#3b82f6}
 .toggle input:checked+.slider:before{transform:translateX(20px);background:#fff}
 
-.toggle-small{width:35px;height:19px}
-.toggle-small .slider:before{width:14px;height:14px;left:2px;top:2px}
-.toggle-small input:checked+.slider:before{transform:translateX(16px)}
+.engine-mode{
+  display:inline-flex;
+  align-items:center;
+  gap:3px;
+  min-width:0;
+  margin:0;
+  padding:3px;
+  border:1px solid #334155;
+  border-radius:8px;
+  background:#0f172a;
+}
+.engine-mode-option{position:relative;cursor:pointer;white-space:nowrap}
+.engine-mode-option input{position:absolute;opacity:0;pointer-events:none}
+.engine-mode-option span{
+  display:block;
+  padding:7px 10px;
+  border-radius:5px;
+  color:#94a3b8;
+  font-size:13px;
+  font-weight:400;
+  line-height:1.2;
+  transition:background .2s,color .2s;
+}
+.engine-mode-option input:checked+span{background:#2563eb;color:#fff}
+.engine-mode-option input:focus-visible+span{outline:2px solid #93c5fd;outline-offset:2px}
+@media(max-width:560px){
+  .engine-mode{flex-direction:column;align-items:stretch;width:100%}
+  .engine-mode-option span{text-align:center}
+}
 
 .settings-subrow{
   margin-top:14px;
