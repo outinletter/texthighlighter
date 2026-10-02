@@ -481,6 +481,15 @@ body{
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
+.engine-help-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 14px;
+}
+.engine-help-actions .survey-btn { min-width: 243px; box-sizing: border-box; }
 
 
 /* Header interactions */
@@ -529,7 +538,8 @@ body{
   flex-shrink: 0;
 }
 
-.offline-help-btn { border: 0; cursor: pointer; font: inherit; }
+.offline-help-btn { border: 0; cursor: pointer; font: inherit; background: #0f766e; }
+.offline-help-btn:hover { background: #0d9488; box-shadow: 0 4px 12px rgba(13, 148, 136, 0.35); }
 .offline-help-backdrop {
   position: fixed;
   inset: 0;
