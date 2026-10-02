@@ -82,11 +82,17 @@ function loadScript(src) {
 
 async function initLibraries() {
   try {
-    await loadScript('./vendor/pdf.min.js');
+    if (!window.pdfjsLib) await loadScript('./vendor/pdf.min.js');
     resolvedWorkerUrl = './vendor/pdf.worker.min.js';
-    await loadScript('./vendor/pdf-lib.min.js');
+    if (!window.PDFLib) await loadScript('./vendor/pdf-lib.min.js');
   } catch (err) {
+    console.error('Local PDF library load failed:', err);
     setStatus('error', 'Failed to load local PDF libraries.');
+    return;
+  }
+
+  if (!window.pdfjsLib || !window.PDFLib) {
+    setStatus('error', 'Required PDF libraries are unavailable.');
     return;
   }
 
