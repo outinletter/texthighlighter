@@ -82,20 +82,18 @@ function loadScript(src) {
 
 async function initLibraries() {
   try {
-    // CDN을 우선적으로 사용하여 MIME Type 에러 및 파일 누락 방지
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js');
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js');
-    resolvedWorkerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
-    await loadScript('https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js');
+    await loadScript('./vendor/pdf.min.js');
+    resolvedWorkerUrl = './vendor/pdf.worker.min.js';
+    await loadScript('./vendor/pdf-lib.min.js');
   } catch (err) {
-    setStatus('error', 'Failed to load PDF libraries from CDN.');
+    setStatus('error', 'Failed to load local PDF libraries.');
     return;
   }
 
   if (window.location.protocol === 'file:') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = '';
   } else {
-    pdfjsLib.GlobalWorkerOptions.workerSrc = resolvedWorkerUrl || 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = resolvedWorkerUrl || './vendor/pdf.worker.min.js';
   }
 
   libsReady = true;
