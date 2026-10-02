@@ -69,12 +69,6 @@ function getRightAlignedBadgeX(libPage, text, font, fontSize = BADGE_STYLE.fontS
   return libPage.getWidth() - BADGE_STYLE.rightMargin - BADGE_STYLE.padH - textWidth;
 }
 
-function hasAirportPair(text, from, to) {
-  const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const a = escape(from), b = escape(to);
-  return new RegExp(`\\b${a}\\s*(?:\\/|-)\\s*${b}\\b|\\b${a}\\s+TO\\s+${b}\\b`, 'i').test(text);
-}
-
 /**
  * 'DUTY TIME' / Accent Style Badge Drawer
  */
@@ -807,20 +801,15 @@ async function runHL(){
           const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
           const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
 
-          // 경로 라인 강조 (hasRouteStr) 및 IATA 배지 추가
-          if (isDispatchPage || isNotamPage || detectedAirports.length === 2 || iataAirports.length === 2) {
+          // 3자리 IATA 출도착 경로 라인 강조 및 배지 추가
+          if (isDispatchPage || isNotamPage || iataAirports.length === 2) {
             let hasRouteStr = false;
             let iataMatch = false;
-            if (detectedAirports.length === 2) {
-              const a = detectedAirports[0].toUpperCase(), b = detectedAirports[1].toUpperCase();
-              if (hasAirportPair(lineText, a, b)) {
-                hasRouteStr = true;
-              }
-            }
-
             if (iataAirports.length === 2) {
               const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
-              if (hasAirportPair(lineText, a, b)) {
+              const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              const pairPattern = new RegExp(`\\b${escape(a)}\\s*(?:\\/|-)\\s*${escape(b)}\\b|\\b${escape(a)}\\s+TO\\s+${escape(b)}\\b`, 'i');
+              if (pairPattern.test(lineText)) {
                 hasRouteStr = true;
                 iataMatch = true;
               }
