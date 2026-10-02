@@ -124,6 +124,9 @@
       <div style="margin-top: 14px; display: flex; justify-content: center;">
         <a href="https://forms.gle/rNLY3WBZeRrvBzCc7" target="_blank" class="survey-btn">Feedback Survey</a>
       </div>
+      <div style="margin-top: 10px; display: flex; justify-content: center;">
+        <button type="button" class="survey-btn offline-help-btn" id="offlineHelpOpen">Offline Usage</button>
+      </div>
     </div>
 
 
@@ -144,6 +147,21 @@
   </div>
 </footer>
 
+<div class="offline-help-backdrop" id="offlineHelpModal" hidden>
+  <section class="offline-help-dialog" role="dialog" aria-modal="true" aria-labelledby="offlineHelpTitle">
+    <button type="button" class="offline-help-close" id="offlineHelpClose" aria-label="Close">&times;</button>
+    <h2 id="offlineHelpTitle">Offline Usage on iPad</h2>
+    <ol>
+      <li>Open the app’s GitHub Pages address in Safari on your iPad. Use the HTTPS address; opening the HTML file directly with <code>file://</code> can limit service workers and PDF workers.</li>
+      <li>While online, wait for the app to finish loading. The app page, scripts, local <code>vendor/</code> libraries, and PDF worker are then saved in the service worker cache.</li>
+      <li>In Safari, tap <strong>Share → Add to Home Screen</strong>.</li>
+      <li>Open the app once from its Home Screen icon and confirm the libraries have loaded.</li>
+      <li>Turn on Airplane Mode and reopen the app to verify offline access.</li>
+    </ol>
+    <p>After an app update, open it once while online so the new files can be cached before using it offline.</p>
+  </section>
+</div>
+
 
 <script src="js/flight-parser.js"></script>
 <script src="js/flight-notam.js"></script>
@@ -153,6 +171,16 @@
 <script src="vendor/pdf-lib.min.js"></script>
     <script src="js/app.js"></script>
     <script>
+      (() => {
+        const modal = document.getElementById('offlineHelpModal');
+        const openButton = document.getElementById('offlineHelpOpen');
+        const closeButton = document.getElementById('offlineHelpClose');
+        const close = () => { modal.hidden = true; openButton.focus(); };
+        openButton.addEventListener('click', () => { modal.hidden = false; closeButton.focus(); });
+        closeButton.addEventListener('click', close);
+        modal.addEventListener('click', event => { if (event.target === modal) close(); });
+        document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) close(); });
+      })();
       if ('serviceWorker' in navigator && location.protocol !== 'file:') {
         window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
       }
