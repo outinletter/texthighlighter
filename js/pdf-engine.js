@@ -524,23 +524,68 @@ async function extractMetadata(pdfJsDoc) {
   }
 }
 
-/**
- * CFP Text에서 Waypoint 이름과 해당 시간(HH.MM 형식)을 매핑하는 함수
- * 모든 매치를 찾도록 수정
- */
+/** Map CFP waypoint names to elapsed times, including split and climb rows. */
 function buildWptTimeMap(fullPdfText) {
   const wptTimeMap = new Map();
-  if (!fullPdfText) return wptTimeMap;
+  if (!fullPdfText || typeof fullPdfText !== 'string') return wptTimeMap;
 
-  const lines = fullPdfText.split(/\r?\n/);
+  const lines = fullPdfText.split(/\r?\n/)
+    .map(line => line.replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+  const waypointRowRegex =
+    /\b([A-Z][A-Z0-9]{1,9})\b[\s\S]*?\/[\s\S]*?\b(\d{2}\.\d{2})\b\s+\d{3,6}\s*\/?/i;
   for (const line of lines) {
-    const regex = /\b([A-Z0-9]{3,10})\b[^\/\r\n]*\/[^\/\r\n]*?\b(\d{2}\.\d{2})\b\s+\d{4}\//gi;
-    let match;
-    while ((match = regex.exec(line)) !== null) {
-      wptTimeMap.set(match[1].toUpperCase(), match[2]);
+    const match = waypointRowRegex.exec(line);
+    if (!match) continue;
+    const waypoint = match[1].toUpperCase();
+    const time = match[2];
+    if (isValidElapsedTime(time) && !isCfpNoiseToken(waypoint) && !wptTimeMap.has(waypoint)) {
+      wptTimeMap.set(waypoint, time);
     }
   }
+
+  // PDF.js may split a waypoint row and its ETO onto adjacent visual lines.
+  for (let i = 0; i < lines.length - 1; i++) {
+    const waypointMatch = /^\s*([A-Z][A-Z0-9]{1,9})\b.*\/\s*$/i.exec(lines[i]);
+    if (!waypointMatch) continue;
+    const timeMatch = /\b(\d{2}\.\d{2})\b\s+\d{3,6}\s*\/?/i.exec(lines[i + 1]);
+    if (!timeMatch) continue;
+    const waypoint = waypointMatch[1].toUpperCase();
+    const time = timeMatch[1];
+    if (isValidElapsedTime(time) && !isCfpNoiseToken(waypoint) && !wptTimeMap.has(waypoint)) {
+      wptTimeMap.set(waypoint, time);
+    }
+  }
+
+  // Last fallback for rows whose text-item line breaks are unreliable.
+  const normalizedText = fullPdfText.replace(/\r/g, '').replace(/[ \t]+/g, ' ');
+  const globalWaypointRegex =
+    /\b([A-Z][A-Z0-9]{1,9})\b\s+[EW]\d{3}\s+\d{1,2}(?:\.\d+)?\s+\d{1,3}\s*\/[\s\S]{0,40}?\b(\d{2}\.\d{2})\b\s+\d{3,6}\s*\//gi;
+  let globalMatch;
+  while ((globalMatch = globalWaypointRegex.exec(normalizedText)) !== null) {
+    const waypoint = globalMatch[1].toUpperCase();
+    const time = globalMatch[2];
+    if (isValidElapsedTime(time) && !isCfpNoiseToken(waypoint) && !wptTimeMap.has(waypoint)) {
+      wptTimeMap.set(waypoint, time);
+    }
+  }
+  console.log('[WPT TIME MAP]', Object.fromEntries(wptTimeMap.entries()));
   return wptTimeMap;
+}
+
+function isValidElapsedTime(value) {
+  const match = /^(\d{2})\.(\d{2})$/.exec(value || '');
+  return Boolean(match && Number(match[1]) <= 99 && Number(match[2]) < 60);
+}
+
+const CFP_NOISE_TOKENS = new Set([
+  'DIST', 'LATITUDE', 'LONGITUDE', 'WIND', 'COMP', 'TIME', 'FUEL', 'ACTL', 'ACTM',
+  'ACBO', 'PLAN', 'TRIP', 'RESERVE', 'FINAL', 'REFILE', 'TAKEOFF', 'TANKERING',
+  'RAMP', 'ROUTE', 'ALTN', 'FLIGHT', 'ETO', 'ATO', 'MSA', 'TAS', 'FIR'
+]);
+
+function isCfpNoiseToken(token) {
+  return CFP_NOISE_TOKENS.has((token || '').toUpperCase());
 }
 
 function estimateWptTimeFromEtp(fullPdfText, waypoint, assumedGroundSpeedKt = 400) {
@@ -2003,7 +2048,7 @@ async function runHL(){
     // =========================================================================
     // FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
     // =========================================================================
-    const expectedRegex = /FROM\s+([A-Z0-9]{3,10})\s+TO\s+([A-Z0-9]{3,10})/gi;
+    const expectedRegex = /FROM\s+([A-Z0-9]{2,10})\s+TO\s+([A-Z0-9]{2,10})/gi;
     const expectedStartIdx = dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : 0;
     const expectedEndIdx = dispatchReleaseIdx !== -1 ? dispatchEndIdx : numPages;
     
@@ -2027,33 +2072,34 @@ async function runHL(){
           const fromWpt = match[1].toUpperCase();
           const toWpt = match[2].toUpperCase();
     
-          let fromTime = "";
-          if (detectedAirports && detectedAirports[0] && fromWpt === detectedAirports[0].toUpperCase()) {
-            fromTime = "00.00";
+          let fromTime = '';
+          if (detectedAirports?.[0] && fromWpt === detectedAirports[0].toUpperCase()) {
+            fromTime = '00.00';
           } else {
-            fromTime = wptTimeMap.get(fromWpt);
+            fromTime = wptTimeMap.get(fromWpt) || '';
           }
-    
-          // The destination may be absent from the waypoint table; TRIP is elapsed flight time.
-          const toTime = wptTimeMap.get(toWpt) ||
-            (toWpt === detectedAirports[1]?.toUpperCase() ? tripElapsedTime : '');
-    
-          if (fromTime && toTime) {
-            const estimatedStart = estimatedWpts.has(fromWpt);
-            const badgeText = `${estimatedStart ? '~' : ''}${fromTime} ~ ${toTime}`;
-            const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
-            const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
-    
-            const badgeSize = BADGE_STYLE.fontSize;
-            const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
-            expectedBadges.push({
-              text: badgeText,
-              centerY: srcMidY,
-              size: badgeSize,
-              textWidth,
-              textWidth
-            });
+          let toTime = wptTimeMap.get(toWpt) || '';
+          if (!toTime && detectedAirports?.[1] && toWpt === detectedAirports[1].toUpperCase()) {
+            toTime = tripElapsedTime || '';
           }
+          console.log('[EXPECTED SEGMENT]', {
+            fromWpt, fromTime, toWpt, toTime,
+            fromFound: wptTimeMap.has(fromWpt),
+            toFound: wptTimeMap.has(toWpt)
+          });
+          if (!fromTime || !toTime) {
+            console.warn('[EXPECTED SEGMENT] time not found:',
+              `${fromWpt}=${fromTime || 'NOT FOUND'}`,
+              `${toWpt}=${toTime || 'NOT FOUND'}`);
+            continue;
+          }
+          const estimatedStart = estimatedWpts.has(fromWpt);
+          const badgeText = `${estimatedStart ? '~' : ''}${fromTime} ~ ${toTime}`;
+          const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
+          const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
+          const badgeSize = BADGE_STYLE.fontSize;
+          const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
+          expectedBadges.push({ text: badgeText, centerY: srcMidY, size: badgeSize, textWidth });
         }
       }
 
