@@ -14,7 +14,7 @@ const BADGE_STYLE = {
   bgOpacity: 0.75,
   padH: 4,
   padV: 2.5,
-  rightMargin: 16
+  rightMargin: 22
 };
 
 const badgeObstacles = new WeakMap();
