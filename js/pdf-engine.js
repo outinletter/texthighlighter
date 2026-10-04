@@ -843,9 +843,12 @@ async function runHL(){
 
         const isAfterEdtoHeader = (edtoPointDataPageIdx !== -1 && pi >= edtoPointDataPageIdx);
 
-        for (const line of groupedLines) {
+        const sentenceHighlightedLines = new Set();
+        for (let lineIndex = 0; lineIndex < groupedLines.length; lineIndex++) {
+          const line = groupedLines[lineIndex];
           const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
           const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
+          if (sentenceHighlightedLines.has(lineIndex)) continue;
 
           // 3자리 IATA 출도착 경로 라인 강조 및 배지 추가
           if (isDispatchPage || isNotamPage || iataAirports.length === 2) {
@@ -945,7 +948,31 @@ async function runHL(){
           const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
           const hasSevereWeather = SEVERE_WEATHER_RE.test(lineText);
           if (hasSentenceKw || hasSevereWeather) {
-            if (sel.size > 0) drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+            if (sel.size > 0) {
+              let sentenceText = lineText.trim();
+              let sentenceEnd = /[.!?][\])}"']*\s*$/.test(sentenceText);
+              drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+              sentenceHighlightedLines.add(lineIndex);
+
+              let lastIndex = lineIndex;
+              while (!sentenceEnd && lastIndex + 1 < groupedLines.length) {
+                const nextIndex = lastIndex + 1;
+                const nextLine = groupedLines[nextIndex];
+                const nextItems = nextLine.items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
+                const nextText = nextItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ').trim();
+                const currentSize = Math.abs(lineItems[0]?.transform[3]) || 10;
+                const lineGap = Math.abs(groupedLines[lastIndex].y - nextLine.y);
+                if (lineGap > Math.max(currentSize * 1.8, 8) ||
+                    /^(?:TAF|METAR|SPECI|NOTAM|WEATHER\s+BRIEFING|ENROUTE\s+WEATHER|CFP\s+PLAN|DISPATCH\b|COPY\s+OF\s+ATS)\b/i.test(nextText)) {
+                  break;
+                }
+                drawLineHighlight(libPage, nextItems, nextLine.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+                sentenceHighlightedLines.add(nextIndex);
+                sentenceText += ` ${nextText}`;
+                lastIndex = nextIndex;
+                sentenceEnd = /[.!?][\])}"']*\s*$/.test(sentenceText);
+              }
+            }
             totalHits++;
             continue;
           }
