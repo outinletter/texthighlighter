@@ -652,6 +652,7 @@ async function runHL(){
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
   'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS',
   'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF', 'DO NOT', 'ONLY AVBL', 'CONFUSING', 'CONFUSE', 'SHOULD'];
+  const SEVERE_WEATHER_RE = /\b(?:TS\s*(?:RA|SN|PL|GR|GS|DZ|FG|BR|FC)?|FZ\s*(?:RA|DZ|FG|SN)?|GR|GS|FC|DS|SS)\b/i;
 
   const runBtn=document.getElementById('runBtn');
   runBtn.className='action-btn run-btn';
@@ -942,7 +943,8 @@ async function runHL(){
 
           // 문장 키워드 강조
           const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
-          if (hasSentenceKw) {
+          const hasSevereWeather = SEVERE_WEATHER_RE.test(lineText);
+          if (hasSentenceKw || hasSevereWeather) {
             if (sel.size > 0) drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
             totalHits++;
             continue;
