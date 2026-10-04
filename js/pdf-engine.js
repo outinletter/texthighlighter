@@ -949,28 +949,29 @@ async function runHL(){
           const hasSevereWeather = SEVERE_WEATHER_RE.test(lineText);
           if (hasSentenceKw || hasSevereWeather) {
             if (sel.size > 0) {
-              let sentenceText = lineText.trim();
-              let sentenceEnd = /[.!?][\])}"']*\s*$/.test(sentenceText);
-              drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
-              sentenceHighlightedLines.add(lineIndex);
+              const sentencePeriod = /\.[\])}"']*\s*$/;
+              const nextBlockPattern = /^(?:TAF|METAR|SPECI|TEMPO|BECMG|FM\d{4}|PROB\d{2,4}|INTER|NOTAM|WEATHER\s+BRIEFING|ENROUTE\s+WEATHER|CFP\s+PLAN|DISPATCH\b|COPY\s+OF\s+ATS)\b/i;
+              let sentenceEndIndex = sentencePeriod.test(lineText.trim()) ? lineIndex : -1;
+              let previousLine = line;
+              const currentSize = Math.abs(lineItems[0]?.transform[3]) || 10;
 
-              let lastIndex = lineIndex;
-              while (!sentenceEnd && lastIndex + 1 < groupedLines.length) {
-                const nextIndex = lastIndex + 1;
+              // Extend to following visual lines only if the same paragraph reaches a full stop.
+              for (let nextIndex = lineIndex + 1; sentenceEndIndex === -1 && nextIndex < groupedLines.length; nextIndex++) {
                 const nextLine = groupedLines[nextIndex];
                 const nextItems = nextLine.items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
                 const nextText = nextItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ').trim();
-                const currentSize = Math.abs(lineItems[0]?.transform[3]) || 10;
-                const lineGap = Math.abs(groupedLines[lastIndex].y - nextLine.y);
-                if (lineGap > Math.max(currentSize * 1.8, 8) ||
-                    /^(?:TAF|METAR|SPECI|NOTAM|WEATHER\s+BRIEFING|ENROUTE\s+WEATHER|CFP\s+PLAN|DISPATCH\b|COPY\s+OF\s+ATS)\b/i.test(nextText)) {
-                  break;
-                }
-                drawLineHighlight(libPage, nextItems, nextLine.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
-                sentenceHighlightedLines.add(nextIndex);
-                sentenceText += ` ${nextText}`;
-                lastIndex = nextIndex;
-                sentenceEnd = /[.!?][\])}"']*\s*$/.test(sentenceText);
+                const lineGap = Math.abs(previousLine.y - nextLine.y);
+                if (lineGap > Math.max(currentSize * 1.8, 8) || nextBlockPattern.test(nextText)) break;
+                if (sentencePeriod.test(nextText)) sentenceEndIndex = nextIndex;
+                previousLine = nextLine;
+              }
+
+              const lastHighlightIndex = sentenceEndIndex === -1 ? lineIndex : sentenceEndIndex;
+              for (let highlightIndex = lineIndex; highlightIndex <= lastHighlightIndex; highlightIndex++) {
+                const highlightLine = groupedLines[highlightIndex];
+                const highlightItems = highlightLine.items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
+                drawLineHighlight(libPage, highlightItems, highlightLine.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+                sentenceHighlightedLines.add(highlightIndex);
               }
             }
             totalHits++;
