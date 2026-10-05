@@ -801,6 +801,47 @@ async function runHL(){
       notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR');
     }
 
+    // Exclude CLSD only when its own NOTAM record has a non-applicability note in COMMENT/RMK.
+    const excludedNotamClosureLines = new Set();
+    const notamLineKey = (pageIdx, y) => `${pageIdx}:${Math.round(y * 2) / 2}`;
+    const notamPages = [notam1PageIdx, notam2PageIdx, notam3PageIdx].filter(Number.isInteger);
+    if (notamPages.length) {
+      const notamIdPattern = /\b[A-Z]\s*\d{4}\s*\/\s*\d{2}\b/i;
+      const nonApplicabilityPattern = /\bNO\s+(?:COMPANY|KOREAN\s+AIR|(?:KAL|KE)(?:\s+(?:ROUTE|FLT|FLIGHT))?)\b|\bNOT\s+(?:(?:APPLICABLE|VALID|AVBL|AVAILABLE)\s+(?:(?:TO|FOR)\s+)?|FOR\s+)(?:KAL|KE|KOREAN\s+AIR|COMPANY)\b|\b(?:KAL|KE)\s+(?:ROUTE|FLIGHT)\s+NOT\s+(?:AFFECTED|APPLICABLE)\b/i;
+      let currentNotamLines = [];
+      const finishNotam = () => {
+        if (!currentNotamLines.length) return;
+        const fullText = currentNotamLines.map(entry => entry.text).join(' ');
+        const commentMatch = /\b(?:COMMENT|REMARKS?|RMK)\b\s*\)?\s*[:)]?/i.exec(fullText);
+        if (commentMatch && nonApplicabilityPattern.test(fullText.slice(commentMatch.index + commentMatch[0].length))) {
+          for (const entry of currentNotamLines) {
+            if (/\bCLSD\b/i.test(entry.text)) excludedNotamClosureLines.add(notamLineKey(entry.pageIdx, entry.y));
+          }
+        }
+        currentNotamLines = [];
+      };
+      for (let scanPageIdx = Math.min(...notamPages); scanPageIdx < numPages; scanPageIdx++) {
+        const scanPage = await pdfJsDoc.getPage(scanPageIdx + 1);
+        const scanContent = await scanPage.getTextContent();
+        const scanOffset = detectPageOffset(scanContent.items.map(item => item.str).join(' '));
+        const scanLines = groupTextItemsByLine(scanContent.items, scanOffset);
+        for (let lineIdx = 0; lineIdx < scanLines.length; lineIdx++) {
+          const text = scanLines[lineIdx].parts
+            .map(part => cleanAndDecodeItem(part.item.str, scanOffset))
+            .join(' ').trim();
+          if (!text) continue;
+          const entry = { pageIdx: scanPageIdx, y: scanLines[lineIdx].y, text };
+          if (notamIdPattern.test(text)) {
+            finishNotam();
+            currentNotamLines.push(entry);
+          } else if (currentNotamLines.length) {
+            currentNotamLines.push(entry);
+          }
+        }
+      }
+      finishNotam();
+    }
+
     const edtoPointDataPageIdx = bmPages['EQUAL TIME POINT DATA'] !== undefined ? bmPages['EQUAL TIME POINT DATA'] : -1;
 
     let totalHits=0;
@@ -976,7 +1017,8 @@ async function runHL(){
             totalHits++;
             continue;
           }
-          const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
+          const excludedClsd = excludedNotamClosureLines.has(notamLineKey(pi, line.y)) && /\bCLSD\b/i.test(lineText);
+          const hasSentenceKw = SENTENCE_KW.some(kw => !(excludedClsd && /^(?:CLSD|CLOSED)$/i.test(kw)) && checkKeywordMatch(lineText, kw));
           const hasSevereWeather = isWeatherBriefingPage &&
             lineText.split(/[^A-Z0-9+-]+/i).some(isWeatherCodeToken);
           if (hasSentenceKw || hasSevereWeather) {
@@ -1025,6 +1067,7 @@ async function runHL(){
 
           // 키워드 강조
           for (const kw of keywords) {
+            if (excludedClsd && /^CLSD$/i.test(kw.trim())) continue;
             const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[^A-Za-z0-9]+');
             let re;
             try { re = new RegExp(`\\b${escapedKw}\\b`, 'gi'); } catch(e) { re = new RegExp(escapedKw, 'gi'); }
@@ -1551,6 +1594,43 @@ async function runHL(){
             .replace(/[^A-Za-z0-9\s]/g, ' ')
             .split(/\s+/)
             .filter(t => t.length >= 2 && !noiseWords.includes(t.toUpperCase()) && !/^\d+$/.test(t));
+      }
+
+      // Highlight complete NOTAM lines containing any detected route airway or waypoint.
+      const notamRouteStartIdx = [notam1PageIdx, notam2PageIdx, notam3PageIdx]
+        .filter(Number.isInteger).sort((a, b) => a - b)[0];
+      if (routeTokens.length && Number.isInteger(notamRouteStartIdx)) {
+        const routeTokenPatterns = routeTokens.map(token => {
+          const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          return new RegExp(`\\b${escaped}\\b`, 'i');
+        });
+        for (let pi = notamRouteStartIdx; pi < numPages; pi++) {
+          const jsPage = await pdfJsDoc.getPage(pi + 1);
+          const content = await jsPage.getTextContent();
+          const pageOffset = detectPageOffset(content.items.map(item => item.str).join(' '));
+          const lines = groupTextItemsByLine(content.items, pageOffset);
+          const libPage = libPages[pi];
+          const viewport = jsPage.getViewport({ scale: 1.0 });
+          const { width, height } = libPage.getSize();
+          const sx = width / viewport.width;
+          const sy = height / viewport.height;
+          for (const line of lines) {
+            const lineText = line.parts
+              .map(part => cleanAndDecodeItem(part.item.str, pageOffset))
+              .join(' ');
+            if (!routeTokenPatterns.some(pattern => pattern.test(lineText))) continue;
+            drawLineHighlight(
+              libPage,
+              line.parts.map(part => part.item),
+              line.y,
+              sx,
+              sy,
+              PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+              0.25
+            );
+            totalHits++;
+          }
+        }
       }
 
       const discMatch = cfpFullSectionText.match(/\bDISC\b\s+(\d{4})\s+(\d{2}\.\d{2})/i);
