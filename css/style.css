@@ -514,7 +514,7 @@ body{
   border-radius: 14px;
   padding: 17px 20px;
   text-decoration: none;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.25s ease;
   box-shadow: 0 5px 18px rgba(14, 116, 144, 0.16);
   border: 1px solid #25617a;
   margin-bottom: 16px;
@@ -536,6 +536,42 @@ body{
   display: flex;
   align-items: center;
   gap: 9px;
+}
+.safety-banner-destination {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #facc15;
+  color: #172554;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.7px;
+}
+.safety-banner-destination[hidden] { display: none; }
+.safety-banner.is-ready {
+  background: linear-gradient(105deg, #064e3b 0%, #0f3b55 55%, #172554 100%);
+  border: 2px solid #34d399;
+  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.14), 0 8px 24px rgba(16, 185, 129, 0.3);
+  animation: briefing-ready 0.75s ease-out 1;
+}
+.safety-banner.is-ready .safety-banner-icon {
+  background: rgba(52, 211, 153, 0.2);
+  box-shadow: 0 0 20px rgba(52, 211, 153, 0.25);
+}
+.safety-banner.is-ready .safety-banner-subtitle { color: #d1fae5; font-weight: 600; }
+.safety-banner.is-ready .safety-banner-cta {
+  padding: 11px 15px;
+  border-color: #facc15;
+  background: #facc15;
+  color: #172554;
+  font-size: 12px;
+  box-shadow: 0 3px 12px rgba(250, 204, 21, 0.25);
+}
+@keyframes briefing-ready {
+  0% { transform: scale(0.985); box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.5); }
+  65% { transform: scale(1.01); box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
+  100% { transform: scale(1); }
 }
 .safety-banner-copy { flex: 1; min-width: 0; }
 .safety-banner-subtitle {
@@ -574,6 +610,10 @@ body{
   .safety-banner-cta { padding: 8px 9px; font-size: 10px; }
   .safety-banner-text { flex-wrap: wrap; font-size: 12px; }
   .safety-banner-subtitle { font-size: 11px; }
+  .safety-banner.is-ready .safety-banner-cta { padding: 9px 10px; font-size: 10px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .safety-banner.is-ready { animation: none; }
 }
 
 .offline-help-btn { border: 0; cursor: pointer; font: inherit; background: #0f766e; }

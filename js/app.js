@@ -172,9 +172,18 @@ function escapeBriefingHtml(value) {
 }
 
 function updateSafetyBanner() {
+  const banner = document.getElementById('safetyBanner');
   const subtitle = document.getElementById('safetyBannerSubtitle');
   const cta = document.getElementById('safetyBannerCta');
+  const destination = document.getElementById('safetyBannerDestination');
   if (!subtitle || !cta) return;
+  const ready = Boolean(pilotBriefingDestination && pilotBriefingData && !pilotBriefingLoading);
+  banner?.classList.toggle('is-ready', ready);
+  banner?.classList.toggle('is-loading', Boolean(pilotBriefingLoading));
+  if (destination) {
+    destination.hidden = !pilotBriefingDestination;
+    destination.textContent = pilotBriefingDestination || '';
+  }
   if (pilotBriefingLoading && !pilotBriefingDestination) {
     subtitle.textContent = 'Reading the uploaded flight package for its destination airport.';
     cta.innerHTML = 'Preparing briefing <span aria-hidden="true">…</span>';
@@ -182,8 +191,8 @@ function updateSafetyBanner() {
     subtitle.textContent = `Destination ${pilotBriefingDestination} found. Loading its briefing when online.`;
     cta.innerHTML = `Preparing ${escapeBriefingHtml(pilotBriefingDestination)} <span aria-hidden="true">…</span>`;
   } else if (pilotBriefingDestination && pilotBriefingData) {
-    subtitle.textContent = `Destination ${pilotBriefingDestination} found. Tap to view its airport safety briefing.`;
-    cta.innerHTML = `View ${escapeBriefingHtml(pilotBriefingDestination)} briefing <span aria-hidden="true">→</span>`;
+    subtitle.textContent = 'Destination briefing is ready. Tap to review the airport hazards.';
+    cta.innerHTML = `VIEW BRIEFING <span aria-hidden="true">→</span>`;
   } else if (pilotBriefingDestination && pilotBriefingError) {
     subtitle.textContent = `${pilotBriefingDestination} briefing is unavailable. Tap to view details or retry.`;
     cta.innerHTML = `Open ${escapeBriefingHtml(pilotBriefingDestination)} briefing <span aria-hidden="true">→</span>`;
