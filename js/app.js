@@ -23,8 +23,11 @@ let extractedFileDate = '';
 let extractedFlightNum = '';
 let extractedAcReg = '';
 let extractedRoute = '';
-let pilotBriefingPopup = null;
+let pilotBriefingData = null;
 let pendingPilotBriefingDestination = '';
+let pilotBriefingDestination = '';
+let pilotBriefingLoading = false;
+let pilotBriefingError = '';
 
 function canRun(){return (sel.size>0 || bmEnabled) && pdfBytes!==null;}
 function updRun(){document.getElementById('runBtn').className='action-btn run-btn'+(canRun()?' active':'');}
@@ -168,28 +171,68 @@ function escapeBriefingHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
 }
 
-function writeBriefingPopup(message) {
-  if (!pilotBriefingPopup || pilotBriefingPopup.closed) return;
-  pilotBriefingPopup.document.open();
-  pilotBriefingPopup.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pilot Briefing</title><style>
-    *{box-sizing:border-box}body{margin:0;background:#08111f;color:#e5edf8;font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:900px;margin:auto;padding:24px 18px 48px}.top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #26364b;padding-bottom:14px}.brand{font-weight:800;color:#7dd3fc;letter-spacing:.04em}.airport{font-size:13px;color:#9fb2ca}.card{background:#111d2e;border:1px solid #26364b;border-radius:14px;padding:18px;margin-top:16px}.hero{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.score{font-size:38px;font-weight:800;color:#fbbf24}.muted{color:#a9bbd1}.tag{display:inline-block;padding:4px 9px;background:#26364b;border-radius:20px;margin:3px;font-size:12px}.threat{border-top:1px solid #26364b;padding:14px 0}.threat:first-of-type{border:0}.warning{color:#fca5a5;font-size:12px;margin-top:22px}.weather{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:13px}.error{color:#fca5a5}.small{font-size:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}.label{font-size:11px;color:#9fb2ca;text-transform:uppercase}.value{font-weight:650;margin-top:4px}h1{font-size:24px;margin:4px 0}h2{font-size:17px;margin:0 0 10px}@media(max-width:560px){.wrap{padding:16px 12px 30px}.card{padding:15px}.score{font-size:32px}}
-  </style></head><body><main class="wrap"><header class="top"><span class="brand">PILOT BRIEFING</span><span class="airport">Destination ${escapeBriefingHtml(message.destination || '')}</span></header><div class="card"><h1>${escapeBriefingHtml(message.title || 'Airport Safety Briefing')}</h1><p class="${message.error ? 'error' : 'muted'}">${escapeBriefingHtml(message.text || '')}</p></div></main></body></html>`);
-  pilotBriefingPopup.document.close();
+function updateSafetyBanner() {
+  const subtitle = document.getElementById('safetyBannerSubtitle');
+  const cta = document.getElementById('safetyBannerCta');
+  if (!subtitle || !cta) return;
+  if (pilotBriefingLoading && !pilotBriefingDestination) {
+    subtitle.textContent = 'Reading the uploaded flight package for its destination airport.';
+    cta.innerHTML = 'Preparing briefing <span aria-hidden="true">…</span>';
+  } else if (pilotBriefingDestination && pilotBriefingLoading) {
+    subtitle.textContent = `Destination ${pilotBriefingDestination} found. Loading its briefing when online.`;
+    cta.innerHTML = `Preparing ${escapeBriefingHtml(pilotBriefingDestination)} <span aria-hidden="true">…</span>`;
+  } else if (pilotBriefingDestination && pilotBriefingData) {
+    subtitle.textContent = `Destination ${pilotBriefingDestination} found. Tap to view its airport safety briefing.`;
+    cta.innerHTML = `View ${escapeBriefingHtml(pilotBriefingDestination)} briefing <span aria-hidden="true">→</span>`;
+  } else if (pilotBriefingDestination && pilotBriefingError) {
+    subtitle.textContent = `${pilotBriefingDestination} briefing is unavailable. Tap to view details or retry.`;
+    cta.innerHTML = `Open ${escapeBriefingHtml(pilotBriefingDestination)} briefing <span aria-hidden="true">→</span>`;
+  } else {
+    subtitle.textContent = 'What hazards are waiting along your route?';
+    cta.innerHTML = 'Explore the demo <span aria-hidden="true">→</span>';
+  }
+}
+
+function renderBriefingMessage(title, text, destination = '', isError = false) {
+  const content = document.getElementById('pilotBriefingContent');
+  if (!content) return;
+  content.innerHTML = `<header class="briefing-top">PILOT BRIEFING <span class="briefing-airport">${escapeBriefingHtml(destination ? `Destination ${destination}` : '')}</span></header><section class="briefing-card"><h2 id="pilotBriefingTitle">${escapeBriefingHtml(title)}</h2><p class="${isError ? 'briefing-error' : 'briefing-muted'}">${escapeBriefingHtml(text)}</p></section>`;
+}
+
+function openPilotBriefingModal() {
+  const modal = document.getElementById('pilotBriefingModal');
+  if (!modal) return;
+  modal.hidden = false;
+  if (pilotBriefingData && pilotBriefingDestination) showPilotBriefing(pilotBriefingData, pilotBriefingDestination);
+  else if (pilotBriefingLoading) renderBriefingMessage('Preparing destination briefing…', 'The PDF remains on this device while the destination is extracted.', pilotBriefingDestination);
+  else if (pilotBriefingDestination && !navigator.onLine) {
+    pendingPilotBriefingDestination = pilotBriefingDestination;
+    renderBriefingMessage('Waiting for internet', 'Local PDF highlighting remains available. The briefing will load automatically when the connection returns.', pilotBriefingDestination);
+  } else if (pilotBriefingDestination) loadPilotBriefingForDestination(pilotBriefingDestination);
+  else renderBriefingMessage('Airport Safety Briefing', 'Upload a flight package PDF to prepare a briefing for its destination airport.');
+  document.getElementById('pilotBriefingClose')?.focus();
+}
+
+function closePilotBriefingModal() {
+  const modal = document.getElementById('pilotBriefingModal');
+  if (modal) modal.hidden = true;
+  document.getElementById('safetyBanner')?.focus();
 }
 
 function showPilotBriefing(data, destination) {
-  if (!pilotBriefingPopup || pilotBriefingPopup.closed) return;
+  const content = document.getElementById('pilotBriefingContent');
+  if (!content) return;
   const context = data.flight_context || {};
-  const html = (value) => escapeBriefingHtml(value);
+  const html = escapeBriefingHtml;
   const threats = (data.top_threats || []).slice(0, 6).map(threat => `
-    <article class="threat"><h2>${html(threat.title || 'Operational threat')}</h2><p class="muted">${html(threat.description || '')}</p>
-      ${(threat.events || []).slice(0, 2).map(event => `<p class="small"><strong>${html(event.detail_title || event.one_line || 'Related event')}</strong><br>${html(event.date || '')} · ${html(event.source_name || '')}<br>${html(event.summary || '')}</p>`).join('')}
-    </article>`).join('') || '<p class="muted">No threat records returned.</p>';
+    <article class="briefing-threat"><h2>${html(threat.title || 'Operational threat')}</h2><p class="briefing-muted">${html(threat.description || '')}</p>
+      ${(threat.events || []).slice(0, 2).map(event => `<p class="briefing-small"><strong>${html(event.detail_title || event.one_line || 'Related event')}</strong><br>${html(event.date || '')} · ${html(event.source_name || '')}<br>${html(event.summary || '')}</p>`).join('')}
+    </article>`).join('') || '<p class="briefing-muted">No threat records returned.</p>';
   const notamThreats = (data.notam_threats || []).slice(0, 8).map(notam => `
-    <article class="threat"><h2>${html(notam.headline || notam.category || 'NOTAM threat')} <span class="tag">${html(notam.severity || 'Info')}</span></h2>
-      <p class="weather">${html(notam.rawText || '')}</p><p class="small muted">${html(notam.notamId || '')}${notam.effectiveStart ? ` · From ${html(notam.effectiveStart)}` : ''}${notam.effectiveEnd ? ` · To ${html(notam.effectiveEnd)}` : ''}</p>
-    </article>`).join('') || '<p class="muted">No NOTAM threat records returned.</p>';
-  const tags = (context.arrival_tags || []).map(tag => `<span class="tag">${html(tag)}</span>`).join('');
+    <article class="briefing-threat"><h2>${html(notam.headline || notam.category || 'NOTAM threat')} <span class="briefing-tag">${html(notam.severity || 'Info')}</span></h2>
+      <p class="briefing-weather">${html(notam.rawText || '')}</p><p class="briefing-small briefing-muted">${html(notam.notamId || '')}${notam.effectiveStart ? ` · From ${html(notam.effectiveStart)}` : ''}${notam.effectiveEnd ? ` · To ${html(notam.effectiveEnd)}` : ''}</p>
+    </article>`).join('') || '<p class="briefing-muted">No NOTAM threat records returned.</p>';
+  const tags = (context.arrival_tags || []).map(tag => `<span class="briefing-tag">${html(tag)}</span>`).join('');
   const metrics = [
     ['Arrival airport', `${context.arrival_icao || destination}${context.arrival_iata ? ` (${context.arrival_iata})` : ''}`],
     ['Risk level', context.risk_level || '—'],
@@ -197,23 +240,22 @@ function showPilotBriefing(data, destination) {
     ['Terrain', context.terrain_type || '—'],
     ['Runways', (context.runways || []).join(' / ') || '—'],
     ['Airport events', context.airport_event_count ?? '—']
-  ].map(([label, value]) => `<div><div class="label">${html(label)}</div><div class="value">${html(value)}</div></div>`).join('');
+  ].map(([label, value]) => `<div><div class="briefing-label">${html(label)}</div><div class="briefing-value">${html(value)}</div></div>`).join('');
   const forecast = [context.arrival_weather_brief, context.metar, context.taf || context.arrival_taf].filter(Boolean).map(html).join('\n\n') || 'Weather briefing unavailable.';
-  pilotBriefingPopup.document.open();
-  pilotBriefingPopup.document.write(`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pilot Briefing — ${html(destination)}</title><style>
-    *{box-sizing:border-box}body{margin:0;background:#08111f;color:#e5edf8;font:15px/1.55 system-ui,-apple-system,Segoe UI,sans-serif}.wrap{max-width:900px;margin:auto;padding:24px 18px 48px}.top{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #26364b;padding-bottom:14px}.brand{font-weight:800;color:#7dd3fc;letter-spacing:.04em}.airport{font-size:13px;color:#9fb2ca}.card{background:#111d2e;border:1px solid #26364b;border-radius:14px;padding:18px;margin-top:16px}.summary{display:flex;gap:16px;align-items:center;flex-wrap:wrap}.score{font-size:38px;font-weight:800;color:#fbbf24}.muted{color:#a9bbd1}.tag{display:inline-block;padding:4px 9px;background:#26364b;border-radius:20px;margin:3px;font-size:12px}.threat{border-top:1px solid #26364b;padding:14px 0}.threat:first-of-type{border:0}.warning{color:#fca5a5;font-size:12px;margin-top:22px}.weather{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:13px}.small{font-size:12px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}.label{font-size:11px;color:#9fb2ca;text-transform:uppercase}.value{font-weight:650;margin-top:4px}h1{font-size:24px;margin:4px 0}h2{font-size:17px;margin:0 0 10px}@media(max-width:560px){.wrap{padding:16px 12px 30px}.card{padding:15px}.score{font-size:32px}}
-  </style></head><body><main class="wrap"><header class="top"><span class="brand">PILOT BRIEFING</span><span class="airport">Destination ${html(destination)}</span></header>
-    <section class="card"><div class="summary"><div><div class="label">Risk score</div><div class="score">${html(context.risk_score ?? '—')}<span style="font-size:15px"> / 100</span></div></div><div><h1>Airport Safety Briefing</h1><strong>${html(context.risk_level || 'Risk level unavailable')}</strong><p class="muted">${html(context.risk_summary || '')}</p></div></div><div>${tags}</div></section>
-    <section class="card"><h2>Destination overview</h2><div class="grid">${metrics}</div></section>
-    <section class="card"><h2>Arrival weather</h2><div class="weather">${forecast}</div></section>
-    <section class="card"><h2>Destination NOTAMs</h2>${notamThreats}</section>
-    <section class="card"><h2>Threat intelligence</h2>${threats}</section>
-    <p class="warning">DEMO VERSION — This briefing is informational and is not for flight safety or operational use. Verify all information with approved operational sources.</p>
-    </main></body></html>`);
-  pilotBriefingPopup.document.close();
+  content.innerHTML = `<header class="briefing-top">PILOT BRIEFING <span class="briefing-airport">Destination ${html(destination)}</span></header>
+    <section class="briefing-card"><div class="briefing-summary"><div><div class="briefing-label">Risk score</div><div class="briefing-score">${html(context.risk_score ?? '—')}<span style="font-size:14px"> / 100</span></div></div><div><h1 id="pilotBriefingTitle">Airport Safety Briefing</h1><strong>${html(context.risk_level || 'Risk level unavailable')}</strong><p class="briefing-muted">${html(context.risk_summary || '')}</p></div></div><div>${tags}</div></section>
+    <section class="briefing-card"><h2>Destination overview</h2><div class="briefing-grid">${metrics}</div></section>
+    <section class="briefing-card"><h2>Arrival weather</h2><div class="briefing-weather">${forecast}</div></section>
+    <section class="briefing-card"><h2>Destination NOTAMs</h2>${notamThreats}</section>
+    <section class="briefing-card"><h2>Threat intelligence</h2>${threats}</section>
+    <p class="briefing-warning">DEMO VERSION — Informational only; not for flight safety or operational use. Verify information with approved sources.</p>`;
 }
-
 async function loadPilotBriefingFromPdf(bytes) {
+  pilotBriefingLoading = true;
+  pilotBriefingError = '';
+  pilotBriefingData = null;
+  pilotBriefingDestination = '';
+  updateSafetyBanner();
   try {
     for (let attempt = 0; attempt < 100 && !libsReady; attempt++) await new Promise(resolve => setTimeout(resolve, 100));
     if (!libsReady) throw new Error('PDF library did not finish loading.');
@@ -221,34 +263,55 @@ async function loadPilotBriefingFromPdf(bytes) {
     const icao = await extractReleaseAirportsByRule2(pdf);
     const destination = icao[1] || iataAirports[1];
     if (!destination) throw new Error('Could not extract a destination airport from this PDF.');
+    pilotBriefingDestination = destination;
+    updateSafetyBanner();
     await loadPilotBriefingForDestination(destination);
   } catch (error) {
-    console.error('[Pilot Briefing popup]', error);
-    writeBriefingPopup({ title: 'Briefing unavailable', text: error.message || 'Could not load destination briefing.' });
+    console.error('[Pilot Briefing]', error);
+    pilotBriefingLoading = false;
+    pilotBriefingError = error.message || 'Could not extract a destination airport.';
+    updateSafetyBanner();
+    if (!document.getElementById('pilotBriefingModal')?.hidden) renderBriefingMessage('Briefing unavailable', pilotBriefingError, '', true);
   }
 }
 
 async function loadPilotBriefingForDestination(destination) {
   pendingPilotBriefingDestination = destination;
   if (!navigator.onLine) {
-    writeBriefingPopup({ destination, title: 'Waiting for internet', text: 'Local highlighting remains available. The destination briefing will load automatically when the connection returns.' });
+    pilotBriefingLoading = false;
+    pilotBriefingError = 'Waiting for internet connection.';
+    updateSafetyBanner();
+    if (!document.getElementById('pilotBriefingModal')?.hidden) renderBriefingMessage('Waiting for internet', 'Local PDF highlighting remains available. The briefing will load automatically when the connection returns.', destination);
     return;
   }
+  pilotBriefingLoading = true;
+  pilotBriefingError = '';
+  updateSafetyBanner();
+  if (!document.getElementById('pilotBriefingModal')?.hidden) renderBriefingMessage('Loading destination briefing…', 'Contacting Pilot Briefing. The PDF itself is not uploaded.', destination);
   try {
-    writeBriefingPopup({ destination, title: 'Loading destination briefing…', text: 'Contacting Pilot Briefing. The PDF itself is not uploaded.' });
     const response = await fetch(`https://pilot-briefing.outinletter.workers.dev/api/briefing/${encodeURIComponent(destination)}`);
     if (!response.ok) throw new Error(`Pilot Briefing returned HTTP ${response.status}.`);
     const data = await response.json();
     if (!data.ok) throw new Error(data.flight_context?.messages?.[0] || 'Briefing data is unavailable.');
-    showPilotBriefing(data, destination);
+    pilotBriefingData = data;
+    pilotBriefingLoading = false;
+    pilotBriefingError = '';
     pendingPilotBriefingDestination = '';
+    updateSafetyBanner();
+    if (!document.getElementById('pilotBriefingModal')?.hidden) showPilotBriefing(data, destination);
   } catch (error) {
-    console.error('[Pilot Briefing popup]', error);
+    console.error('[Pilot Briefing]', error);
+    pilotBriefingLoading = false;
     if (!navigator.onLine) {
-      writeBriefingPopup({ destination, title: 'Waiting for internet', text: 'The connection was lost. This briefing will retry automatically when the connection returns.' });
+      pilotBriefingError = 'Waiting for internet connection.';
+      updateSafetyBanner();
+      if (!document.getElementById('pilotBriefingModal')?.hidden) renderBriefingMessage('Waiting for internet', 'The connection was lost. The briefing will retry automatically when the connection returns.', destination);
       return;
     }
-    writeBriefingPopup({ title: 'Briefing unavailable', text: error.message || 'Could not load destination briefing.' });
+    pilotBriefingError = error.message || 'Could not load destination briefing.';
+    pendingPilotBriefingDestination = '';
+    updateSafetyBanner();
+    if (!document.getElementById('pilotBriefingModal')?.hidden) renderBriefingMessage('Briefing unavailable', pilotBriefingError, destination, true);
   }
 }
 
@@ -257,10 +320,12 @@ window.addEventListener('online', () => {
 });
 
 function loadFile(file){
-  if (pilotBriefingPopup && !pilotBriefingPopup.closed) pilotBriefingPopup.close();
-  pilotBriefingPopup = window.open('', 'pilotBriefingPopup', 'popup,width=920,height=780,resizable=yes,scrollbars=yes');
   pendingPilotBriefingDestination = '';
-  if (pilotBriefingPopup) writeBriefingPopup({ title: 'Reading flight package…', text: 'Extracting the destination airport from the selected PDF.' });
+  pilotBriefingLoading = true;
+  pilotBriefingDestination = '';
+  pilotBriefingData = null;
+  pilotBriefingError = '';
+  updateSafetyBanner();
   fname=file.name.replace(/\.pdf$/i,'');
   document.getElementById('fileName').textContent=file.name;
   document.getElementById('uploadArea').classList.add('has-file');
@@ -275,9 +340,14 @@ function loadFile(file){
     pdfBytes=new Uint8Array(e.target.result);
     updRun();
     setStatus('ready',`${file.name} loaded. Press RUN to start with automatic auto-decoding.`);
-    if (pilotBriefingPopup) loadPilotBriefingFromPdf(pdfBytes.slice());
+    loadPilotBriefingFromPdf(pdfBytes.slice());
   };
-  r.onerror=()=>setStatus('error','Failed to read local document.');
+  r.onerror=()=>{
+    pilotBriefingLoading = false;
+    pilotBriefingError = 'Failed to read local document.';
+    updateSafetyBanner();
+    setStatus('error','Failed to read local document.');
+  };
   r.readAsArrayBuffer(file);
 }
 
@@ -390,6 +460,22 @@ document.addEventListener('DOMContentLoaded', () => {
   ua.addEventListener('drop', e => {
     e.preventDefault(); ua.style.borderColor='';
     if(e.dataTransfer.files[0]?.type === 'application/pdf') loadFile(e.dataTransfer.files[0]);
+  });
+
+  const safetyBanner = document.getElementById('safetyBanner');
+  const briefingModal = document.getElementById('pilotBriefingModal');
+  const briefingClose = document.getElementById('pilotBriefingClose');
+  safetyBanner?.addEventListener('click', event => {
+    if (!pilotBriefingLoading && !pilotBriefingDestination) return;
+    event.preventDefault();
+    openPilotBriefingModal();
+  });
+  briefingClose?.addEventListener('click', closePilotBriefingModal);
+  briefingModal?.addEventListener('click', event => {
+    if (event.target === briefingModal) closePilotBriefingModal();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && briefingModal && !briefingModal.hidden) closePilotBriefingModal();
   });
 
   document.addEventListener('click', e => {

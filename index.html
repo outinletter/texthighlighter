@@ -30,7 +30,7 @@
 <div class="body">
   <div class="app">
     
-    <a href="https://pilot-briefing.outinletter.workers.dev/" target="_blank" rel="noopener noreferrer" class="safety-banner" aria-label="Explore the Airport Safety Briefing demo">
+    <a href="https://pilot-briefing.outinletter.workers.dev/" target="_blank" rel="noopener noreferrer" class="safety-banner" id="safetyBanner" aria-label="Explore the Airport Safety Briefing demo">
       <div class="safety-banner-icon">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
           <rect width="28" height="28" rx="6" fill="#0f4c81"></rect>
@@ -39,9 +39,9 @@
       </div>
       <div class="safety-banner-copy">
         <div class="safety-banner-text">AIRPORT SAFETY BRIEFING <span class="demo-blink">Demo</span></div>
-        <div class="safety-banner-subtitle">What hazards are waiting along your route?</div>
+        <div class="safety-banner-subtitle" id="safetyBannerSubtitle">What hazards are waiting along your route?</div>
       </div>
-      <span class="safety-banner-cta">Explore the demo <span aria-hidden="true">→</span></span>
+      <span class="safety-banner-cta" id="safetyBannerCta">Explore the demo <span aria-hidden="true">→</span></span>
     </a>
 
     <div class="card">
@@ -159,6 +159,13 @@
       <li>Turn on Airplane Mode and reopen the app to verify offline access.</li>
     </ol>
     <p>After an app update, open it once while online so the new files can be cached before using it offline.</p>
+  </section>
+</div>
+
+<div class="offline-help-backdrop" id="pilotBriefingModal" hidden>
+  <section class="briefing-dialog" role="dialog" aria-modal="true" aria-labelledby="pilotBriefingTitle">
+    <button type="button" class="offline-help-close" id="pilotBriefingClose" aria-label="Close">&times;</button>
+    <div id="pilotBriefingContent"></div>
   </section>
 </div>
 
