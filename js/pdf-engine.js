@@ -1091,6 +1091,29 @@ async function runHL(){
                 if (map && !map.isSeparator) {
                   if (!itemMatches[map.itemIndex]) itemMatches[map.itemIndex] = [];
                   itemMatches[map.itemIndex].push(map.charIndex);
+                } else if (map?.isSeparator && c > startIdx && c + 1 < endIdx) {
+                  const previousMap = charMapping[c - 1];
+                  const nextMap = charMapping[c + 1];
+                  if (!previousMap?.isSeparator && !nextMap?.isSeparator && previousMap.itemIndex !== nextMap.itemIndex) {
+                    const previousItem = lineItems[previousMap.itemIndex];
+                    const nextItem = lineItems[nextMap.itemIndex];
+                    const gapStart = previousItem.transform[4] + (previousItem.width || 0);
+                    const gapWidth = nextItem.transform[4] - gapStart;
+                    const itemH = Math.abs(previousItem.transform[3]) || 10;
+                    if (gapWidth > Math.max(itemH * 0.15, 0.5) && sel.size > 0) {
+                      const metrics = getTextMetrics(previousItem, sy, itemH);
+                      drawMarkerRect(
+                        libPage,
+                        gapStart * sx,
+                        metrics.textBottomY,
+                        gapWidth * sx,
+                        metrics.textHeight,
+                        PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                        0.25,
+                        itemH
+                      );
+                    }
+                  }
                 }
               }
               for (const itemIdxStr of Object.keys(itemMatches)) {
