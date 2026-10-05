@@ -1587,11 +1587,12 @@ async function runHL(){
 
       if(extractedRoute) {
         const noiseWords = ['FLIGHT', 'PLAN', 'FUEL', 'TIME', 'WIND', 'TEMP', 'DIST', 'COMP', 'FREQ', 'RMK', 'ALTN', 'AWY', 'POS', 'LAT', 'LONG', 'ETA', 'ETD', 'ACTL', 'TOC', 'CLB', 'CRZ', 'DSC', 'IFR', 'NAM', 'AGTOW', 'TRIP', 'SOW', 'RWY', 'RESERVE', 'FINAL', 'RES', 'CONT', 'REFILE', 'RQD', 'TAKEOFF', 'DISC', 'TANKERING', 'PLN', 'RAMP', 'OUT', 'FOD', 'ROD', 'TOW', 'MTOW', 'LDW', 'MLDW', 'TIF', 'TCAP', 'PAX', 'CGO'];
+        const airportCodes = new Set([...detectedAirports, ...iataAirports].map(code => code.toUpperCase()));
         routeTokens = extractedRoute
             .replace(/\.\./g, ' ')
             .replace(/[^A-Za-z0-9\s]/g, ' ')
             .split(/\s+/)
-            .filter(t => t.length >= 2 && !noiseWords.includes(t.toUpperCase()) && !/^\d+$/.test(t));
+            .filter(t => t.length >= 2 && !noiseWords.includes(t.toUpperCase()) && !airportCodes.has(t.toUpperCase()) && !/^\d+$/.test(t));
       }
 
       // Highlight complete NOTAM lines containing any detected route airway or waypoint.
