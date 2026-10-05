@@ -172,6 +172,29 @@ function checkKeywordMatch(text, kw) {
   return re.test(normalizedText);
 }
 
+const WEATHER_PHENOMENA = new Set([
+  'DZ', 'RA', 'SN', 'SG', 'IC', 'PE', 'PL', 'GR', 'GS', 'UP', 'BR', 'FG',
+  'FU', 'VA', 'DU', 'SA', 'HZ', 'PY', 'PO', 'SQ', 'FC', 'SS', 'DS'
+]);
+const WEATHER_DESCRIPTORS = ['MI', 'PR', 'BC', 'DR', 'BL', 'SH', 'TS', 'FZ'];
+
+function isWeatherCodeToken(token) {
+  let code = (token || '').toUpperCase().replace(/^[+-]/, '');
+  if (code.startsWith('VC')) code = code.slice(2);
+  const descriptor = WEATHER_DESCRIPTORS.find(prefix => code.startsWith(prefix));
+  if (descriptor) {
+    code = code.slice(descriptor.length);
+    if (!code && descriptor === 'TS') return true;
+  }
+  if (!code) return false;
+  while (code.length) {
+    const phenomenon = [...WEATHER_PHENOMENA].find(value => code.startsWith(value));
+    if (!phenomenon) return false;
+    code = code.slice(phenomenon.length);
+  }
+  return true;
+}
+
 function detectPageOffset(rawText) {
   if (!rawText) return 0;
   let bestOffset = 0;
@@ -651,9 +674,6 @@ async function runHL(){
 
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
   'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF', 'DO NOT', 'ONLY AVBL', 'CONFUSING', 'CONFUSE', 'SHOULD'];
-  const WEATHER_SENTENCE_KW = ['TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS'];
-  const SEVERE_WEATHER_RE = /\b(?:TS\s*(?:RA|SN|PL|GR|GS|DZ|FG|BR|FC)?|FZ\s*(?:RA|DZ|FG|SN)?|GR|GS|FC|DS|SS)\b/i;
-
   const runBtn=document.getElementById('runBtn');
   runBtn.className='action-btn run-btn';
   runBtn.innerHTML='Processing locally...';
@@ -951,9 +971,8 @@ async function runHL(){
 
           // 문장 키워드 강조
           const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
-          const hasSevereWeather = isWeatherBriefingPage && (
-            SEVERE_WEATHER_RE.test(lineText) || WEATHER_SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw))
-          );
+          const hasSevereWeather = isWeatherBriefingPage &&
+            lineText.split(/[^A-Z0-9+-]+/i).some(isWeatherCodeToken);
           if (hasSentenceKw || hasSevereWeather) {
             if (sel.size > 0) {
               const sentencePeriod = /\.[\])}"']*\s*$/;
