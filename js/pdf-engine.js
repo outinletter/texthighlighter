@@ -673,7 +673,7 @@ async function runHL(){
   }
 
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
-  'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF', 'DO NOT', 'ONLY AVBL', 'CONFUSING', 'CONFUSE', 'SHOULD'];
+  'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF', 'DO NOT', 'ONLY AVBL', 'CONFUSING', 'CONFUSE', 'SHOULD'];
   const runBtn=document.getElementById('runBtn');
   runBtn.className='action-btn run-btn';
   runBtn.innerHTML='Processing locally...';
@@ -970,6 +970,12 @@ async function runHL(){
           }
 
           // 문장 키워드 강조
+          const hasUnsatisfactoryService = /\bU\s*\/\s*S\b/i.test(lineText);
+          if (hasUnsatisfactoryService) {
+            if (sel.size > 0) drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+            totalHits++;
+            continue;
+          }
           const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
           const hasSevereWeather = isWeatherBriefingPage &&
             lineText.split(/[^A-Z0-9+-]+/i).some(isWeatherCodeToken);
