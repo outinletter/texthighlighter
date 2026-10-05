@@ -506,36 +506,71 @@ body{
 .safety-banner {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 10px;
-  background: #111827;
-  border-radius: 12px;
-  padding: 16px;
+  gap: 14px;
+  background: linear-gradient(110deg, #102a43 0%, #111827 58%, #172554 100%);
+  border-radius: 14px;
+  padding: 17px 20px;
   text-decoration: none;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-  border: 1px solid #1e293b;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  box-shadow: 0 5px 18px rgba(14, 116, 144, 0.16);
+  border: 1px solid #25617a;
   margin-bottom: 16px;
 }
 .safety-banner:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
-  background: #1f2937;
-  border-color: #3b82f6;
+  box-shadow: 0 9px 24px rgba(14, 165, 233, 0.24);
+  border-color: #38bdf8;
+}
+.safety-banner:focus-visible {
+  outline: 3px solid #7dd3fc;
+  outline-offset: 3px;
 }
 .safety-banner-text {
   color: #ffffff;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 13.5px;
   letter-spacing: 0.5px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
+}
+.safety-banner-copy { flex: 1; min-width: 0; }
+.safety-banner-subtitle {
+  margin-top: 4px;
+  color: #bae6fd;
+  font-size: 12px;
+  line-height: 1.35;
 }
 .safety-banner-icon {
   display: flex;
   align-items: center;
   flex-shrink: 0;
+  padding: 7px;
+  border-radius: 11px;
+  background: rgba(56, 189, 248, 0.12);
+  box-shadow: 0 0 18px rgba(56, 189, 248, 0.12);
+}
+.safety-banner-icon svg { width: 34px; height: 34px; }
+.safety-banner-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 9px 12px;
+  border: 1px solid rgba(125, 211, 252, 0.4);
+  border-radius: 9px;
+  background: rgba(14, 165, 233, 0.16);
+  color: #e0f2fe;
+  font-size: 11.5px;
+  font-weight: 700;
+  transition: background 0.2s ease;
+}
+.safety-banner:hover .safety-banner-cta { background: rgba(14, 165, 233, 0.3); }
+@media (max-width: 520px) {
+  .safety-banner { gap: 10px; padding: 14px; }
+  .safety-banner-cta { padding: 8px 9px; font-size: 10px; }
+  .safety-banner-text { flex-wrap: wrap; font-size: 12px; }
+  .safety-banner-subtitle { font-size: 11px; }
 }
 
 .offline-help-btn { border: 0; cursor: pointer; font: inherit; background: #0f766e; }
