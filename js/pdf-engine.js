@@ -843,6 +843,8 @@ async function runHL(){
     const edtoPointDataPageIdx = bmPages['EQUAL TIME POINT DATA'] !== undefined ? bmPages['EQUAL TIME POINT DATA'] : -1;
 
     let totalHits=0;
+    const highlightedNotamLines = new Set();
+    const highlightedNotamLineKey = (pageIdx, y) => `${pageIdx}:${Math.round(y * 2) / 2}`;
 
     // 하이라이트/밑줄 레이어 생성 및 주석(Badge) 추가
     if(sel.size > 0 || (typeof bmEnabled !== 'undefined' && bmEnabled) || iataAirports.length === 2){
@@ -1043,6 +1045,7 @@ async function runHL(){
                 const highlightLine = groupedLines[highlightIndex];
                 const highlightItems = highlightLine.items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
                 drawLineHighlight(libPage, highlightItems, highlightLine.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+                if (isNotamPage) highlightedNotamLines.add(highlightedNotamLineKey(pi, highlightLine.y));
                 sentenceHighlightedLines.add(highlightIndex);
               }
             }
@@ -1641,6 +1644,8 @@ async function runHL(){
               .map(part => cleanAndDecodeItem(part.item.str, pageOffset))
               .join(' ');
             if (!routeTokenPatterns.some(pattern => pattern.test(lineText))) continue;
+            const lineKey = highlightedNotamLineKey(pi, line.y);
+            if (highlightedNotamLines.has(lineKey)) continue;
             drawLineHighlight(
               libPage,
               line.parts.map(part => part.item),
@@ -1650,6 +1655,7 @@ async function runHL(){
               PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
               0.25
             );
+            highlightedNotamLines.add(lineKey);
             totalHits++;
           }
         }
