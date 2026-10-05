@@ -650,8 +650,8 @@ async function runHL(){
   }
 
   const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
-  'TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS',
   'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'U/S', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF', 'DO NOT', 'ONLY AVBL', 'CONFUSING', 'CONFUSE', 'SHOULD'];
+  const WEATHER_SENTENCE_KW = ['TSRA', 'TSGR', 'TSGS', 'TSSN', 'FZRA', 'FZDZ', 'FZFG', 'GR', 'FC', 'SN', 'RA', 'BLSN', 'DS', 'SS'];
   const SEVERE_WEATHER_RE = /\b(?:TS\s*(?:RA|SN|PL|GR|GS|DZ|FG|BR|FC)?|FZ\s*(?:RA|DZ|FG|SN)?|GR|GS|FC|DS|SS)\b/i;
 
   const runBtn=document.getElementById('runBtn');
@@ -759,6 +759,10 @@ async function runHL(){
     const notam1PageIdx = bmPages['NOTAM 1'];
     const notam2PageIdx = bmPages['NOTAM 2'];
     const notam3PageIdx = bmPages['NOTAM 3'];
+    const weatherBriefingEndIdx = weatherBriefingIdx === -1
+      ? -1
+      : Math.min(...[notam1PageIdx, notam2PageIdx, notam3PageIdx, numPages]
+          .filter(idx => idx !== undefined && idx > weatherBriefingIdx));
 
     let notam1SubAirports = [];
     let notam2SubAirports = [];
@@ -798,6 +802,7 @@ async function runHL(){
 
         const isDispatchPage = (dispatchReleaseIdx !== -1 && pi >= dispatchReleaseIdx && pi < dispatchEndIdx);
         const isNotamPage = (pkg1PageIdx !== -1 && pi >= pkg1PageIdx);
+        const isWeatherBriefingPage = weatherBriefingIdx !== -1 && pi >= weatherBriefingIdx && pi < weatherBriefingEndIdx;
 
         if (pageOffset !== 0) {
           for (const item of content.items) {
@@ -946,7 +951,9 @@ async function runHL(){
 
           // 문장 키워드 강조
           const hasSentenceKw = SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
-          const hasSevereWeather = SEVERE_WEATHER_RE.test(lineText);
+          const hasSevereWeather = isWeatherBriefingPage && (
+            SEVERE_WEATHER_RE.test(lineText) || WEATHER_SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw))
+          );
           if (hasSentenceKw || hasSevereWeather) {
             if (sel.size > 0) {
               const sentencePeriod = /\.[\])}"']*\s*$/;
