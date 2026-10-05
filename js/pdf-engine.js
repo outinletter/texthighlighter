@@ -801,8 +801,8 @@ async function runHL(){
       notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR');
     }
 
-    // Exclude CLSD only when its own NOTAM record has a non-applicability note in COMMENT/RMK.
-    const excludedNotamClosureLines = new Set();
+    // Exclude sentence-level highlighting within a NOTAM whose COMMENT/RMK says it does not apply.
+    const excludedNotamLines = new Set();
     const notamLineKey = (pageIdx, y) => `${pageIdx}:${Math.round(y * 2) / 2}`;
     const notamPages = [notam1PageIdx, notam2PageIdx, notam3PageIdx].filter(Number.isInteger);
     if (notamPages.length) {
@@ -814,9 +814,7 @@ async function runHL(){
         const fullText = currentNotamLines.map(entry => entry.text).join(' ');
         const commentMatch = /\b(?:COMMENT|REMARKS?|RMK)\b\s*\)?\s*[:)]?/i.exec(fullText);
         if (commentMatch && nonApplicabilityPattern.test(fullText.slice(commentMatch.index + commentMatch[0].length))) {
-          for (const entry of currentNotamLines) {
-            if (/\bCLSD\b/i.test(entry.text)) excludedNotamClosureLines.add(notamLineKey(entry.pageIdx, entry.y));
-          }
+          for (const entry of currentNotamLines) excludedNotamLines.add(notamLineKey(entry.pageIdx, entry.y));
         }
         currentNotamLines = [];
       };
@@ -1011,14 +1009,14 @@ async function runHL(){
           }
 
           // 문장 키워드 강조
-          const hasUnsatisfactoryService = /\bU\s*\/\s*S\b/i.test(lineText);
+          const excludedNotamLine = excludedNotamLines.has(notamLineKey(pi, line.y));
+          const hasUnsatisfactoryService = !excludedNotamLine && /\bU\s*\/\s*S\b/i.test(lineText);
           if (hasUnsatisfactoryService) {
             if (sel.size > 0) drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
             totalHits++;
             continue;
           }
-          const excludedClsd = excludedNotamClosureLines.has(notamLineKey(pi, line.y)) && /\bCLSD\b/i.test(lineText);
-          const hasSentenceKw = SENTENCE_KW.some(kw => !(excludedClsd && /^(?:CLSD|CLOSED)$/i.test(kw)) && checkKeywordMatch(lineText, kw));
+          const hasSentenceKw = !excludedNotamLine && SENTENCE_KW.some(kw => checkKeywordMatch(lineText, kw));
           const hasSevereWeather = isWeatherBriefingPage &&
             lineText.split(/[^A-Z0-9+-]+/i).some(isWeatherCodeToken);
           if (hasSentenceKw || hasSevereWeather) {
@@ -1067,7 +1065,7 @@ async function runHL(){
 
           // 키워드 강조
           for (const kw of keywords) {
-            if (excludedClsd && /^CLSD$/i.test(kw.trim())) continue;
+            if (excludedNotamLine && SENTENCE_KW.some(sentenceKw => sentenceKw.toUpperCase() === kw.trim().toUpperCase())) continue;
             const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[^A-Za-z0-9]+');
             let re;
             try { re = new RegExp(`\\b${escapedKw}\\b`, 'gi'); } catch(e) { re = new RegExp(escapedKw, 'gi'); }
