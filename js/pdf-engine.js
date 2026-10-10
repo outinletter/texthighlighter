@@ -709,6 +709,9 @@ async function runHL(){
 
     const numPages=pdfJsDoc.numPages;
     const pdfLibDoc=await PDFLib.PDFDocument.load(pdfBytes,{ignoreEncryption:true});
+    const originalOutlines = pdfLibDoc.catalog.get(PDFLib.PDFName.of('Outlines'));
+    const preserveBookmarks = typeof bookmarkPolicy !== 'undefined' && bookmarkPolicy === 'preserve' && !!originalOutlines;
+    if (!preserveBookmarks) pdfLibDoc.catalog.delete(PDFLib.PDFName.of('Outlines'));
     const libPages=pdfLibDoc.getPages();
     // Reserve original text before any badge is drawn, including keyword-free pages.
     for (let pi = 0; pi < libPages.length; pi++) {
@@ -1385,7 +1388,7 @@ async function runHL(){
     attachSubBookmarks('NOTAM 2', notam2SubAirports);
     attachSubBookmarks('NOTAM 3', notam3SubAirports);
 
-    if(outlineItems.length>0){
+    if(!preserveBookmarks && outlineItems.length>0){
       for(let i=0;i<outlineItems.length;i++){
         const d=ctx.lookup(outlineItems[i]);
         if(i>0)d.set(PDFLib.PDFName.of('Prev'),outlineItems[i-1]);
@@ -2297,7 +2300,7 @@ async function runHL(){
     runBtn.className='action-btn dl-btn active';
     runBtn.innerHTML='DOWNLOAD PDF FILE';
 
-    setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${Object.keys(bmPages).length} bookmarks set.`);
+    setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${preserveBookmarks ? 'existing bookmarks preserved' : Object.keys(bmPages).length + ' bookmarks set'}.`);
     document.getElementById('previewCard').style.display='block';
 
     dlPDF();
