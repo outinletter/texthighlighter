@@ -213,6 +213,14 @@ body{
   .engine-mode-option span{text-align:center}
 }
 
+.bookmark-settings { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-top: 20px; padding: 16px; border: 1px solid #334155; border-radius: 12px; background: #0f172a; }
+.bookmark-settings[hidden] { display: none; }
+.bookmark-settings-copy { flex: 1 1 240px; }
+.bookmark-settings-copy label { color: #bfdbfe; font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+.bookmark-settings-copy p, .bookmark-settings-hint { margin: 6px 0 0; color: #94a3b8; font-size: 12px; line-height: 1.6; }
+.bookmark-settings select { max-width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #93c5fd; border-radius: 8px; background: #dbeafe; color: #183153; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.bookmark-settings select:focus-visible { outline: 2px solid #60a5fa; outline-offset: 3px; }
+.bookmark-settings-hint { flex-basis: 100%; }
 .settings-subrow{
   margin-top:14px;
   padding-top:12px;
