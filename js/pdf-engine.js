@@ -155,6 +155,11 @@ function groupTextItemsByLine(items, offset) {
   return lines;
 }
 
+function customKeywordPattern(word) {
+  const chars = [...word.replace(/\s+/g, '')];
+  return chars.length ? new RegExp(chars.map(char => char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*'), 'gi') : null;
+}
+
 function checkKeywordMatch(text, kw) {
   const normalizedText = text.replace(/[^A-Za-z0-9]/g, ' ').replace(/\s+/g, ' ').trim();
   const escaped = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -261,7 +266,7 @@ function baseDecode(str, offset) {
 
 function cleanAndDecodeItem(str, offset) {
   const finalStr = baseDecode(str, offset);
-  return finalStr.replace(/[^A-Za-z0-9\s\/\.\-\(\)]/g, ' ');
+  return finalStr.replace(/[^\p{L}\p{N}\s\/\.\-\(\)]/gu, ' ');
 }
 
 function decodeForTagScan(str, offset) {
@@ -1068,7 +1073,7 @@ async function runHL(){
           const cleanLineText = lineTextFromMapping.replace(/[^A-Za-z0-9]/g, ' ');
 
           if (typeof customLineHighlight !== 'undefined' && customLineHighlight &&
-              custom.some(word => checkKeywordMatch(lineText, word))) {
+              custom.some(word => sel.has(word) && customKeywordPattern(word)?.test(lineText))) {
             const customColor = PDFLib.rgb(...hlRGB.map(value => 0.68 + value * 0.32));
             let sentenceStart = lineIndex;
             while (sentenceStart > 0 && !/[.!?][\])}"']*\s*$/.test(
@@ -1092,10 +1097,11 @@ async function runHL(){
             if (excludedNotamLine && SENTENCE_KW.some(sentenceKw => sentenceKw.toUpperCase() === kw.trim().toUpperCase())) continue;
             const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[^A-Za-z0-9]+');
             let re;
-            try { re = new RegExp(`\\b${escapedKw}\\b`, 'gi'); } catch(e) { re = new RegExp(escapedKw, 'gi'); }
+            try { re = custom.includes(kw) ? customKeywordPattern(kw) : new RegExp(`\\b${escapedKw}\\b`, 'gi'); } catch(e) { re = new RegExp(escapedKw, 'gi'); }
+            if (!re) continue;
             let m;
             let lastIndex = -1;
-            while ((m = re.exec(cleanLineText)) !== null) {
+            while ((m = re.exec(custom.includes(kw) ? lineTextFromMapping : cleanLineText)) !== null) {
               if (re.lastIndex === lastIndex) { re.lastIndex++; continue; }
               lastIndex = re.lastIndex;
               const startIdx = m.index;
