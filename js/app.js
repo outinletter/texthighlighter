@@ -404,7 +404,7 @@ window.addEventListener('online', () => {
 
 function loadFile(file){
   bookmarkPolicy = 'generate';
-  document.getElementById('bookmarkPolicy').value = 'generate';
+  document.querySelector('input[name="bookmarkPolicy"][value="generate"]').checked = true;
   pendingPilotBriefingDestination = '';
   pilotBriefingLoading = true;
   pilotBriefingDestination = '';
@@ -478,10 +478,11 @@ function dlPDF(){
 document.addEventListener('DOMContentLoaded', () => {
   initLibraries();
   updateCommitVersion();
-  document.getElementById('bookmarkPolicy').addEventListener('change', e => {
+  document.querySelectorAll('input[name="bookmarkPolicy"]').forEach(input => input.addEventListener('change', e => {
+    if (!e.target.checked) return;
     bookmarkPolicy = e.target.value;
     done = false; updRun();
-  });
+  }));
 
   const pl = document.getElementById('presetList');
   const frag = document.createDocumentFragment();

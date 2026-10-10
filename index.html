@@ -85,16 +85,17 @@
         </div>
       </div>
 
-      <div id="bookmarkOptions" class="bookmark-settings">
-        <div class="bookmark-settings-copy">
-          <label for="bookmarkPolicy">BOOKMARK SETTINGS</label>
-          <p>비행 문서는 자동 생성, 기존 북마크가 있는 매뉴얼은 기존 북마크 유지를 선택하세요.</p>
-        </div>
-        <select id="bookmarkPolicy" aria-describedby="bookmarkPolicyHint">
-          <option value="generate">Auto generate / 자동 생성</option>
-          <option value="preserve">Keep existing / 기존 북마크 유지</option>
-        </select>
-        <span id="bookmarkPolicyHint" class="bookmark-settings-hint">자동 생성은 기존 북마크를 대체합니다. 유지는 기존 제목·계층·이동 위치를 보존합니다.</span>
+      <div id="bookmarkOptions" style="margin-top:16px">
+        <fieldset class="engine-mode" aria-label="Bookmark mode">
+          <label class="engine-mode-option">
+            <input type="radio" name="bookmarkPolicy" value="generate" checked>
+            <span>북마크 생성</span>
+          </label>
+          <label class="engine-mode-option">
+            <input type="radio" name="bookmarkPolicy" value="preserve">
+            <span>기존 유지</span>
+          </label>
+        </fieldset>
       </div>
 
       <div class="settings-subrow">
