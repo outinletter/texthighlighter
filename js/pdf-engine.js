@@ -704,7 +704,7 @@ async function runHL(){
     const extraKws = [];
     if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
     const routeKw = typeof extractedRoute === 'string' ? extractedRoute.trim().toUpperCase() : '';
-    const keywords = [...sel, ...extraKws, ...(routeKw ? [routeKw] : [])].sort((a,b)=>b.length-a.length);
+    const keywords = [...new Set([...sel, ...extraKws, ...(routeKw ? [routeKw] : [])])].sort((a,b)=>b.length-a.length);
     const hlRGB = window.activeHlColorRGB || [1.0, 0.45, 0.65];
 
     const numPages=pdfJsDoc.numPages;
@@ -1084,14 +1084,17 @@ async function runHL(){
               groupedLines[sentenceEnd].items.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ')
             )) sentenceEnd++;
             for (let highlightIndex = sentenceStart; highlightIndex <= sentenceEnd; highlightIndex++) {
+              if (sentenceHighlightedLines.has(highlightIndex)) continue;
               const sentenceItems = groupedLines[highlightIndex].items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
               drawLineHighlight(libPage, sentenceItems, groupedLines[highlightIndex].y, sx, sy, customColor, 0.25);
+              sentenceHighlightedLines.add(highlightIndex);
             }
             totalHits++;
             continue;
           }
 
           // 키워드 강조
+          const highlightedChars = new Set();
           for (const kw of keywords) {
             const keywordColor = custom.includes(kw) ? PDFLib.rgb(...hlRGB.map(value => 0.68 + value * 0.32)) : PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]);
             if (excludedNotamLine && SENTENCE_KW.some(sentenceKw => sentenceKw.toUpperCase() === kw.trim().toUpperCase())) continue;
@@ -1117,6 +1120,8 @@ async function runHL(){
               }
               const itemMatches = {};
               for (let c = startIdx; c < endIdx; c++) {
+                if (highlightedChars.has(c)) continue;
+                highlightedChars.add(c);
                 const map = charMapping[c];
                 if (map && !map.isSeparator) {
                   if (!itemMatches[map.itemIndex]) itemMatches[map.itemIndex] = [];
@@ -1150,12 +1155,15 @@ async function runHL(){
                 const itemIdx = parseInt(itemIdxStr, 10);
                 const charIndices = itemMatches[itemIdx];
                 if (charIndices.length === 0) continue;
-                const minCharIdx = Math.min(...charIndices);
-                const maxCharIdx = Math.max(...charIndices);
                 const item = lineItems[itemIdx];
                 if (sel.size > 0) {
-                  drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                    keywordColor, 0.25, stdFont);
+                  for (let start = 0; start < charIndices.length;) {
+                    let end = start;
+                    while (end + 1 < charIndices.length && charIndices[end + 1] === charIndices[end] + 1) end++;
+                    drawCharRangeHighlight(libPage, item, charIndices[start], charIndices[end], sx, sy, pageOffset,
+                      keywordColor, 0.25, stdFont);
+                    start = end + 1;
+                  }
                 }
                 totalHits++;
               }
