@@ -208,13 +208,14 @@ body{
 }
 .engine-mode-option input:checked+span{background:#2563eb;color:#fff}
 .engine-mode-option input:focus-visible+span{outline:2px solid #93c5fd;outline-offset:2px}
-.compact-settings-row { gap: 8px; flex-wrap: wrap; }
-.settings-heading-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 16px; }
-.settings-heading-row .card-title { margin-bottom: 0; min-width: 0; }
+.compact-settings-row { display: grid; grid-template-columns: 1.35fr 1fr; gap: 8px; }
+.settings-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.settings-heading-row .card-title { margin-bottom: 0; min-width: 0; line-height: 28px; }
 .settings-heading-row .dropdown-wrap { flex-shrink: 0; }
 .settings-heading-row .dropdown-btn { padding: 7px 9px; font-size: 11px; }
 .compact-settings-row .engine-mode { flex-direction: row; width: auto; padding: 2px; gap: 2px; }
-.compact-settings-row .engine-mode-option span { padding: 6px 7px; font-size: 11px; }
+.compact-settings-row .engine-mode-option { flex: 1; white-space: normal; }
+.compact-settings-row .engine-mode-option span { padding: 6px 5px; font-size: 11px; text-align: center; height: 100%; box-sizing: border-box; display: flex; align-items: center; justify-content: center; }
 .compact-settings-row .dropdown-btn { padding: 8px 10px; font-size: 12px; }
 @media(max-width:560px){
   .engine-mode{flex-direction:column;align-items:stretch;width:100%}
