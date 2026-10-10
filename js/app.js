@@ -76,8 +76,10 @@ function setHighlightMode(mode) {
 function toggleCustomMode() {
   customLineHighlight = !customLineHighlight;
   window.customLineHighlight = customLineHighlight;
-  const button = document.getElementById('customModeToggle');
-  if (button) button.textContent = customLineHighlight ? 'Full Line' : 'Custom Words Only';
+  const toggle = document.getElementById('customModeToggle');
+  if (toggle) toggle.checked = customLineHighlight;
+  document.getElementById('customModeWordsLabel')?.classList.toggle('active', !customLineHighlight);
+  document.getElementById('customModeLineLabel')?.classList.toggle('active', customLineHighlight);
   done = false;
   updRun();
 }

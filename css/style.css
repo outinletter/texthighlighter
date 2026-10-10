@@ -305,7 +305,7 @@ body{
 .menu-item:hover{background:rgba(59,130,246,.1);color:#fff}
 .menu-item input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:#3b82f6;flex-shrink:0}
 .custom-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.custom-mode-toggle{padding:4px 8px;border:1px solid rgba(148,163,184,.3);border-radius:4px;background:rgba(59,130,246,.12);color:#cbd5e1;font-size:10px;cursor:pointer}
+.custom-mode-switch{gap:7px}
 
 .custom-add-wrap{padding:0}
 .custom-add-row{display:flex;gap:6px}

@@ -111,7 +111,14 @@
     <div class="card">
       <div class="card-title custom-title-row">
         <span>3. ADD CUSTOM WORD TAGS</span>
-        <button type="button" class="custom-mode-toggle" id="customModeToggle" onclick="toggleCustomMode()">Custom Words Only</button>
+        <div class="marker-mode-switch custom-mode-switch">
+          <span class="marker-mode-label active" id="customModeWordsLabel">Words</span>
+          <label class="toggle">
+            <input type="checkbox" id="customModeToggle" onchange="toggleCustomMode()">
+            <span class="slider"></span>
+          </label>
+          <span class="marker-mode-label" id="customModeLineLabel">Full Line</span>
+        </div>
       </div>
       <div class="custom-add-wrap">
         <div class="custom-add-row">
