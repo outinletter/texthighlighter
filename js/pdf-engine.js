@@ -916,11 +916,42 @@ async function runHL(){
         const isAfterEdtoHeader = (edtoPointDataPageIdx !== -1 && pi >= edtoPointDataPageIdx);
 
         const sentenceHighlightedLines = new Set();
+        const lineTextAt = index => groupedLines[index].items.slice().sort((a, b) => a.transform[4] - b.transform[4])
+          .map(item => cleanAndDecodeItem(item.str, pageOffset)).join(' ').trim();
+        const bodySizes = sortedItems.map(item => Math.abs(item.transform[3]) || 10).sort((a, b) => a - b);
+        const bodySize = bodySizes[Math.floor(bodySizes.length / 2)] || 10;
+        const protectedLine = index => {
+          const line = groupedLines[index], text = lineTextAt(index);
+          return line.y * sy > lh - 50 || line.y * sy < 50 ||
+            /^\d+(?:\s*\.\s*\d+)+\s*\.?\s+\S/.test(text) ||
+            line.items.every(item => (Math.abs(item.transform[3]) || 10) > bodySize * 1.15);
+        };
+        const paragraphStart = text => /^(?:[•●▪]|[-–]\s|\(\s*\d+\s*\)|\d+[.)]\s|Note\s*:)/i.test(text);
+        const canJoinLines = (first, second) => !protectedLine(first) && !protectedLine(second) &&
+          !/[.!?][\])}"']*\s*$/.test(lineTextAt(first)) && !paragraphStart(lineTextAt(second)) &&
+          Math.abs(groupedLines[first].y - groupedLines[second].y) <= bodySize * 1.8;
+        const customSentenceLines = new Set();
+        if (typeof customLineHighlight !== 'undefined' && customLineHighlight) {
+          for (let index = 0; index < groupedLines.length; index++) {
+            if (protectedLine(index) || !custom.some(word => sel.has(word) && customKeywordPattern(word)?.test(lineTextAt(index)))) continue;
+            let start = index, end = index;
+            while (start > 0 && canJoinLines(start - 1, start)) start--;
+            while (end + 1 < groupedLines.length && canJoinLines(end, end + 1)) end++;
+            for (let next = start; next <= end; next++) customSentenceLines.add(next);
+          }
+        }
         for (let lineIndex = 0; lineIndex < groupedLines.length; lineIndex++) {
           const line = groupedLines[lineIndex];
           const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
           const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
           if (sentenceHighlightedLines.has(lineIndex)) continue;
+          if (protectedLine(lineIndex)) continue;
+          if (customSentenceLines.has(lineIndex)) {
+            drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(...hlRGB), 0.25);
+            sentenceHighlightedLines.add(lineIndex);
+            totalHits++;
+            continue;
+          }
 
           // 3자리 IATA 출도착 경로 라인 강조 및 배지 추가
           if (isDispatchPage || isNotamPage || iataAirports.length === 2) {
@@ -1041,13 +1072,14 @@ async function runHL(){
                 const nextItems = nextLine.items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
                 const nextText = nextItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ').trim();
                 const lineGap = Math.abs(previousLine.y - nextLine.y);
-                if (lineGap > Math.max(currentSize * 1.8, 8) || nextBlockPattern.test(nextText)) break;
+                if (protectedLine(nextIndex) || paragraphStart(nextText) || lineGap > Math.max(currentSize * 1.8, 8) || nextBlockPattern.test(nextText)) break;
                 if (sentencePeriod.test(nextText)) sentenceEndIndex = nextIndex;
                 previousLine = nextLine;
               }
 
               const lastHighlightIndex = sentenceEndIndex === -1 ? lineIndex : sentenceEndIndex;
               for (let highlightIndex = lineIndex; highlightIndex <= lastHighlightIndex; highlightIndex++) {
+                if (sentenceHighlightedLines.has(highlightIndex) || customSentenceLines.has(highlightIndex)) continue;
                 const highlightLine = groupedLines[highlightIndex];
                 const highlightItems = highlightLine.items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
                 drawLineHighlight(libPage, highlightItems, highlightLine.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
@@ -1072,31 +1104,10 @@ async function runHL(){
           const lineTextFromMapping = charMapping.map(m => m.isSeparator ? ' ' : m.char).join('');
           const cleanLineText = lineTextFromMapping.replace(/[^A-Za-z0-9]/g, ' ');
 
-          if (typeof customLineHighlight !== 'undefined' && customLineHighlight &&
-              custom.some(word => sel.has(word) && customKeywordPattern(word)?.test(lineText))) {
-            const customColor = PDFLib.rgb(...hlRGB.map(value => 0.68 + value * 0.32));
-            let sentenceStart = lineIndex;
-            while (sentenceStart > 0 && !/[.!?][\])}"']*\s*$/.test(
-              groupedLines[sentenceStart - 1].items.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ')
-            )) sentenceStart--;
-            let sentenceEnd = lineIndex;
-            while (sentenceEnd < groupedLines.length - 1 && !/[.!?][\])}"']*\s*$/.test(
-              groupedLines[sentenceEnd].items.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ')
-            )) sentenceEnd++;
-            for (let highlightIndex = sentenceStart; highlightIndex <= sentenceEnd; highlightIndex++) {
-              if (sentenceHighlightedLines.has(highlightIndex)) continue;
-              const sentenceItems = groupedLines[highlightIndex].items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
-              drawLineHighlight(libPage, sentenceItems, groupedLines[highlightIndex].y, sx, sy, customColor, 0.25);
-              sentenceHighlightedLines.add(highlightIndex);
-            }
-            totalHits++;
-            continue;
-          }
-
           // 키워드 강조
           const highlightedChars = new Set();
           for (const kw of keywords) {
-            const keywordColor = custom.includes(kw) ? PDFLib.rgb(...hlRGB.map(value => 0.68 + value * 0.32)) : PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]);
+            const keywordColor = PDFLib.rgb(...hlRGB);
             if (excludedNotamLine && SENTENCE_KW.some(sentenceKw => sentenceKw.toUpperCase() === kw.trim().toUpperCase())) continue;
             const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[^A-Za-z0-9]+');
             let re;
