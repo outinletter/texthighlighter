@@ -480,7 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initLibraries();
   const settingsCard = document.getElementById('highlightSettingsHeading').closest('.card');
   const resizeTagBox = () => {
-    document.getElementById('tagList').style.height = `${Math.ceil(settingsCard.getBoundingClientRect().height * 2)}px`;
+    document.getElementById('tagList').style.height = `${Math.ceil(settingsCard.getBoundingClientRect().height)}px`;
   };
   new ResizeObserver(resizeTagBox).observe(settingsCard);
   resizeTagBox();
