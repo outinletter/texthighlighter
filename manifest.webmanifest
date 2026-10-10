@@ -1,5 +1,5 @@
 {
-  "name": "NOTAM Highlighter",
+  "name": "Text Highlighter",
   "short_name": "NOTAM HL",
   "start_url": "./",
   "display": "standalone",
