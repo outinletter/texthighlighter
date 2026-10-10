@@ -1069,6 +1069,7 @@ async function runHL(){
 
           if (typeof customLineHighlight !== 'undefined' && customLineHighlight &&
               custom.some(word => checkKeywordMatch(lineText, word))) {
+            const customColor = PDFLib.rgb(...hlRGB.map(value => 0.68 + value * 0.32));
             let sentenceStart = lineIndex;
             while (sentenceStart > 0 && !/[.!?][\])}"']*\s*$/.test(
               groupedLines[sentenceStart - 1].items.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ')
@@ -1079,7 +1080,7 @@ async function runHL(){
             )) sentenceEnd++;
             for (let highlightIndex = sentenceStart; highlightIndex <= sentenceEnd; highlightIndex++) {
               const sentenceItems = groupedLines[highlightIndex].items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
-              drawLineHighlight(libPage, sentenceItems, groupedLines[highlightIndex].y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+              drawLineHighlight(libPage, sentenceItems, groupedLines[highlightIndex].y, sx, sy, customColor, 0.25);
             }
             totalHits++;
             continue;
@@ -1087,6 +1088,7 @@ async function runHL(){
 
           // 키워드 강조
           for (const kw of keywords) {
+            const keywordColor = custom.includes(kw) ? PDFLib.rgb(...hlRGB.map(value => 0.68 + value * 0.32)) : PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]);
             if (excludedNotamLine && SENTENCE_KW.some(sentenceKw => sentenceKw.toUpperCase() === kw.trim().toUpperCase())) continue;
             const escapedKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '[^A-Za-z0-9]+');
             let re;
@@ -1130,7 +1132,7 @@ async function runHL(){
                         metrics.textBottomY,
                         gapWidth * sx,
                         metrics.textHeight,
-                        PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
+                        keywordColor,
                         0.25,
                         itemH
                       );
@@ -1147,7 +1149,7 @@ async function runHL(){
                 const item = lineItems[itemIdx];
                 if (sel.size > 0) {
                   drawCharRangeHighlight(libPage, item, minCharIdx, maxCharIdx, sx, sy, pageOffset,
-                    PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25, stdFont);
+                    keywordColor, 0.25, stdFont);
                 }
                 totalHits++;
               }
