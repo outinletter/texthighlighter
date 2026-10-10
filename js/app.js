@@ -141,8 +141,12 @@ async function initLibraries() {
 
 function updBadge(){
   const t=sel.size,el=document.getElementById('selCount');
-  el.textContent=t;
-  el.className='badge-count'+(t>0&&t>=PRESETS.length+custom.length?' all':'');
+  const customCount = custom.filter(word => sel.has(word)).length;
+  const presetCount = PRESETS.filter(word => sel.has(word) && !custom.includes(word)).length;
+  el.textContent = custom.length ? `${presetCount} + ${customCount}` : t;
+  el.title = `기본 키워드 ${presetCount}개 / 사용자 키워드 ${customCount}개 (쉼표 구분, 중복 제외)`;
+  const allWords = new Set([...PRESETS, ...custom]);
+  el.className='badge-count'+(t>0&&[...allWords].every(word => sel.has(word))?' all':'');
 }
 
 function toggleDD(){
@@ -153,7 +157,7 @@ function toggleDD(){
 }
 
 function toggleAllWords(){
-  const selectAll = sel.size < PRESETS.length + custom.length;
+  const selectAll = [...new Set([...PRESETS, ...custom])].some(word => !sel.has(word));
   PRESETS.forEach((w, i) => {
     selectAll ? sel.add(w) : sel.delete(w);
     const checkbox = document.getElementById(`p${i}`);
@@ -177,7 +181,7 @@ function syncCustomWordSelection(word) {
 
 function addCustom(){
   const inp=document.getElementById('cwInput');
-  const words = inp.value.split(/[,\n]+/).map(w=>w.trim().toUpperCase()).filter(w=>w);
+  const words = inp.value.split(',').map(w=>w.replace(/\s+/g, ' ').trim().toUpperCase()).filter(w=>w);
 
   words.forEach(w => {
     // custom 배열에 없으면 추가 (화면 태그 표시용)
