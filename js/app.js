@@ -168,9 +168,16 @@ function toggleAllWords(){
   updRun();
 }
 
+function syncCustomWordSelection(word) {
+  sel.add(word);
+  const index = custom.indexOf(word);
+  const checkbox = index >= 0 ? document.getElementById(`cw${index}`) : null;
+  if (checkbox) checkbox.checked = true;
+}
+
 function addCustom(){
   const inp=document.getElementById('cwInput');
-  const words = inp.value.split(/,+/).map(w=>w.trim().toUpperCase()).filter(w=>w);
+  const words = inp.value.split(/[\s,]+/).map(w=>w.trim().toUpperCase()).filter(w=>w);
 
   words.forEach(w => {
     // custom 배열에 없으면 추가 (화면 태그 표시용)
@@ -178,7 +185,7 @@ function addCustom(){
       custom.push(w);
     }
     // sel Set에 추가 (실제 하이라이트 대상)
-    sel.add(w);
+    syncCustomWordSelection(w);
 
     // 만약 PRESETS에 있는 단어라면, 해당 체크박스도 찾아 체크해줌 (UI 동기화)
     const presetIndex = PRESETS.indexOf(w);
@@ -190,6 +197,7 @@ function addCustom(){
 
   inp.value='';
   renderCustomWordOptions();
+  custom.forEach(syncCustomWordSelection);
   renderTags();
   updBadge();
   done=false;
