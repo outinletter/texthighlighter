@@ -59,7 +59,7 @@
 
     <div class="card">
       <div class="card-title">2. HIGHLIGHT &amp; BOOKMARK SETTINGS</div>
-      <div class="hl-row" style="justify-content: space-between;">
+      <div class="hl-row compact-settings-row">
         <fieldset class="engine-mode" aria-label="Processing mode">
           <label class="engine-mode-option">
             <input type="radio" name="engineMode" value="keywords" checked>
@@ -68,6 +68,16 @@
           <label class="engine-mode-option">
             <input type="radio" name="engineMode" value="bookmarks">
             <span>Only Bookmark &amp; Annotation</span>
+          </label>
+        </fieldset>
+        <fieldset id="bookmarkOptions" class="engine-mode" aria-label="Bookmark mode">
+          <label class="engine-mode-option">
+            <input type="radio" name="bookmarkPolicy" value="generate" checked>
+            <span>북마크 생성</span>
+          </label>
+          <label class="engine-mode-option">
+            <input type="radio" name="bookmarkPolicy" value="preserve">
+            <span>기존 유지</span>
           </label>
         </fieldset>
         <div class="dropdown-wrap">
@@ -83,19 +93,6 @@
             <div id="customWordList"></div>
           </div>
         </div>
-      </div>
-
-      <div id="bookmarkOptions" style="margin-top:16px">
-        <fieldset class="engine-mode" aria-label="Bookmark mode">
-          <label class="engine-mode-option">
-            <input type="radio" name="bookmarkPolicy" value="generate" checked>
-            <span>북마크 생성</span>
-          </label>
-          <label class="engine-mode-option">
-            <input type="radio" name="bookmarkPolicy" value="preserve">
-            <span>기존 유지</span>
-          </label>
-        </fieldset>
       </div>
 
       <div class="settings-subrow">
