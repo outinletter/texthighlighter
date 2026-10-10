@@ -58,7 +58,22 @@
     </div>
 
     <div class="card">
-      <div class="card-title">2. HIGHLIGHT &amp; BOOKMARK SETTINGS</div>
+      <div class="settings-heading-row">
+        <div class="card-title">2. HIGHLIGHT &amp; BOOKMARK SETTINGS</div>
+        <div class="dropdown-wrap">
+          <button class="dropdown-btn" id="dropBtn" onclick="toggleDD()">
+            Select Words <span class="badge-count" id="selCount">0</span><span class="arrow"> ▼</span>
+          </button>
+          <div class="dropdown-menu" id="dropMenu" style="display:none">
+            <div class="menu-section">NOTAM KEYWORDS</div>
+            <div class="menu-actions">
+              <button type="button" id="toggleAllWords" onclick="toggleAllWords()">Deselect All</button>
+            </div>
+            <div id="presetList"></div>
+            <div id="customWordList"></div>
+          </div>
+        </div>
+      </div>
       <div class="hl-row compact-settings-row">
         <fieldset class="engine-mode" aria-label="Processing mode">
           <label class="engine-mode-option">
@@ -80,19 +95,6 @@
             <span>기존 유지</span>
           </label>
         </fieldset>
-        <div class="dropdown-wrap">
-          <button class="dropdown-btn" id="dropBtn" onclick="toggleDD()">
-            Select Words <span class="badge-count" id="selCount">0</span><span class="arrow"> ▼</span>
-          </button>
-          <div class="dropdown-menu" id="dropMenu" style="display:none">
-            <div class="menu-section">NOTAM KEYWORDS</div>
-            <div class="menu-actions">
-              <button type="button" id="toggleAllWords" onclick="toggleAllWords()">Deselect All</button>
-            </div>
-            <div id="presetList"></div>
-            <div id="customWordList"></div>
-          </div>
-        </div>
       </div>
 
       <div class="settings-subrow">
