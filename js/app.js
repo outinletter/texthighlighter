@@ -477,6 +477,12 @@ function dlPDF(){
 // 이벤트 리스너 바인딩 및 초기화
 document.addEventListener('DOMContentLoaded', () => {
   initLibraries();
+  const settingsCard = document.getElementById('highlightSettingsHeading').closest('.card');
+  const resizeTagBox = () => {
+    document.getElementById('tagList').style.height = `${Math.ceil(settingsCard.getBoundingClientRect().height * 2)}px`;
+  };
+  new ResizeObserver(resizeTagBox).observe(settingsCard);
+  resizeTagBox();
   updateCommitVersion();
   document.querySelectorAll('input[name="bookmarkPolicy"]').forEach(input => input.addEventListener('change', e => {
     if (!e.target.checked) return;
