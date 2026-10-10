@@ -698,7 +698,8 @@ async function runHL(){
 
     const extraKws = [];
     if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
-    const keywords = [...sel, ...extraKws].sort((a,b)=>b.length-a.length);
+    const routeKw = typeof extractedRoute === 'string' ? extractedRoute.trim().toUpperCase() : '';
+    const keywords = [...sel, ...extraKws, ...(routeKw ? [routeKw] : [])].sort((a,b)=>b.length-a.length);
     const hlRGB = window.activeHlColorRGB || [1.0, 0.45, 0.65];
 
     const numPages=pdfJsDoc.numPages;
