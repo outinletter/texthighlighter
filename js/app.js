@@ -405,7 +405,6 @@ window.addEventListener('online', () => {
 function loadFile(file){
   bookmarkPolicy = 'generate';
   document.getElementById('bookmarkPolicy').value = 'generate';
-  document.getElementById('bookmarkOptions').hidden = true;
   pendingPilotBriefingDestination = '';
   pilotBriefingLoading = true;
   pilotBriefingDestination = '';
@@ -422,18 +421,9 @@ function loadFile(file){
   updRun();
   setStatus('processing','Loading local memory dump...');
   const r=new FileReader();
-  r.onload=async e=>{
+  r.onload=e=>{
     const loadedBytes=new Uint8Array(e.target.result);
     pdfBytes=loadedBytes;
-    try {
-      const doc=await PDFLib.PDFDocument.load(loadedBytes,{ignoreEncryption:true});
-      if (pdfBytes !== loadedBytes) return;
-      const outlines=doc.catalog.lookup(PDFLib.PDFName.of('Outlines'));
-      document.getElementById('bookmarkOptions').hidden = !outlines?.get(PDFLib.PDFName.of('First'));
-    } catch (error) {
-      if (pdfBytes !== loadedBytes) return;
-      console.warn('Bookmark detection skipped', error);
-    }
     updRun();
     setStatus('ready',`${file.name} loaded. Press RUN to start with automatic auto-decoding.`);
     loadPilotBriefingFromPdf(pdfBytes.slice());
