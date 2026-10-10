@@ -1069,7 +1069,18 @@ async function runHL(){
 
           if (typeof customLineHighlight !== 'undefined' && customLineHighlight &&
               custom.some(word => checkKeywordMatch(lineText, word))) {
-            drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+            let sentenceStart = lineIndex;
+            while (sentenceStart > 0 && !/[.!?][\])}"']*\s*$/.test(
+              groupedLines[sentenceStart - 1].items.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ')
+            )) sentenceStart--;
+            let sentenceEnd = lineIndex;
+            while (sentenceEnd < groupedLines.length - 1 && !/[.!?][\])}"']*\s*$/.test(
+              groupedLines[sentenceEnd].items.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ')
+            )) sentenceEnd++;
+            for (let highlightIndex = sentenceStart; highlightIndex <= sentenceEnd; highlightIndex++) {
+              const sentenceItems = groupedLines[highlightIndex].items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
+              drawLineHighlight(libPage, sentenceItems, groupedLines[highlightIndex].y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+            }
             totalHits++;
             continue;
           }
