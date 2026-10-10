@@ -13,6 +13,8 @@ window.activeHlColorRGB = activeHlColorRGB;
 
 // Default marker mode: underline
 let highlightMode = 'underline';
+let customLineHighlight = false;
+window.customLineHighlight = customLineHighlight;
 
 let sel=new Set(), custom=[], pdfBytes=null, fname='document', done=false, outBytes=null;
 let detectedAirports = [];
@@ -67,6 +69,15 @@ function setHighlightMode(mode) {
     highlightLabel.classList.toggle('active', highlightMode === 'highlight');
   }
 
+  done = false;
+  updRun();
+}
+
+function toggleCustomMode() {
+  customLineHighlight = !customLineHighlight;
+  window.customLineHighlight = customLineHighlight;
+  const button = document.getElementById('customModeToggle');
+  if (button) button.textContent = customLineHighlight ? 'Full Line' : 'Custom Words Only';
   done = false;
   updRun();
 }

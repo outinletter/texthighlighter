@@ -1067,6 +1067,13 @@ async function runHL(){
           const lineTextFromMapping = charMapping.map(m => m.isSeparator ? ' ' : m.char).join('');
           const cleanLineText = lineTextFromMapping.replace(/[^A-Za-z0-9]/g, ' ');
 
+          if (typeof customLineHighlight !== 'undefined' && customLineHighlight &&
+              custom.some(word => checkKeywordMatch(lineText, word))) {
+            drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
+            totalHits++;
+            continue;
+          }
+
           // 키워드 강조
           for (const kw of keywords) {
             if (excludedNotamLine && SENTENCE_KW.some(sentenceKw => sentenceKw.toUpperCase() === kw.trim().toUpperCase())) continue;
