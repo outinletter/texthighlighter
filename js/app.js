@@ -31,6 +31,21 @@ let pilotBriefingDestination = '';
 let pilotBriefingLoading = false;
 let pilotBriefingError = '';
 
+async function updateCommitVersion() {
+  try {
+    const response = await fetch('https://api.github.com/repos/outinletter/texthighlighter/commits/main', {
+      headers: { Accept: 'application/vnd.github+json' },
+      cache: 'no-store'
+    });
+    if (!response.ok) return;
+    const commit = await response.json();
+    const hash = commit?.sha?.slice(0, 7);
+    if (hash) document.getElementById('commitVersion')?.replaceChildren(hash);
+  } catch (error) {
+    console.info('Commit version update unavailable while offline.');
+  }
+}
+
 function canRun(){return (sel.size>0 || bmEnabled) && pdfBytes!==null;}
 function updRun(){document.getElementById('runBtn').className='action-btn run-btn'+(canRun()?' active':'');}
 function handleBtn(){if(done)dlPDF();else runHL();}
@@ -428,6 +443,7 @@ function dlPDF(){
 // 이벤트 리스너 바인딩 및 초기화
 document.addEventListener('DOMContentLoaded', () => {
   initLibraries();
+  updateCommitVersion();
 
   const pl = document.getElementById('presetList');
   const frag = document.createDocumentFragment();
