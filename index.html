@@ -16,7 +16,7 @@
   <div class="header-container">
     <!-- 클릭 이벤트를 위한 id 추가 -->
     <div class="header-text" id="appTitle">
-      <h1>NOTAM <span class="highlight">HIGHLIGHTER</span> <span class="version">v1.8 (aeb2a9c)</span></h1>
+      <h1>NOTAM <span class="highlight">HIGHLIGHTER</span> <span class="version">v1.8 (3e3cd9d)</span></h1>
 
       <p>Offline Ready Smart NOTAM Highlighter & Route Matcher</p>
     </div>
@@ -76,6 +76,9 @@
           </button>
           <div class="dropdown-menu" id="dropMenu" style="display:none">
             <div class="menu-section">NOTAM KEYWORDS</div>
+            <div class="menu-actions">
+              <button type="button" id="toggleAllWords" onclick="toggleAllWords()">Deselect All</button>
+            </div>
             <div id="presetList"></div>
           </div>
         </div>

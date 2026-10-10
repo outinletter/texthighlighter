@@ -124,6 +124,21 @@ function toggleDD(){
   b.classList.toggle('open',o);
 }
 
+function toggleAllWords(){
+  const selectAll = sel.size < PRESETS.length + custom.length;
+  PRESETS.forEach((w, i) => {
+    selectAll ? sel.add(w) : sel.delete(w);
+    const checkbox = document.getElementById(`p${i}`);
+    if (checkbox) checkbox.checked = selectAll;
+  });
+  custom.forEach(w => selectAll ? sel.add(w) : sel.delete(w));
+  const button = document.getElementById('toggleAllWords');
+  if (button) button.textContent = selectAll ? 'Deselect All' : 'Select All';
+  updBadge();
+  done = false;
+  updRun();
+}
+
 function addCustom(){
   const inp=document.getElementById('cwInput');
   const words = inp.value.split(/,+/).map(w=>w.trim().toUpperCase()).filter(w=>w);

@@ -299,6 +299,8 @@ body{
   top:calc(100% + 6px);
 }
 .menu-section{padding:4px 12px;font-size:9px;font-weight:700;color:#64748b;letter-spacing:1px;text-transform:uppercase}
+.menu-actions{padding:4px 12px;border-bottom:1px solid rgba(148,163,184,.15)}
+.menu-actions button{width:100%;padding:5px 8px;border:1px solid rgba(148,163,184,.3);border-radius:4px;background:rgba(59,130,246,.12);color:#cbd5e1;font-size:11px;cursor:pointer}
 .menu-item{display:flex;align-items:center;gap:8px;padding:6px 12px;cursor:pointer;font-size:12.5px;color:#cbd5e1;transition:.1s}
 .menu-item:hover{background:rgba(59,130,246,.1);color:#fff}
 .menu-item input[type=checkbox]{width:14px;height:14px;cursor:pointer;accent-color:#3b82f6;flex-shrink:0}
