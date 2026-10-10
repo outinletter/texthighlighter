@@ -59,7 +59,7 @@ function findBadgePosition(box, obstacles, bottom = 12) {
       box.x < other.x + other.width + gap && box.x + box.width + gap > other.x &&
       y < other.y + other.height + gap && y + box.height + gap > other.y);
     if (!collisions.length) return { ...box, y };
-    y = Math.min(...collisions.map(other => other.y)) - box.height - gap;
+    y = Math.min(y - 0.01, Math.min(...collisions.map(other => other.y)) - box.height - gap);
   }
   return null;
 }
