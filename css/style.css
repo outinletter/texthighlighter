@@ -651,6 +651,14 @@ body{
 .offline-help-dialog li { padding-left: 3px; margin: 0 0 10px; }
 .offline-help-dialog p { margin: 14px 0 0; color: #94a3b8; font-size: 13px; }
 .offline-help-dialog code { color: #bfdbfe; }
+#offlineHelpModal .offline-help-intro { margin: 0 0 18px; color: #cbd5e1; font-size: 14px; }
+#offlineHelpModal li { margin-bottom: 14px; }
+#offlineHelpModal li strong { color: #f1f5f9; }
+#offlineHelpModal mark { background: #dbeafe; color: #183153; border-radius: 5px; padding: 2px 5px; box-decoration-break: clone; -webkit-box-decoration-break: clone; font-weight: 600; }
+#offlineHelpModal li:nth-child(3) mark { background: #ede9fe; color: #45316b; }
+#offlineHelpModal li:nth-child(5) mark { background: #dcfce7; color: #14532d; }
+#offlineHelpModal a { color: #bfdbfe; text-decoration: underline; }
+#offlineHelpModal .offline-help-notice { padding: 12px; border-left: 3px solid #fde68a; border-radius: 6px; background: #29271f; color: #fef3c7; font-size: 14px; }
 .offline-help-close {
   position: absolute;
   top: 12px;

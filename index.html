@@ -171,15 +171,17 @@
 <div class="offline-help-backdrop" id="offlineHelpModal" hidden>
   <section class="offline-help-dialog" role="dialog" aria-modal="true" aria-labelledby="offlineHelpTitle">
     <button type="button" class="offline-help-close" id="offlineHelpClose" aria-label="Close">&times;</button>
-    <h2 id="offlineHelpTitle">Offline Usage on iPad</h2>
+    <h2 id="offlineHelpTitle">iPad에서 인터넷 없이 사용하기</h2>
+    <p class="offline-help-intro">처음 한 번은 인터넷에 연결하여 준비하세요. 준비가 끝나면 홈 화면 아이콘으로 앱을 열어 오프라인에서 사용할 수 있습니다.</p>
     <ol>
-      <li>Open the app’s GitHub Pages address in Safari on your iPad. Use the HTTPS address; opening the HTML file directly with <code>file://</code> can limit service workers and PDF workers.</li>
-      <li>While online, wait for the app to finish loading. The app page, scripts, local <code>vendor/</code> libraries, and PDF worker are then saved in the service worker cache.</li>
-      <li>In Safari, tap <strong>Share → Add to Home Screen</strong>.</li>
-      <li>Open the app once from its Home Screen icon and confirm the libraries have loaded.</li>
-      <li>Turn on Airplane Mode and reopen the app to verify offline access.</li>
+      <li><strong>인터넷 연결</strong> 상태에서 iPad의 <mark>Safari</mark>로 <a href="https://texthighlighter.pages.dev/">Text Highlighter</a>를 여세요.</li>
+      <li><strong>로딩 완료까지 기다리기</strong><br>앱 화면과 PDF 처리 기능이 모두 불러와질 때까지 기다리세요. 오프라인 사용에 필요한 파일이 기기에 저장됩니다.</li>
+      <li><strong>홈 화면에 앱 추가</strong><br>Safari의 <mark>공유 (Share)</mark> 버튼을 누른 뒤 <mark>홈 화면에 추가 (Add to Home Screen)</mark>를 선택하세요.</li>
+      <li><strong>홈 화면 아이콘으로 한 번 열기</strong><br>인터넷을 연결한 채 <mark>Text Highlighter 아이콘</mark>을 눌러 앱이 정상적으로 열리는지 확인하세요.</li>
+      <li><strong>오프라인 작동 확인</strong><br><mark>비행기 모드 (Airplane Mode)</mark>를 켜고 Wi-Fi도 끈 뒤, 홈 화면 아이콘으로 앱을 다시 열어 PDF를 처리해 보세요.</li>
     </ol>
-    <p>After an app update, open it once while online so the new files can be cached before using it offline.</p>
+    <p class="offline-help-notice"><strong>업데이트 후에는</strong> 인터넷에 연결한 상태로 앱을 한 번 열어 최신 파일을 저장한 뒤 오프라인으로 사용하세요.</p>
+    <p>주의: 다운로드한 HTML 파일을 직접 열지 말고, 위의 웹 주소로 접속하여 준비하세요.</p>
   </section>
 </div>
 
