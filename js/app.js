@@ -211,6 +211,7 @@ function addCustom(){
 
 function renderTags(){
   const list=document.getElementById('tagList');list.innerHTML='';
+  list.style.display = custom.length ? '' : 'none';
   const tc=[['#eee5c9','#403a2b'],['#d0e5d7','#2c4034'],['#ebd5dc','#45333b'],['#d1e3eb','#2d3c45'],['#ecddcf','#45382d'],['#dfd6eb','#3c3348']];
   const tagFrag = document.createDocumentFragment();
   custom.forEach((w,i)=>{
