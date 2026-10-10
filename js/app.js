@@ -160,6 +160,7 @@ function toggleAllWords(){
     if (checkbox) checkbox.checked = selectAll;
   });
   custom.forEach(w => selectAll ? sel.add(w) : sel.delete(w));
+  document.querySelectorAll('#customWordList input').forEach(input => { input.checked = selectAll; });
   const button = document.getElementById('toggleAllWords');
   if (button) button.textContent = selectAll ? 'Deselect All' : 'Select All';
   updBadge();
@@ -188,6 +189,7 @@ function addCustom(){
   });
 
   inp.value='';
+  renderCustomWordOptions();
   renderTags();
   updBadge();
   done=false;
@@ -208,7 +210,23 @@ function renderTags(){
   list.appendChild(tagFrag);
 }
 
-function rmCustom(i){sel.delete(custom[i]);custom.splice(i,1);renderTags();updBadge();done=false;updRun();}
+function renderCustomWordOptions(){
+  const list = document.getElementById('customWordList');
+  if (!list) return;
+  list.innerHTML = custom.length ? '<div class="menu-section">CUSTOM WORDS</div>' : '';
+  custom.forEach((word, index) => {
+    const item = document.createElement('div');
+    item.className = 'menu-item';
+    item.innerHTML = `<input type="checkbox" id="cw${index}" ${sel.has(word) ? 'checked' : ''}><label for="cw${index}" style="cursor:pointer;flex:1">${word}</label>`;
+    item.querySelector('input').addEventListener('change', event => {
+      event.target.checked ? sel.add(word) : sel.delete(word);
+      updBadge(); done = false; updRun();
+    });
+    list.appendChild(item);
+  });
+}
+
+function rmCustom(i){sel.delete(custom[i]);custom.splice(i,1);renderCustomWordOptions();renderTags();updBadge();done=false;updRun();}
 
 function escapeBriefingHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -458,6 +476,7 @@ document.addEventListener('DOMContentLoaded', () => {
     frag.appendChild(d);
   });
   pl.appendChild(frag);
+  renderCustomWordOptions();
 
   document.querySelectorAll('input[name="engineMode"]').forEach(modeInput => {
     modeInput.addEventListener('change', e => {
