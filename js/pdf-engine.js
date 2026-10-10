@@ -672,7 +672,7 @@ async function runHL(){
     return;
   }
 
-  const SENTENCE_KW = ['CLSD', 'CLOSED', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
+  const SENTENCE_KW = ['CLSD', 'CLOSED', 'CLOSURE', 'SHALL', 'PROHIBIT', 'RESTRICT', 'NOT AVBL', 'ALERT 4', 'ALERT4',
   'MUST', 'MAY NOT', 'SHALL NOT', 'NA', 'DUE TO', 'EXP', 'CAUTION', 'AWARE OF', 'DO NOT', 'ONLY AVBL', 'CONFUSING', 'CONFUSE', 'SHOULD'];
   const runBtn=document.getElementById('runBtn');
   runBtn.className='action-btn run-btn';
@@ -923,7 +923,7 @@ async function runHL(){
             if (iataAirports.length === 2) {
               const a = iataAirports[0].toUpperCase(), b = iataAirports[1].toUpperCase();
               const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const pairPattern = new RegExp(`\\b${escape(a)}\\s*(?:\\/|-)\\s*${escape(b)}\\b|\\b${escape(a)}\\s+TO\\s+${escape(b)}\\b`, 'i');
+              const pairPattern = new RegExp(`\\b${escape(a)}\\s*\\/\\s*${escape(b)}\\b`, 'i');
               if (pairPattern.test(lineText)) {
                 hasRouteStr = true;
                 iataMatch = true;
@@ -1619,46 +1619,6 @@ async function runHL(){
             .replace(/[^A-Za-z0-9\s]/g, ' ')
             .split(/\s+/)
             .filter(t => t.length >= 2 && !noiseWords.includes(t.toUpperCase()) && !airportCodes.has(t.toUpperCase()) && !/^\d+$/.test(t));
-      }
-
-      // Highlight complete NOTAM lines containing any detected route airway or waypoint.
-      const notamRouteStartIdx = [notam1PageIdx, notam2PageIdx, notam3PageIdx]
-        .filter(Number.isInteger).sort((a, b) => a - b)[0];
-      if (routeTokens.length && Number.isInteger(notamRouteStartIdx)) {
-        const routeTokenPatterns = routeTokens.map(token => {
-          const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          return new RegExp(`\\b${escaped}\\b`, 'i');
-        });
-        for (let pi = notamRouteStartIdx; pi < numPages; pi++) {
-          const jsPage = await pdfJsDoc.getPage(pi + 1);
-          const content = await jsPage.getTextContent();
-          const pageOffset = detectPageOffset(content.items.map(item => item.str).join(' '));
-          const lines = groupTextItemsByLine(content.items, pageOffset);
-          const libPage = libPages[pi];
-          const viewport = jsPage.getViewport({ scale: 1.0 });
-          const { width, height } = libPage.getSize();
-          const sx = width / viewport.width;
-          const sy = height / viewport.height;
-          for (const line of lines) {
-            const lineText = line.parts
-              .map(part => cleanAndDecodeItem(part.item.str, pageOffset))
-              .join(' ');
-            if (!routeTokenPatterns.some(pattern => pattern.test(lineText))) continue;
-            const lineKey = highlightedNotamLineKey(pi, line.y);
-            if (highlightedNotamLines.has(lineKey)) continue;
-            drawLineHighlight(
-              libPage,
-              line.parts.map(part => part.item),
-              line.y,
-              sx,
-              sy,
-              PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]),
-              0.25
-            );
-            highlightedNotamLines.add(lineKey);
-            totalHits++;
-          }
-        }
       }
 
       const discMatch = cfpFullSectionText.match(/\bDISC\b\s+(\d{4})\s+(\d{2}\.\d{2})/i);
