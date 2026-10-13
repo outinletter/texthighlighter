@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="notamhighlighter.png">
   <link rel="apple-touch-icon" href="notamhighlighter.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=57">
+  <link rel="stylesheet" href="css/style.css?v=59">
 </head>
 <body>
 
@@ -75,28 +75,23 @@
         </div>
       </div>
       <div class="hl-row compact-settings-row">
-        <fieldset class="engine-mode" aria-label="Processing mode">
-          <label class="engine-mode-option">
-            <input type="radio" name="engineMode" value="keywords" checked>
-            <span>Keywords &amp; Function</span>
-          </label>
-          <label class="engine-mode-option">
-            <input type="radio" name="engineMode" value="bookmarks">
-            <span>Only Badge</span>
-          </label>
-        </fieldset>
-        <fieldset id="bookmarkOptions" class="engine-mode" aria-label="Bookmark mode">
-          <label class="engine-mode-option">
-            <input type="radio" name="bookmarkPolicy" value="generate" checked>
-            <span>Generate Bookmarks</span>
-          </label>
-          <label class="engine-mode-option">
-            <input type="radio" name="bookmarkPolicy" value="preserve">
-            <span>Keep Existing</span>
-          </label>
-        </fieldset>
-        <div class="marker-style-group">
-          <fieldset class="engine-mode selection-mode" aria-label="Marker style">
+        <div class="settings-control-group">
+          <span class="settings-group-label" id="processingModeLabel">Processing Mode</span>
+          <fieldset class="engine-mode" id="processingOptions" aria-labelledby="processingModeLabel">
+            <label class="engine-mode-option"><input type="radio" name="engineMode" value="keywords" checked><span>Keywords</span></label>
+            <label class="engine-mode-option"><input type="radio" name="engineMode" value="bookmarks"><span>Badge Only</span></label>
+          </fieldset>
+        </div>
+        <div class="settings-control-group">
+          <span class="settings-group-label" id="bookmarkModeLabel">Bookmarks</span>
+          <fieldset class="engine-mode" id="bookmarkOptions" aria-labelledby="bookmarkModeLabel">
+            <label class="engine-mode-option"><input type="radio" name="bookmarkPolicy" value="generate" checked><span>Create</span></label>
+            <label class="engine-mode-option"><input type="radio" name="bookmarkPolicy" value="preserve"><span>Keep</span></label>
+          </fieldset>
+        </div>
+        <div class="settings-control-group">
+          <span class="settings-group-label" id="markerStyleLabel">Marker Style</span>
+          <fieldset class="engine-mode" id="markerOptions" aria-labelledby="markerStyleLabel">
             <label class="engine-mode-option"><input type="radio" name="markerMode" value="underline" checked><span>Underline</span></label>
             <label class="engine-mode-option"><input type="radio" name="markerMode" value="highlight"><span>Highlight</span></label>
           </fieldset>
@@ -187,7 +182,7 @@
 <script src="js/pdf-engine.js"></script>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/pdf-lib.min.js"></script>
-    <script src="js/app.js?v=57"></script>
+    <script src="js/app.js?v=59"></script>
     <script>
       (() => {
         const modal = document.getElementById('offlineHelpModal');

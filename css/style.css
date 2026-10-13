@@ -660,7 +660,7 @@ body{
   border-radius: 14px;
   background: #111827;
   color: #e2e8f0;
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: inherit;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
   line-height: 1.6;
 }
@@ -728,26 +728,20 @@ body{
 .marker-style-group { flex-wrap: wrap; max-width: 100%; }
 .custom-title-row { flex-wrap: wrap; gap: 10px; }
 
-/* Keep primary settings on one row when space permits. */
+/* Equal-width labeled settings groups in the compact card. */
 .app { max-width: 640px; }
-.compact-settings-row { align-items: center; }
-.compact-settings-row .marker-style-group { flex-wrap: nowrap; gap: 8px; }
-.compact-settings-row .marker-style-group .engine-mode { width: 272px; }
+.compact-settings-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; align-items: end; }
+.settings-control-group { min-width: 0; }
+.settings-group-label { display: block; margin-bottom: 6px; color: #94a3b8; font-size: 11px; font-weight: 600; line-height: 1.4; }
+.compact-settings-row .engine-mode { width: 100%; }
+.compact-settings-row .engine-mode-option { flex: 1 1 0; }
+.compact-settings-row .engine-mode-option span { padding: 7px 6px; }
 .custom-title-row .selection-mode { width: auto; text-transform: none; letter-spacing: normal; }
-.custom-title-row .selection-mode .engine-mode-option { flex: 0 0 auto; }
+.custom-title-row .selection-mode .engine-mode-option { flex: 1 1 0; }
 .custom-title-row .selection-mode span { padding: 7px 14px; }
-@media(max-width:560px) {
-  .compact-settings-row .marker-style-group { flex-wrap: wrap; }
+@media(max-width:600px) {
+  .compact-settings-row { grid-template-columns: 1fr; gap: 12px; }
 }
 
-/* Fit primary controls in the original compact card width. */
-@media(min-width:640px) {
-  .compact-settings-row { flex-wrap: nowrap; gap: 6px; }
-  .compact-settings-row > .engine-mode { width: auto; flex: 1 1 0; }
-  .compact-settings-row > .engine-mode .engine-mode-option { flex: 1; }
-  .compact-settings-row > .engine-mode .engine-mode-option span { padding: 7px 4px; }
-  .compact-settings-row .marker-style-group { flex: 0 0 auto; }
-  .compact-settings-row .marker-style-group .engine-mode { width: auto; }
-  .compact-settings-row .marker-style-group .engine-mode-option { flex: 0 0 auto; }
-  .compact-settings-row .marker-style-group .engine-mode-option span { padding: 7px 6px; }
-}
+/* Form controls use the same font family as the surrounding body text. */
+button, input, select, textarea { font-family: inherit; }
