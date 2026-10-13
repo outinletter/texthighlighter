@@ -729,7 +729,7 @@ body{
 .custom-title-row { flex-wrap: wrap; gap: 10px; }
 
 /* Keep primary settings on one row when space permits. */
-.app { max-width: 900px; }
+.app { max-width: 640px; }
 .compact-settings-row { align-items: center; }
 .compact-settings-row .marker-style-group { flex-wrap: nowrap; gap: 8px; }
 .compact-settings-row .marker-style-group .engine-mode { width: 272px; }
@@ -740,7 +740,14 @@ body{
   .compact-settings-row .marker-style-group { flex-wrap: wrap; }
 }
 
-@media(min-width:900px) {
-  .compact-settings-row { flex-wrap: nowrap; }
+/* Fit primary controls in the original compact card width. */
+@media(min-width:640px) {
+  .compact-settings-row { flex-wrap: nowrap; gap: 6px; }
+  .compact-settings-row > .engine-mode { width: auto; flex: 1 1 0; }
+  .compact-settings-row > .engine-mode .engine-mode-option { flex: 1; }
+  .compact-settings-row > .engine-mode .engine-mode-option span { padding: 7px 4px; }
+  .compact-settings-row .marker-style-group { flex: 0 0 auto; }
+  .compact-settings-row .marker-style-group .engine-mode { width: auto; }
+  .compact-settings-row .marker-style-group .engine-mode-option { flex: 0 0 auto; }
+  .compact-settings-row .marker-style-group .engine-mode-option span { padding: 7px 6px; }
 }
-.compact-settings-row .marker-style-group { flex: 0 0 auto; }
