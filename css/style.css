@@ -511,7 +511,7 @@ body{
   gap: 12px;
   margin-top: 14px;
 }
-.engine-help-actions .survey-btn { min-width: 243px; box-sizing: border-box; }
+.engine-help-actions .survey-btn { min-width: 243px; box-sizing: border-box; font: 700 13px/1.4 system-ui, -apple-system, sans-serif; letter-spacing: normal; }
 
 
 /* Header interactions */
