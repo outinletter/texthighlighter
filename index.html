@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="notamhighlighter.png">
   <link rel="apple-touch-icon" href="notamhighlighter.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=50">
+  <link rel="stylesheet" href="css/style.css?v=53">
 </head>
 <body>
 
@@ -95,9 +95,6 @@
             <span>Keep Existing</span>
           </label>
         </fieldset>
-      </div>
-
-      <div class="settings-subrow">
         <div class="marker-style-group">
           <span class="settings-subrow-label">Marker Style</span>
           <fieldset class="engine-mode selection-mode" aria-label="Marker style">
@@ -105,6 +102,9 @@
             <label class="engine-mode-option"><input type="radio" name="markerMode" value="highlight"><span>Highlight</span></label>
           </fieldset>
         </div>
+      </div>
+
+      <div class="settings-subrow">
         <div class="marker-color-group">
           <span class="settings-subrow-label">Marker Color</span>
           <div class="color-swatch-row">
@@ -121,8 +121,8 @@
       <div class="card-title custom-title-row">
         <span>3. ADD CUSTOM WORD TAGS</span>
         <fieldset class="engine-mode selection-mode" aria-label="Custom word scope">
-            <label class="engine-mode-option"><input type="radio" name="customMode" value="words" checked><span>Words</span></label>
-            <label class="engine-mode-option"><input type="radio" name="customMode" value="line"><span>Full Line</span></label>
+            <label class="engine-mode-option"><input type="radio" name="customMode" value="words" checked><span>words</span></label>
+            <label class="engine-mode-option"><input type="radio" name="customMode" value="line"><span>full line</span></label>
           </fieldset>
       </div>
       <div class="custom-add-wrap">
@@ -188,7 +188,7 @@
 <script src="js/pdf-engine.js"></script>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/pdf-lib.min.js"></script>
-    <script src="js/app.js?v=50"></script>
+    <script src="js/app.js?v=53"></script>
     <script>
       (() => {
         const modal = document.getElementById('offlineHelpModal');

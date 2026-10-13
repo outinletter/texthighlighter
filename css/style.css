@@ -719,7 +719,7 @@ body{
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  padding: 4px 8px;
+  padding: 7px 10px;
   font-size: 11px;
   line-height: 1.2;
   text-align: center;
@@ -727,3 +727,22 @@ body{
 .compact-settings-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .marker-style-group { flex-wrap: wrap; max-width: 100%; }
 .custom-title-row { flex-wrap: wrap; gap: 10px; }
+
+/* Keep primary settings on one row when space permits. */
+.app { max-width: 900px; }
+.compact-settings-row { align-items: center; }
+.compact-settings-row .marker-style-group { flex-wrap: nowrap; gap: 8px; }
+.compact-settings-row .marker-style-group .engine-mode { width: 180px; }
+.custom-title-row .selection-mode { width: auto; text-transform: none; letter-spacing: normal; }
+.custom-title-row .selection-mode .engine-mode-option { flex: 0 0 auto; }
+.custom-title-row .selection-mode span { padding: 7px 14px; }
+@media(max-width:560px) {
+  .compact-settings-row .marker-style-group { flex-wrap: wrap; }
+}
+
+@media(min-width:860px) {
+  .compact-settings-row { flex-wrap: nowrap; }
+  .compact-settings-row > .engine-mode { width: 264px; }
+  .compact-settings-row .marker-style-group { flex: 1; min-width: 0; }
+  .compact-settings-row .marker-style-group .engine-mode { flex-shrink: 1; min-width: 158px; }
+}
