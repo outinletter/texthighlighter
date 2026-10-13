@@ -732,7 +732,7 @@ body{
 .app { max-width: 900px; }
 .compact-settings-row { align-items: center; }
 .compact-settings-row .marker-style-group { flex-wrap: nowrap; gap: 8px; }
-.compact-settings-row .marker-style-group .engine-mode { width: 180px; }
+.compact-settings-row .marker-style-group .engine-mode { width: 272px; }
 .custom-title-row .selection-mode { width: auto; text-transform: none; letter-spacing: normal; }
 .custom-title-row .selection-mode .engine-mode-option { flex: 0 0 auto; }
 .custom-title-row .selection-mode span { padding: 7px 14px; }
@@ -740,9 +740,7 @@ body{
   .compact-settings-row .marker-style-group { flex-wrap: wrap; }
 }
 
-@media(min-width:860px) {
+@media(min-width:900px) {
   .compact-settings-row { flex-wrap: nowrap; }
-  .compact-settings-row > .engine-mode { width: 264px; }
-  .compact-settings-row .marker-style-group { flex: 1; min-width: 0; }
-  .compact-settings-row .marker-style-group .engine-mode { flex-shrink: 1; min-width: 158px; }
 }
+.compact-settings-row .marker-style-group { flex: 0 0 auto; }
