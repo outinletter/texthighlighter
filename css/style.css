@@ -692,28 +692,38 @@ body{
 }
 
 
-/* Shared sizing for all segmented settings controls. */
+/* Consistent compact segmented controls across settings. */
+.engine-mode,
+.compact-settings-row .engine-mode {
+  display: flex;
+  flex-direction: row;
+  width: 248px;
+  max-width: 100%;
+  flex-shrink: 0;
+  padding: 2px;
+  gap: 2px;
+  align-items: stretch;
+  box-sizing: border-box;
+}
+.engine-mode-option,
+.compact-settings-row .engine-mode-option {
+  flex: 1;
+  min-width: 0;
+  white-space: normal;
+}
 .engine-mode-option span,
 .compact-settings-row .engine-mode-option span {
-  height: 40px;
-  min-height: 40px;
+  height: 32px;
+  min-height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  padding: 6px 8px;
+  padding: 2px 6px;
   font-size: 11px;
   line-height: 1.2;
+  text-align: center;
 }
-.engine-mode,
-.compact-settings-row .engine-mode {
-  padding: 2px;
-  gap: 2px;
-  align-items: stretch;
-}
-.selection-mode { flex-direction: row; width: auto; }
-.selection-mode .engine-mode-option { flex: 1; }
-@media(max-width:560px) {
-  .compact-settings-row { grid-template-columns: 1fr; }
-  .custom-title-row { flex-wrap: wrap; }
-}
+.compact-settings-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.marker-style-group { flex-wrap: wrap; max-width: 100%; }
+.custom-title-row { flex-wrap: wrap; gap: 10px; }
