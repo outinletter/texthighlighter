@@ -748,8 +748,8 @@ button, input, select, textarea { font-family: inherit; }
 
 /* Quiet visual hierarchy: document controls first, support actions second. */
 .header { background: #0f172a; padding: 24px 16px; }
-.header-text { text-align: left; }
-.header h1 { justify-content: flex-start; flex-wrap: wrap; row-gap: 6px; }
+.header-text { text-align: center; }
+.header h1 { justify-content: center; flex-wrap: wrap; row-gap: 6px; }
 .header p { font-size: 12px; line-height: 1.5; margin-top: 7px; }
 .card { margin-bottom: 0; box-shadow: none; }
 .card-title { color: #a8c4ef; letter-spacing: .6px; }
