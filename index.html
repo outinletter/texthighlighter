@@ -38,7 +38,7 @@
         </svg>
       </div>
       <div class="safety-banner-copy">
-        <div class="safety-banner-text">AIRPORT SAFETY BRIEFING <span class="demo-blink">Demo</span><span class="safety-banner-destination" id="safetyBannerDestination" hidden></span></div>
+        <div class="safety-banner-text">AIRPORT SAFETY BRIEFING <span class="demo-blink">Demo</span></div>
         <div class="safety-banner-subtitle" id="safetyBannerSubtitle">What hazards are waiting along your route?</div>
       </div>
       <span class="safety-banner-cta" id="safetyBannerCta">Explore the demo <span aria-hidden="true">→</span></span>
@@ -82,7 +82,7 @@
           </label>
           <label class="engine-mode-option">
             <input type="radio" name="engineMode" value="bookmarks">
-            <span>Only Bookmark &amp; Annotation</span>
+            <span>Only Badge</span>
           </label>
         </fieldset>
         <fieldset id="bookmarkOptions" class="engine-mode" aria-label="Bookmark mode">
@@ -100,14 +100,10 @@
       <div class="settings-subrow">
         <div class="marker-style-group">
           <span class="settings-subrow-label">Marker Style</span>
-          <div class="marker-mode-switch">
-            <span class="marker-mode-label" id="modeLabelUnderline">Underline</span>
-            <label class="toggle">
-              <input type="checkbox" id="markerModeToggle">
-              <span class="slider"></span>
-            </label>
-            <span class="marker-mode-label" id="modeLabelHighlight">Highlight</span>
-          </div>
+          <fieldset class="engine-mode selection-mode" aria-label="Marker style">
+            <label class="engine-mode-option"><input type="radio" name="markerMode" value="underline" checked><span>Underline</span></label>
+            <label class="engine-mode-option"><input type="radio" name="markerMode" value="highlight"><span>Highlight</span></label>
+          </fieldset>
         </div>
         <div class="marker-color-group">
           <span class="settings-subrow-label">Marker Color</span>
@@ -124,14 +120,10 @@
     <div class="card">
       <div class="card-title custom-title-row">
         <span>3. ADD CUSTOM WORD TAGS</span>
-        <div class="marker-mode-switch custom-mode-switch">
-          <span class="marker-mode-label active" id="customModeWordsLabel">Words</span>
-          <label class="toggle">
-            <input type="checkbox" id="customModeToggle" onchange="toggleCustomMode()">
-            <span class="slider"></span>
-          </label>
-          <span class="marker-mode-label" id="customModeLineLabel">Full Line</span>
-        </div>
+        <fieldset class="engine-mode selection-mode" aria-label="Custom word scope">
+            <label class="engine-mode-option"><input type="radio" name="customMode" value="words" checked><span>Words</span></label>
+            <label class="engine-mode-option"><input type="radio" name="customMode" value="line"><span>Full Line</span></label>
+          </fieldset>
       </div>
       <div class="custom-add-wrap">
         <div class="custom-add-row">
@@ -189,14 +181,6 @@
     <p>주의: 다운로드한 HTML 파일을 직접 열지 말고, 위의 웹 주소로 접속하여 준비하세요.</p>
   </section>
 </div>
-
-<div class="offline-help-backdrop" id="pilotBriefingModal" hidden>
-  <section class="briefing-dialog" role="dialog" aria-modal="true" aria-labelledby="pilotBriefingTitle">
-    <button type="button" class="offline-help-close" id="pilotBriefingClose" aria-label="Close">&times;</button>
-    <div id="pilotBriefingContent"></div>
-  </section>
-</div>
-
 
 <script src="js/flight-parser.js"></script>
 <script src="js/flight-notam.js"></script>
