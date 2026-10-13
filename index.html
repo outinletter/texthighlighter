@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="notamhighlighter.png">
   <link rel="apple-touch-icon" href="notamhighlighter.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=48">
 </head>
 <body>
 
@@ -188,7 +188,7 @@
 <script src="js/pdf-engine.js"></script>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/pdf-lib.min.js"></script>
-    <script src="js/app.js"></script>
+    <script src="js/app.js?v=48"></script>
     <script>
       (() => {
         const modal = document.getElementById('offlineHelpModal');
@@ -201,7 +201,15 @@
         document.addEventListener('keydown', event => { if (event.key === 'Escape' && !modal.hidden) close(); });
       })();
       if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-        window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js'));
+        window.addEventListener('load', async () => {
+          const registration = await navigator.serviceWorker.register('./sw.js', { updateViaCache: 'none' });
+          const checkForUpdate = () => registration.update().catch(() => {});
+          window.addEventListener('online', checkForUpdate);
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') checkForUpdate();
+          });
+          checkForUpdate();
+        });
       }
     </script>
 
