@@ -442,9 +442,6 @@ function dlPDF(){
   if(!done||!outBytes)return;
   try{
     const blob=new Blob([outBytes],{type:'application/pdf'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
     
     let routeCode = "";
     if (detectedAirports && detectedAirports.length === 2) {
@@ -463,6 +460,19 @@ function dlPDF(){
       downloadName = fname + '_highlighted.pdf';
     }
     
+    if (window.webkit?.messageHandlers?.savePDF) {
+      const reader = new FileReader();
+      reader.onload = () => window.webkit.messageHandlers.savePDF.postMessage({
+        name: downloadName,
+        data: reader.result.split(',')[1]
+      });
+      reader.onerror = () => setStatus('error', 'Failed to read PDF for saving.');
+      reader.readAsDataURL(blob);
+      return;
+    }
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
     a.download = downloadName;
     document.body.appendChild(a);
     a.click();
