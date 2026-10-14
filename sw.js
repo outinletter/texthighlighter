@@ -1,7 +1,7 @@
-const CACHE_NAME = 'notam-highlighter-v62';
+const CACHE_NAME = 'notam-highlighter-v61';
 const ASSETS = [
-  './', './index.html', './features.html', './css/features.css?v=62', './manifest.webmanifest', './notamhighlighter.png',
-  './css/style.css?v=62', './js/app.js?v=62', './js/pdf-engine.js',
+  './', './index.html', './manifest.webmanifest', './notamhighlighter.png',
+  './css/style.css?v=61', './js/app.js?v=61', './js/pdf-engine.js',
   './js/flight-parser.js', './js/flight-notam.js', './js/flight-eet.js',
   './vendor/pdf.min.js', './vendor/pdf.worker.min.js', './vendor/pdf-lib.min.js'
 ];
@@ -26,11 +26,11 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetch(event.request, { cache: 'no-store' }).then(response => {
       if (!response.ok) throw new Error('Navigation unavailable');
       const copy = response.clone();
-      event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy)));
+      event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy)));
       return response;
     }).catch(async () => {
       const cache = await caches.open(CACHE_NAME);
-      return (await cache.match(event.request, { ignoreSearch: true })) || Response.error();
+      return (await cache.match('./index.html')) || Response.error();
     }));
     return;
   }

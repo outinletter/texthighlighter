@@ -778,6 +778,3 @@ button, input, select, textarea { font-family: inherit; }
   .safety-banner-cta { margin-left: 52px; }
   .custom-add-row input { min-width: 0; }
 }
-
-.features-link { display: inline-block; margin-top: 12px; font-size: 12px; line-height: 1.6; color: #93c5fd; text-decoration: none; }
-.features-link:hover { text-decoration: underline; }
