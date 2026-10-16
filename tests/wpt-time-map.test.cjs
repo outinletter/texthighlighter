@@ -1,0 +1,24 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const source = fs.readFileSync(path.join(__dirname, '../js/pdf-engine.js'), 'utf8');
+const context = vm.createContext({ console: { log() {} } });
+vm.runInContext(source.slice(source.indexOf('function buildWptTimeMap('), source.indexOf('function estimateWptTimeFromEtp(')), context);
+const parse = context.buildWptTimeMap;
+// Anonymized row shapes from the reported CFP. No flight package is committed.
+const rows = '43E60 E160 00.0 065 / 34 592 03.09 0479/\n48E80 E180 00.0 068 / 33 591 04.40 0664/';
+const map = parse(rows);
+assert.equal(map.get('43E60'), '03.09');
+assert.equal(map.get('48E80'), '04.40');
+assert.equal(map.has('E160'), false, 'Do not mistake longitude for the waypoint');
+assert.equal(map.has('E180'), false);
+assert.equal(parse('43E60 E160 00.0 065 /\n34 592 03.09 0479/').get('43E60'), '03.09');
+assert.equal(parse('43E60\nE160 00.0 065 / 34 592 03.09 0479/').get('43E60'), '03.09');
+assert.equal(parse('KALNA E150 00.0 065 / 34 592 02.22 0377/').get('KALNA'), '02.22');
+assert.equal(parse('EEP1 E150 40.9 065 / 34 592 02.22 0377/').get('EEP1'), '02.22');
+assert.equal(parse('43e60 E160 00.0 065 / 34 592 03.09 0479/').get('43E60'), '03.09');
+assert.equal(parse('12345 E160 00.0 065 / 34 592 03.09 0479/').has('12345'), false);
+assert.equal(parse('43E60 E160 00.0 065 / 34 592 03.69 0479/').has('43E60'), false);
+assert.equal(parse('TRIP 1000 / 03.09 0479/').has('TRIP'), false);
+console.log('Waypoint time regression checks passed');

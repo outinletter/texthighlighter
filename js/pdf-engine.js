@@ -561,7 +561,7 @@ function buildWptTimeMap(fullPdfText) {
     .map(line => line.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
   const waypointRowRegex =
-    /\b([A-Z][A-Z0-9]{1,9})\b[\s\S]*?\/[\s\S]*?\b(\d{2}\.\d{2})\b\s+\d{3,6}\s*\/?/i;
+    /\b((?=[A-Z0-9]{0,9}[A-Z])[A-Z0-9]{2,10})\b[\s\S]*?\/[\s\S]*?\b(\d{2}\.\d{2})\b\s+\d{3,6}\s*\/?/i;
   for (const line of lines) {
     const match = waypointRowRegex.exec(line);
     if (!match) continue;
@@ -574,7 +574,7 @@ function buildWptTimeMap(fullPdfText) {
 
   // PDF.js may split a waypoint row and its ETO onto adjacent visual lines.
   for (let i = 0; i < lines.length - 1; i++) {
-    const waypointMatch = /^\s*([A-Z][A-Z0-9]{1,9})\b.*\/\s*$/i.exec(lines[i]);
+    const waypointMatch = /^\s*((?=[A-Z0-9]{0,9}[A-Z])[A-Z0-9]{2,10})\b.*\/\s*$/i.exec(lines[i]);
     if (!waypointMatch) continue;
     const timeMatch = /\b(\d{2}\.\d{2})\b\s+\d{3,6}\s*\/?/i.exec(lines[i + 1]);
     if (!timeMatch) continue;
@@ -588,7 +588,7 @@ function buildWptTimeMap(fullPdfText) {
   // Last fallback for rows whose text-item line breaks are unreliable.
   const normalizedText = fullPdfText.replace(/\r/g, '').replace(/[ \t]+/g, ' ');
   const globalWaypointRegex =
-    /\b([A-Z][A-Z0-9]{1,9})\b\s+[EW]\d{3}\s+\d{1,2}(?:\.\d+)?\s+\d{1,3}\s*\/[\s\S]{0,40}?\b(\d{2}\.\d{2})\b\s+\d{3,6}\s*\//gi;
+    /\b((?=[A-Z0-9]{0,9}[A-Z])[A-Z0-9]{2,10})\b\s+[EW]\d{3}\s+\d{1,2}(?:\.\d+)?\s+\d{1,3}\s*\/[\s\S]{0,40}?\b(\d{2}\.\d{2})\b\s+\d{3,6}\s*\//gi;
   let globalMatch;
   while ((globalMatch = globalWaypointRegex.exec(normalizedText)) !== null) {
     const waypoint = globalMatch[1].toUpperCase();
