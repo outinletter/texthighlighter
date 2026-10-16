@@ -296,12 +296,77 @@ function getTextMetrics(item, sy, fontSize) {
   };
 }
 
+// Only NOTAM 3 pages are registered here; badges/bookmarks are unaffected.
+const notamShadeRegions = new WeakMap();
+
+function markerInsideNotamShade(page, x, y, width, height) {
+  const regions = notamShadeRegions.get(page);
+  if (!regions) return true;
+  const cx = x + width / 2, cy = y + height / 2;
+  return regions.some(r => cx >= r.x && cx <= r.x + r.width &&
+    x >= r.x - 1 && x + width <= r.x + r.width + 1 &&
+    cy >= r.y && cy <= r.y + r.height);
+}
+
+/** Read original gray rectangle fills, including saved/transformed PDF graphics. */
+async function extractNotamShadeRegions(jsPage, sx = 1, sy = 1) {
+  const { OPS, Util } = pdfjsLib;
+  const list = await jsPage.getOperatorList();
+  const pageWidth = jsPage.view[2] - jsPage.view[0];
+  let state = { matrix: [1, 0, 0, 1, 0, 0], gray: false };
+  const stack = [], regions = [];
+  let rectangles = [];
+  const save = () => stack.push({ matrix: state.matrix.slice(), gray: state.gray });
+  const restore = () => { state = stack.pop() || state; };
+  const isGray = values => {
+    const [r, g, b] = values;
+    return r >= 100 && r <= 245 && Math.max(r, g, b) - Math.min(r, g, b) <= 3;
+  };
+  for (let i = 0; i < list.fnArray.length; i++) {
+    const op = list.fnArray[i], args = list.argsArray[i];
+    if (op === OPS.save) save();
+    else if (op === OPS.restore) restore();
+    else if (op === OPS.transform) state.matrix = Util.transform(state.matrix, args);
+    else if (op === OPS.paintFormXObjectBegin) {
+      save();
+      if (args[0]) state.matrix = Util.transform(state.matrix, args[0]);
+    } else if (op === OPS.paintFormXObjectEnd) restore();
+    else if (op === OPS.setFillRGBColor) state.gray = isGray(args);
+    else if (op === OPS.setFillGray) state.gray = isGray([args[0] * 255, args[0] * 255, args[0] * 255]);
+    else if (op === OPS.setFillColor || op === OPS.setFillColorN || op === OPS.setFillCMYKColor) state.gray = false;
+    else if (op === OPS.constructPath) {
+      const [commands, coords] = args;
+      // Do not treat arbitrary curves/polygons or clipping bounds as shaded boxes.
+      if (!commands.every(command => command === OPS.rectangle)) { rectangles = []; continue; }
+      for (let c = 0; c < coords.length; c += 4) {
+        const [x, y, w, h] = coords.slice(c, c + 4);
+        const points = [[x, y], [x + w, y], [x, y + h], [x + w, y + h]]
+          .map(point => Util.applyTransform(point, state.matrix));
+        const xs = points.map(point => point[0]), ys = points.map(point => point[1]);
+        rectangles.push({ x: Math.min(...xs), y: Math.min(...ys),
+          width: Math.max(...xs) - Math.min(...xs), height: Math.max(...ys) - Math.min(...ys) });
+      }
+    } else if ([OPS.fill, OPS.eoFill, OPS.fillStroke, OPS.eoFillStroke, OPS.closeFillStroke, OPS.closeEOFillStroke].includes(op)) {
+      if (state.gray) {
+        for (const r of rectangles) {
+          if (r.width >= pageWidth * .25 && r.height >= 4) {
+            regions.push({ x: r.x * sx, y: r.y * sy, width: r.width * sx, height: r.height * sy });
+          }
+        }
+      }
+      rectangles = [];
+    } else if ([OPS.stroke, OPS.closeStroke, OPS.endPath].includes(op)) rectangles = [];
+  }
+  return regions;
+}
+
 /**
  * Highlight/Underline 모드 공용 드로잉 헬퍼
  * 기본 모드는 'underline'으로 설정
  * 폰트 크기에 따라 두께와 위치가 조정됨
  */
 function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
+  if (!markerInsideNotamShade(page, x, y, width, height)) return;
   const mode = (typeof highlightMode !== 'undefined') ? highlightMode : 'underline';
 
   if (mode === 'underline') {
@@ -865,6 +930,10 @@ async function runHL(){
         const {width:lw,height:lh}=libPage.getSize();
         const sx=lw/vp.width;
         const sy=lh/vp.height;
+        if (pkg3StartIdx !== -1 && pi >= pkg3StartIdx) {
+          notamShadeRegions.set(libPage, await extractNotamShadeRegions(jsPage, sx, sy));
+        }
+
 
         const content=await jsPage.getTextContent();
         const rawPageText = content.items.map(it => it.str).join(' ');
