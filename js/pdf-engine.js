@@ -877,6 +877,7 @@ async function runHL(){
 
     // Exclude sentence-level highlighting within a NOTAM whose COMMENT/RMK says it does not apply.
     const excludedNotamLines = new Set();
+    const fullyExcludedNotamLines = new Set();
     const notamLineKey = (pageIdx, y) => `${pageIdx}:${Math.round(y * 2) / 2}`;
     const notamPages = [notam1PageIdx, notam2PageIdx, notam3PageIdx].filter(Number.isInteger);
     if (notamPages.length) {
@@ -886,6 +887,11 @@ async function runHL(){
       const finishNotam = () => {
         if (!currentNotamLines.length) return;
         const fullText = currentNotamLines.map(entry => entry.text).join(' ');
+        // EXC SKED excludes the entire item, anywhere in NOTAM PACKAGE 3.
+        // Check the item's starting page so the previous package is unaffected.
+        if (pkg3StartIdx !== -1 && currentNotamLines[0].pageIdx >= pkg3StartIdx && /\bEXC\s+SKED\b/i.test(fullText)) {
+          for (const entry of currentNotamLines) fullyExcludedNotamLines.add(notamLineKey(entry.pageIdx, entry.y));
+        }
         const commentMatch = /\b(?:COMMENT|REMARKS?|RMK)\b\s*\)?\s*[:)]?/i.exec(fullText);
         if (commentMatch && nonApplicabilityPattern.test(fullText.slice(commentMatch.index + commentMatch[0].length))) {
           for (const entry of currentNotamLines) excludedNotamLines.add(notamLineKey(entry.pageIdx, entry.y));
@@ -994,6 +1000,7 @@ async function runHL(){
         const bodySize = bodySizes[Math.floor(bodySizes.length / 2)] || 10;
         const protectedLine = index => {
           const line = groupedLines[index], text = lineTextAt(index);
+          if (fullyExcludedNotamLines.has(notamLineKey(pi, line.y))) return true;
           return line.y * sy > lh - 50 || line.y * sy < 50 ||
             /^\d+(?:\s*\.\s*\d+)+\s*\.?\s+\S/.test(text) ||
             line.items.every(item => (Math.abs(item.transform[3]) || 10) > bodySize * 1.15);
