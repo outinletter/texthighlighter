@@ -51,6 +51,57 @@ function routeComparisonTokens(text) {
     .map(token => token.replace(/^([NS])(\d{2})([EW])(\d{3})$/, '$2$1$4$3'));
 }
 
+// Match the selected dispatch track, not every daily TDM track in the NOTAMs.
+function extractDispatchTracks(text) {
+  return new Set([...text.matchAll(/\b(?:TRACK|TRK)\s*[-:#]?\s*(\d{1,2}|[A-Z])\b/gi)]
+    .map(match => /^\d+$/.test(match[1]) ? String(Number(match[1])) : match[1].toUpperCase()));
+}
+
+function extractNotamRouteWaypoints(cfpText, atsText) {
+  // Stop before alternate/refile plans so their waypoints cannot become the active route.
+  const main = cfpText.split(/\b(?:REFILE\s+FLT\s+PLAN|ENROUTE\s+ALTERNATES)\b/i)[0];
+  const tablePoints = new Set(buildWptTimeMap(main).keys());
+  const route = atsText.match(/-\s*[NKM]\d{4}[FASM]\d{3,4}\s+([\s\S]*?)(?=-\s*[A-Z]{4}\s*\d{4})/i);
+  if (!route) return tablePoints;
+  const tokens = new Set(routeComparisonTokens(route[1]));
+  return new Set([...tablePoints].filter(point => tokens.has(point)));
+}
+
+function notamRouteMatches(text, tracks, waypoints) {
+  const matches = [];
+  for (const match of text.matchAll(/\b(?:TRACK|TRK)\s*[-:#]?\s*(\d{1,2}|[A-Z])\b/gi)) {
+    const id = /^\d+$/.test(match[1]) ? String(Number(match[1])) : match[1].toUpperCase();
+    if (tracks.has(id)) matches.push({ start: match.index, end: match.index + match[0].length, mode: 'highlight' });
+  }
+  for (const match of text.matchAll(/\b[A-Z0-9]{2,10}\b/gi)) {
+    if (waypoints.has(match[0].toUpperCase())) matches.push({ start: match.index, end: match.index + match[0].length, mode: 'underline' });
+  }
+  return matches;
+}
+
+function drawNotamRouteReferences(page, items, sx, sy, offset, font, color, tracks, waypoints) {
+  let text = '';
+  const mapping = [];
+  items.forEach((item, index) => {
+    if (index) { text += ' '; mapping.push(null); }
+    const decoded = cleanAndDecodeItem(item.str, offset) || '';
+    for (let c = 0; c < decoded.length; c++) { text += decoded[c]; mapping.push({ index, c }); }
+  });
+  for (const match of notamRouteMatches(text, tracks, waypoints)) {
+    const ranges = new Map();
+    for (let c = match.start; c < match.end; c++) {
+      const position = mapping[c];
+      if (!position) continue;
+      const range = ranges.get(position.index);
+      if (range) range[1] = position.c;
+      else ranges.set(position.index, [position.c, position.c]);
+    }
+    for (const [index, [start, end]] of ranges) {
+      drawCharRangeHighlight(page, items[index], start, end, sx, sy, offset, color, .25, font, match.mode);
+    }
+  }
+}
+
 function findBadgePosition(box, obstacles, bottom = 12) {
   const gap = 2;
   let y = box.y;
@@ -365,9 +416,9 @@ async function extractNotamShadeRegions(jsPage, sx = 1, sy = 1) {
  * 기본 모드는 'underline'으로 설정
  * 폰트 크기에 따라 두께와 위치가 조정됨
  */
-function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
+function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize, modeOverride) {
   if (!markerInsideNotamShade(page, x, y, width, height)) return;
-  const mode = (typeof highlightMode !== 'undefined') ? highlightMode : 'underline';
+  const mode = modeOverride || ((typeof highlightMode !== 'undefined') ? highlightMode : 'underline');
 
   if (mode === 'underline') {
     // 폰트 크기에 비례한 밑줄 두께 (최소 1.0, 최대 2.5)
@@ -399,7 +450,7 @@ function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize) {
   }
 }
 
-function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity, font) {
+function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, pageOffset, color, opacity, font, modeOverride) {
   const s = cleanAndDecodeItem(item.str, pageOffset) || '';
   const tx = item.transform;
   const fontSize = Math.abs(tx[3]) || 10;
@@ -443,7 +494,8 @@ function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, page
     metrics.textHeight,
     color,
     opacity,
-    fontSize
+    fontSize,
+    modeOverride
   );
 }
 
@@ -800,6 +852,7 @@ async function runHL(){
 
     const BOOKMARK_PATTERNS=[
       {label:'CFP PLAN',pattern:/CFP\s+PLAN/i},
+      {label:'REFILE POINT',pattern:/\bREFILE\s+FLT\s+PLAN\b/i},
       {label:'COPY OF ATS', pattern:/COPY\s+OF\s+ATS\s+FPL/i},
       {label:'DISPATCH RELEASE INFORMATION',pattern:/DISPATCH\s+RELEASE\s+INFORMATION|DISPATCH\s+RELEASE\s+INFO/i},
       {label:'EQUAL TIME POINT DATA',pattern:/EQUAL\s+TIME\s+POINT\s+DATA/i},
@@ -811,6 +864,8 @@ async function runHL(){
 
     const bmPages={};
     let edtoBookmarkY = null;
+    let refileBookmarkY = null;
+    const decodedPages = [];
     let coaAnnotIdx = -1;
 
     for(let pi=0;pi<numPages;pi++){
@@ -819,6 +874,7 @@ async function runHL(){
       const rawText=tc.items.map(it=>it.str).join(' ');
       const offset = detectPageOffset(rawText);
       const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
+      decodedPages[pi] = groupTextItemsByLine(tc.items, offset).map(line => line.text).join('\n');
 
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined) {
@@ -829,6 +885,10 @@ async function runHL(){
         }
         if(bm.pattern.test(pageText)){
           bmPages[bm.label]=pi;
+          if (bm.label === 'REFILE POINT') {
+            const heading = groupTextItemsByLine(tc.items, offset).find(line => /\bREFILE\s+FLT\s+PLAN\b/i.test(line.text));
+            if (heading) refileBookmarkY = heading.y;
+          }
           if (bm.label === 'EQUAL TIME POINT DATA') {
             const matchItem = tc.items.find(it => /EQUAL/i.test(cleanAndDecodeItem(it.str, offset)));
             if (matchItem) edtoBookmarkY = matchItem.transform[5];
@@ -874,6 +934,16 @@ async function runHL(){
       const notam3EndIdx = numPages;
       notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR');
     }
+
+    const routeCfpStart = bmPages['CFP PLAN'];
+    const routeCfpEnd = [bmPages['COPY OF ATS'], dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx, numPages]
+      .filter(index => Number.isInteger(index) && index > routeCfpStart).sort((a, b) => a - b)[0];
+    const selectedTracks = dispatchReleaseIdx === -1 ? new Set() :
+      extractDispatchTracks(decodedPages.slice(dispatchReleaseIdx, dispatchEndIdx).join('\n'));
+    const notamRouteWaypoints = Number.isInteger(routeCfpStart) ? extractNotamRouteWaypoints(
+      decodedPages.slice(routeCfpStart, routeCfpEnd).join('\n'),
+      Number.isInteger(bmPages['COPY OF ATS']) ? decodedPages.slice(bmPages['COPY OF ATS'], dispatchReleaseIdx === -1 ? bmPages['COPY OF ATS'] + 1 : dispatchReleaseIdx).join('\n') : ''
+    ) : new Set();
 
     // Exclude sentence-level highlighting within a NOTAM whose COMMENT/RMK says it does not apply.
     const excludedNotamLines = new Set();
@@ -1023,8 +1093,12 @@ async function runHL(){
           const line = groupedLines[lineIndex];
           const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
           const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
-          if (sentenceHighlightedLines.has(lineIndex)) continue;
           if (protectedLine(lineIndex)) continue;
+          if (isNotamPage && sel.size > 0 && !excludedNotamLines.has(notamLineKey(pi, line.y))) {
+            drawNotamRouteReferences(libPage, lineItems, sx, sy, pageOffset, stdFont,
+              PDFLib.rgb(...hlRGB), selectedTracks, notamRouteWaypoints);
+          }
+          if (sentenceHighlightedLines.has(lineIndex)) continue;
           if (customSentenceLines.has(lineIndex)) {
             drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(...hlRGB), 0.25);
             sentenceHighlightedLines.add(lineIndex);
@@ -1399,11 +1473,12 @@ async function runHL(){
       if (bm.label === 'COPY OF ATS' && coaAnnotIdx !== -1) pi = coaAnnotIdx;
       const pageRef=pdfLibDoc.getPage(pi).ref;
       let dest;
-      if (bm.label === 'EQUAL TIME POINT DATA' && typeof edtoBookmarkY === 'number') {
+      const bookmarkY = bm.label === 'EQUAL TIME POINT DATA' ? edtoBookmarkY : bm.label === 'REFILE POINT' ? refileBookmarkY : null;
+      if (typeof bookmarkY === 'number') {
         const pageObj = pdfLibDoc.getPage(pi);
         const pageHeight = pageObj.getHeight();
         const topMargin = 30;
-        const topY = Math.max(0, Math.min(pageHeight, edtoBookmarkY + topMargin));
+        const topY = Math.max(0, Math.min(pageHeight, bookmarkY + topMargin));
         dest = ctx.obj([pageRef, PDFLib.PDFName.of('XYZ'), PDFLib.PDFNumber.of(0), PDFLib.PDFNumber.of(topY), PDFLib.PDFNumber.of(0)]);
       } else {
         dest=ctx.obj([pageRef,PDFLib.PDFName.of('Fit')]);
