@@ -102,6 +102,14 @@ function drawNotamRouteReferences(page, items, sx, sy, offset, font, color, trac
   }
 }
 
+function notam3RouteBadgeText(text, airports, route) {
+  if (airports.length !== 2 || !route?.trim()) return '';
+  const [departure, arrival] = airports.map(code => code.toUpperCase());
+  const pairs = [...text.toUpperCase().matchAll(/\b([A-Z]{3})\s*\/\s*([A-Z]{3})\b/g)];
+  return pairs.some(match => match[1] === departure && match[2] === arrival)
+    ? `${departure}/${arrival} ${route.trim().toUpperCase()}` : '';
+}
+
 function findBadgePosition(box, obstacles, bottom = 12) {
   const gap = 2;
   let y = box.y;
@@ -1093,6 +1101,19 @@ async function runHL(){
           const line = groupedLines[lineIndex];
           const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
           const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
+          // Route badges are references, independent of text highlighting exclusions.
+          const notam3Badge = pkg3StartIdx !== -1 && pi >= pkg3StartIdx
+            ? notam3RouteBadgeText(lineText, iataAirports, routeKw) : '';
+          if (notam3Badge) {
+            const srcFS = Math.abs(lineItems[0].transform[3]) || 10;
+            drawDutyTimeStyleBadge(libPage, {
+              text: notam3Badge,
+              x: getRightAlignedBadgeX(libPage, notam3Badge, boldFont),
+              centerY: line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO,
+              font: boldFont
+            });
+            totalHits++;
+          }
           if (protectedLine(lineIndex)) continue;
           if (isNotamPage && sel.size > 0 && !excludedNotamLines.has(notamLineKey(pi, line.y))) {
             drawNotamRouteReferences(libPage, lineItems, sx, sy, pageOffset, stdFont,
@@ -1125,7 +1146,7 @@ async function runHL(){
                 drawLineHighlight(libPage, lineItems, line.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
               }
 
-              if (iataMatch) {
+              if (iataMatch && !notam3Badge) {
                 const srcFS = Math.abs(lineItems[0].transform[3]) || 10;
                 const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
@@ -1141,7 +1162,7 @@ async function runHL(){
                 });
               }
 
-              if (sel.size > 0 || iataMatch) totalHits++;
+              if ((sel.size > 0 || iataMatch) && !notam3Badge) totalHits++;
               // 경로 전체 줄이 처리된 경우 일반 키워드 하이라이트는 중복 적용하지 않는다.
               continue;
             }
