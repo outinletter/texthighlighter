@@ -11,8 +11,8 @@ let currentThemeName = 'pink';
 let activeHlColorRGB = [1.0, 0.45, 0.65];
 window.activeHlColorRGB = activeHlColorRGB;
 
-// Default marker mode: underline
-let highlightMode = 'underline';
+// Default marker mode: highlight
+let highlightMode = 'highlight';
 let customLineHighlight = false;
 window.customLineHighlight = customLineHighlight;
 
@@ -347,7 +347,7 @@ document.addEventListener('DOMContentLoaded', () => {
   pl.querySelectorAll('input').forEach(c => c.checked = true);
   updBadge();
 
-  setHighlightMode('underline');
+  setHighlightMode('highlight');
   document.querySelectorAll('input[name="markerMode"]').forEach(input => {
     input.addEventListener('change', event => setHighlightMode(event.target.value));
   });

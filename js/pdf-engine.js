@@ -421,12 +421,12 @@ async function extractNotamShadeRegions(jsPage, sx = 1, sy = 1) {
 
 /**
  * Highlight/Underline 모드 공용 드로잉 헬퍼
- * 기본 모드는 'underline'으로 설정
+ * 기본 모드는 'highlight'으로 설정
  * 폰트 크기에 따라 두께와 위치가 조정됨
  */
 function drawMarkerRect(page, x, y, width, height, color, opacity, fontSize, modeOverride) {
   if (!markerInsideNotamShade(page, x, y, width, height)) return;
-  const mode = modeOverride || ((typeof highlightMode !== 'undefined') ? highlightMode : 'underline');
+  const mode = modeOverride || ((typeof highlightMode !== 'undefined') ? highlightMode : 'highlight');
 
   if (mode === 'underline') {
     // 폰트 크기에 비례한 밑줄 두께 (최소 1.0, 최대 2.5)
