@@ -778,3 +778,5 @@ button, input, select, textarea { font-family: inherit; }
   .safety-banner-cta { margin-left: 52px; }
   .custom-add-row input { min-width: 0; }
 }
+
+.header h1 #commitVersion { font-size: 9px; font-weight: 500; letter-spacing: .2px; }
