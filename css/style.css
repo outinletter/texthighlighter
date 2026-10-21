@@ -35,16 +35,7 @@ body{
   color:#3b82f6;
   margin-left: 6px;
 }
-.header h1 span.version {
-  font-size: 11px;
-  font-weight: 600;
-  color: #64748b;
-  background: rgba(255, 255, 255, 0.1);
-  padding: 2px 8px;
-  border-radius: 6px;
-  margin-left: 10px;
-  vertical-align: middle;
-}
+
 .header p{
   font-size:10.5px;
   color:#94a3b8;
@@ -772,11 +763,7 @@ button, input, select, textarea { font-family: inherit; }
 .engine-help-actions .survey-btn:hover { background: #1e293b; transform: none; box-shadow: none; }
 @media(max-width:600px) {
   .header h1 { font-size: 24px; letter-spacing: .4px; }
-  .header h1 span.version { margin-left: 0; }
-  .safety-banner { flex-wrap: wrap; }
-  .safety-banner-copy { flex-basis: calc(100% - 54px); }
-  .safety-banner-cta { margin-left: 52px; }
-  .custom-add-row input { min-width: 0; }
-}
 
-.header h1 #commitVersion { font-size: 9px; font-weight: 500; letter-spacing: .2px; }
+
+.footer-version { color: #64748b; font-size: 10px; line-height: 1.5; }
+.footer-version #commitVersion { font-size: 9px; font-weight: 500; letter-spacing: .2px; }
