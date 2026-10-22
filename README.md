@@ -85,4 +85,4 @@ For turbulence or weather segments, the app detects `EXPECTED FROM [WPT1] TO [WP
 When added to a mobile device home screen, the app uses `notamhighlighter.png` as its icon through the web-app manifest and Apple touch-icon configuration.
 
 ---
-© 2026 EFB Systems | bongsjeon@koreanair.com
+© 2026 EFB Systems
