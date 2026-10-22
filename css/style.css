@@ -765,5 +765,5 @@ button, input, select, textarea { font-family: inherit; }
   .header h1 { font-size: 24px; letter-spacing: .4px; }
 
 
-.footer-version { color: #64748b; font-size: 10px; line-height: 1.5; }
-.footer-version #commitVersion { font-size: 9px; font-weight: 500; letter-spacing: .2px; }
+.footer-version { color: #64748b; font-size: 10.5px; display: inline-block; }
+.footer-version #commitVersion { font-size: 10px; font-weight: 500; letter-spacing: .2px; }

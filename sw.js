@@ -1,7 +1,7 @@
-const CACHE_NAME = 'notam-highlighter-v70';
+const CACHE_NAME = 'notam-highlighter-v71';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './notamhighlighter.png',
-  './css/style.css?v=69', './js/app.js?v=70', './js/pdf-engine.js?v=70',
+  './css/style.css?v=71', './js/app.js?v=70', './js/pdf-engine.js?v=70',
   './js/flight-parser.js', './js/flight-notam.js', './js/flight-eet.js',
   './vendor/pdf.min.js', './vendor/pdf.worker.min.js', './vendor/pdf-lib.min.js'
 ];
