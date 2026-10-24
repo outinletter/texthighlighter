@@ -57,14 +57,10 @@ function extractDispatchTracks(text) {
     .map(match => /^\d+$/.test(match[1]) ? String(Number(match[1])) : match[1].toUpperCase()));
 }
 
-function extractNotamRouteWaypoints(cfpText, atsText) {
-  // Stop before alternate/refile plans so their waypoints cannot become the active route.
-  const main = cfpText.split(/\b(?:REFILE\s+FLT\s+PLAN|ENROUTE\s+ALTERNATES)\b/i)[0];
-  const tablePoints = new Set(buildWptTimeMap(main).keys());
-  const route = atsText.match(/-\s*[NKM]\d{4}[FASM]\d{3,4}\s+([\s\S]*?)(?=-\s*[A-Z]{4}\s*\d{4})/i);
-  if (!route) return tablePoints;
-  const tokens = new Set(routeComparisonTokens(route[1]));
-  return new Set([...tablePoints].filter(point => tokens.has(point)));
+function extractNotamRouteWaypoints(cfpText) {
+  // Every detected CFP waypoint is a NOTAM reference, including refile/alternate
+  // rows and intermediate points omitted from the ATS route.
+  return new Set(buildWptTimeMap(cfpText).keys());
 }
 
 function notamRouteMatches(text, tracks, waypoints) {
@@ -921,6 +917,8 @@ async function runHL(){
     const notam1PageIdx = bmPages['NOTAM 1'];
     const notam2PageIdx = bmPages['NOTAM 2'];
     const notam3PageIdx = bmPages['NOTAM 3'];
+    const notamStartIdx = Math.min(...[notam1PageIdx, notam2PageIdx, notam3PageIdx]
+      .filter(Number.isInteger), numPages);
     const weatherBriefingEndIdx = weatherBriefingIdx === -1
       ? -1
       : Math.min(...[notam1PageIdx, notam2PageIdx, notam3PageIdx, numPages]
@@ -944,13 +942,12 @@ async function runHL(){
     }
 
     const routeCfpStart = bmPages['CFP PLAN'];
-    const routeCfpEnd = [bmPages['COPY OF ATS'], dispatchReleaseIdx, weatherBriefingIdx, pkg1PageIdx, numPages]
+    const routeCfpEnd = [bmPages['COPY OF ATS'], dispatchReleaseIdx, weatherBriefingIdx, notamStartIdx, numPages]
       .filter(index => Number.isInteger(index) && index > routeCfpStart).sort((a, b) => a - b)[0];
     const selectedTracks = dispatchReleaseIdx === -1 ? new Set() :
       extractDispatchTracks(decodedPages.slice(dispatchReleaseIdx, dispatchEndIdx).join('\n'));
     const notamRouteWaypoints = Number.isInteger(routeCfpStart) ? extractNotamRouteWaypoints(
-      decodedPages.slice(routeCfpStart, routeCfpEnd).join('\n'),
-      Number.isInteger(bmPages['COPY OF ATS']) ? decodedPages.slice(bmPages['COPY OF ATS'], dispatchReleaseIdx === -1 ? bmPages['COPY OF ATS'] + 1 : dispatchReleaseIdx).join('\n') : ''
+      decodedPages.slice(routeCfpStart, routeCfpEnd).join('\n')
     ) : new Set();
 
     // Exclude sentence-level highlighting within a NOTAM whose COMMENT/RMK says it does not apply.
@@ -1024,7 +1021,7 @@ async function runHL(){
         const pageOffset = detectPageOffset(rawPageText);
 
         const isDispatchPage = (dispatchReleaseIdx !== -1 && pi >= dispatchReleaseIdx && pi < dispatchEndIdx);
-        const isNotamPage = (pkg1PageIdx !== -1 && pi >= pkg1PageIdx);
+        const isNotamPage = pi >= notamStartIdx;
         const isWeatherBriefingPage = weatherBriefingIdx !== -1 && pi >= weatherBriefingIdx && pi < weatherBriefingEndIdx;
 
         if (pageOffset !== 0) {
@@ -2483,3 +2480,4 @@ async function runHL(){
     runBtn.innerHTML='RUN ENGINE';
   }
 }
+
