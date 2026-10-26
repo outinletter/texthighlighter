@@ -150,6 +150,28 @@ async function runFixture(source, options = {}) {
   const first = output.context.lookup(outlines.get(PDFLib.PDFName.of('First')));
   const title = first.lookup(PDFLib.PDFName.of('Title')).decodeText();
   assert.equal(title, options.preserve ? 'Original bookmark' : 'CFP PLAN');
+  if (!options.preserve) {
+    const bookmarks = new Map();
+    function readBookmarks(ref) {
+      while (ref) {
+        const entry = output.context.lookup(ref);
+        bookmarks.set(entry.lookup(PDFLib.PDFName.of('Title')).decodeText(), entry);
+        readBookmarks(entry.get(PDFLib.PDFName.of('First')));
+        ref = entry.get(PDFLib.PDFName.of('Next'));
+      }
+    }
+    readBookmarks(outlines.get(PDFLib.PDFName.of('First')));
+    for (const label of ['CFP PLAN', 'COPY OF ATS', 'REFILE POINT', 'EQUAL TIME POINT DATA', 'NOTAM 1']) {
+      const dest = bookmarks.get(label).lookup(PDFLib.PDFName.of('Dest'));
+      assert.equal(dest.get(1).toString(), '/XYZ', label);
+      assert.equal(dest.get(3).asNumber(), 772, label + ' must leave toolbar clearance');
+      assert.equal(dest.get(4).asNumber(), 0, label + ' must preserve zoom');
+    }
+    const departure = bookmarks.get('DEP RKSI').lookup(PDFLib.PDFName.of('Dest'));
+    assert.equal(departure.get(3).asNumber(), 750, 'Airport sub-bookmarks need the same clearance');
+    const chart = bookmarks.get('Vertical Cross-Section').lookup(PDFLib.PDFName.of('Dest'));
+    assert.equal(chart.get(1).toString(), '/Fit', 'Whole-page charts should still fit the page');
+  }
   const badges = calls.filter(call => call[1] === 'drawText').map(call => call[2].text);
   assert.ok(badges.some(text => text.includes('DUTY TIME')));
   assert.ok(badges.some(text => text.includes('DISC FUEL INFO')));

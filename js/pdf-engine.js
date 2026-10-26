@@ -5,6 +5,8 @@
 const TEST_KEYWORDS = ["NOTAM", "PACKAGE", "PLAN", "FLIGHT", "KOREAN", "RELEASE", "WEATHER", "AIR", "ROUTE", "ALTN", "INFO"];
 const OFFSETS_TO_TEST = [0, 29, -29, 32, -32];
 const SOURCE_TEXT_CENTER_RATIO = 0.36;
+// PDF points above the target keep headings below a reader's toolbar.
+const BOOKMARK_TOP_MARGIN = 72;
 
 // 모든 배지(badge) 텍스트의 공통 스타일 설정 (단일 소스)
 const BADGE_STYLE = {
@@ -18,6 +20,18 @@ const BADGE_STYLE = {
 };
 
 const badgeObstacles = new WeakMap();
+
+function createBookmarkDestination(context, page, targetY) {
+  if (!Number.isFinite(targetY)) {
+    return context.obj([page.ref, PDFLib.PDFName.of('Fit')]);
+  }
+  const topY = Math.max(0, Math.min(page.getHeight(), targetY + BOOKMARK_TOP_MARGIN));
+  // A zero zoom preserves the reader's current zoom.
+  return context.obj([
+    page.ref, PDFLib.PDFName.of('XYZ'),
+    PDFLib.PDFNumber.of(0), PDFLib.PDFNumber.of(topY), PDFLib.PDFNumber.of(0)
+  ]);
+}
 
 /** Per-run cache. Keep original PDF items intact and group only on demand. */
 function createPdfPageCache(pdfJsDoc) {
@@ -1472,18 +1486,12 @@ async function runHL(){
     for(const bm of BOOKMARK_PATTERNS){
       let pi=bmPages[bm.label];if(pi===undefined)continue;
       if (bm.label === 'COPY OF ATS' && coaAnnotIdx !== -1) pi = coaAnnotIdx;
-      const pageRef=pdfLibDoc.getPage(pi).ref;
-      let dest;
-      const bookmarkY = bm.label === 'EQUAL TIME POINT DATA' ? edtoBookmarkY : bm.label === 'REFILE POINT' ? refileBookmarkY : null;
-      if (typeof bookmarkY === 'number') {
-        const pageObj = pdfLibDoc.getPage(pi);
-        const pageHeight = pageObj.getHeight();
-        const topMargin = 30;
-        const topY = Math.max(0, Math.min(pageHeight, bookmarkY + topMargin));
-        dest = ctx.obj([pageRef, PDFLib.PDFName.of('XYZ'), PDFLib.PDFNumber.of(0), PDFLib.PDFNumber.of(topY), PDFLib.PDFNumber.of(0)]);
-      } else {
-        dest=ctx.obj([pageRef,PDFLib.PDFName.of('Fit')]);
-      }
+      const { lines, offset } = await getPageData(pi + 1);
+      const heading = lines.find(line => bm.pattern.test(line.text) ||
+        bm.pattern.test(line.parts.map(part => cleanAndDecodeItem(part.item.str, offset)).join(' ')));
+      const bookmarkY = (bm.label === 'EQUAL TIME POINT DATA' ? edtoBookmarkY :
+        bm.label === 'REFILE POINT' ? refileBookmarkY : null) ?? heading?.y;
+      const dest = createBookmarkDestination(ctx, pdfLibDoc.getPage(pi), bookmarkY);
       const itemDict=ctx.obj({Title:PDFLib.PDFString.of(bm.label),Dest:dest});
       const itemRef=ctx.register(itemDict);
       outlineItems.push(itemRef);
@@ -1496,14 +1504,7 @@ async function runHL(){
       const parentDict=ctx.lookup(parentRef);
       const childRefs=subAirports.map(item=>{
         const childPage=pdfLibDoc.getPage(item.pageIdx);
-        const childPageRef=childPage.ref;
-        const pageHeight = childPage.getHeight();
-        const topMargin = 30;
-        let topY = (typeof item.y === 'number') ? (item.y + topMargin) : pageHeight;
-        topY = Math.max(0, Math.min(pageHeight, topY));
-        const childDest = (typeof item.y === 'number')
-          ? ctx.obj([childPageRef, PDFLib.PDFName.of('XYZ'), PDFLib.PDFNumber.of(0), PDFLib.PDFNumber.of(topY), PDFLib.PDFNumber.of(0)])
-          : ctx.obj([childPageRef, PDFLib.PDFName.of('Fit')]);
+        const childDest = createBookmarkDestination(ctx, childPage, item.y);
         let childTitle = item.title;
 
         if (childTitle) {
