@@ -13,12 +13,13 @@ assert.equal(hits.length,3);
 assert.ok(hits.every(h=>h.mode==='highlight'));
 const cfp='KALNA E150 00.0 065 / 34 592 02.22 0377/\n43E60 E160 00.0 065 / 34 592 03.09 0479/\nREFILE FLT PLAN\nOTHER E160 00.0 065 / 34 592 05.00 0479/';
 const wpts=c.extractNotamRouteWaypoints(cfp,'-N0480F350 KALNA DCT 43E60-KDFW1240');
-assert.deepEqual([...wpts].sort(),['43E60','KALNA']);
-assert.deepEqual([...c.extractNotamRouteWaypoints(cfp,'-N0480F350 KALNA-KDFW1240')],['KALNA']);
+assert.deepEqual([...wpts].sort(),['43E60','KALNA','OTHER']);
+assert.deepEqual([...c.extractNotamRouteWaypoints(cfp,'-N0480F350 KALNA-KDFW1240')],['KALNA','43E60','OTHER']);
 hits=c.notamRouteMatches('KALNA KALNAX 43E60 OTHER',new Set(),wpts);
-assert.equal(hits.length,2);
+assert.equal(hits.length,3);
 assert.ok(hits.every(h=>h.mode==='underline'));
 c.drawNotamRouteReferences({},[{str:'TRK'},{str:'3 KALNA'}],1,1,0,{}, {}, tracks,wpts);
 assert.ok(calls.some(a=>a.at(-1)==='highlight'));
 assert.ok(calls.some(a=>a.at(-1)==='underline'));
 console.log('NOTAM route/track regression checks passed');
+

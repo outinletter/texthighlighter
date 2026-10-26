@@ -8,7 +8,7 @@ const source = fs.readFileSync(path.join(__dirname, '../js/pdf-engine.js'), 'utf
 const block = source.slice(source.indexOf('    const excludedNotamLines = new Set();'), source.indexOf('    const edtoPointDataPageIdx ='));
 const makePage = lines => lines.map((text, index) => ({y:700-index*15,parts:[{item:{str:text}}]}));
 async function collect(pages, pkg3StartIdx) {
-  const context = vm.createContext({pages,pkg3StartIdx,numPages:pages.length,notam1PageIdx:0,notam2PageIdx:undefined,notam3PageIdx:pkg3StartIdx < 0 ? undefined : pkg3StartIdx,detectPageOffset:()=>0,cleanAndDecodeItem:s=>s,groupTextItemsByLine:items=>items,pdfJsDoc:{getPage:async n=>({getTextContent:async()=>({items:pages[n-1]})})}});
+  const context = vm.createContext({pages,getPageData:async n=>({offset:0,lines:pages[n-1]}),pkg3StartIdx,numPages:pages.length,notam1PageIdx:0,notam2PageIdx:undefined,notam3PageIdx:pkg3StartIdx < 0 ? undefined : pkg3StartIdx,detectPageOffset:()=>0,cleanAndDecodeItem:s=>s,groupTextItemsByLine:items=>items,pdfJsDoc:{getPage:async n=>({getTextContent:async()=>({items:pages[n-1]})})}});
   return vm.runInContext('(async()=>{'+block+';return {full:[...fullyExcludedNotamLines],sentence:[...excludedNotamLines]};})()',context);
 }
 module.exports = (async () => {
@@ -24,3 +24,4 @@ module.exports = (async () => {
   assert.equal((await collect([makePage(['RKRR A0001/26','E) exc   sked'])],0)).full.length,2);
   console.log('EXC SKED block exclusion regression checks passed');
 })();
+

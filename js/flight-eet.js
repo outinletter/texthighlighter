@@ -106,7 +106,8 @@ function extractEetTimeline(atsFplText, notamSections) {
 
 // Node(테스트)와 브라우저(<script> 태그) 양쪽에서 동작하도록 분기
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { extractFlightInfo, parseFuelTimeRows, parseEtdEta, formatFuel, formatTime };
+  module.exports = { extractEetTimeline, parseEtd, parseEet, hhmmToMinutes, minutesToHHMM, computeEto, linkFirToNotamSections };
 } else {
-  window.extractFlightInfo = extractFlightInfo;
+  window.extractEetTimeline = extractEetTimeline;
 }
+

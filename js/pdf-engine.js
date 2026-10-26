@@ -19,6 +19,36 @@ const BADGE_STYLE = {
 
 const badgeObstacles = new WeakMap();
 
+/** Per-run cache. Keep original PDF items intact and group only on demand. */
+function createPdfPageCache(pdfJsDoc) {
+  const pages = new Map();
+  return function getPageData(pageNumber) {
+    if (!pages.has(pageNumber)) {
+      pages.set(pageNumber, (async () => {
+        const page = await pdfJsDoc.getPage(pageNumber);
+        const content = await page.getTextContent();
+        const rawText = content.items.map(item => item.str).join(' ');
+        const offset = detectPageOffset(rawText);
+        let text, lines;
+        return {
+          page, content, offset,
+          viewport: page.getViewport({ scale: 1 }),
+          get text() {
+            return text ??= content.items.map(item => cleanAndDecodeItem(item.str, offset)).join(' ');
+          },
+          get lines() {
+            return lines ??= groupTextItemsByLine(content.items, offset);
+          }
+        };
+      })().catch(error => {
+        pages.delete(pageNumber);
+        throw error;
+      }));
+    }
+    return pages.get(pageNumber);
+  };
+}
+
 function arrivalDayLabel(etd, eta, trip) {
   const minutes = value => {
     const m = /^(\d{2})[.:]?(\d{2})Z?$/.exec(value || '');
@@ -75,22 +105,30 @@ function notamRouteMatches(text, tracks, waypoints) {
   return matches;
 }
 
-function drawNotamRouteReferences(page, items, sx, sy, offset, font, color, tracks, waypoints) {
+function buildLineCharMapping(items, offset) {
   let text = '';
   const mapping = [];
-  items.forEach((item, index) => {
-    if (index) { text += ' '; mapping.push(null); }
+  items.forEach((item, itemIndex) => {
+    if (itemIndex) { text += ' '; mapping.push({ isSeparator: true }); }
     const decoded = cleanAndDecodeItem(item.str, offset) || '';
-    for (let c = 0; c < decoded.length; c++) { text += decoded[c]; mapping.push({ index, c }); }
+    text += decoded;
+    for (let charIndex = 0; charIndex < decoded.length; charIndex++) {
+      mapping.push({ itemIndex, charIndex, char: decoded[charIndex] });
+    }
   });
+  return { text, mapping };
+}
+
+function drawNotamRouteReferences(page, items, sx, sy, offset, font, color, tracks, waypoints) {
+  const { text, mapping } = buildLineCharMapping(items, offset);
   for (const match of notamRouteMatches(text, tracks, waypoints)) {
     const ranges = new Map();
     for (let c = match.start; c < match.end; c++) {
       const position = mapping[c];
-      if (!position) continue;
-      const range = ranges.get(position.index);
-      if (range) range[1] = position.c;
-      else ranges.set(position.index, [position.c, position.c]);
+      if (position.isSeparator) continue;
+      const range = ranges.get(position.itemIndex);
+      if (range) range[1] = position.charIndex;
+      else ranges.set(position.itemIndex, [position.charIndex, position.charIndex]);
     }
     for (const [index, [start, end]] of ranges) {
       drawCharRangeHighlight(page, items[index], start, end, sx, sy, offset, color, .25, font, match.mode);
@@ -180,10 +218,12 @@ function drawDutyTimeStyleBadge(libPage, options) {
 /**
  * Text Item Line Grouping
  */
-function groupTextItemsByLine(items, offset) {
+function groupTextItemsByLine(items, offset, {
+  decoder = decodeForTagScan, trim = false, separator = ''
+} = {}) {
   const decorated = items
-    .map(it => ({ item: it, text: decodeForTagScan(it.str, offset) }))
-    .filter(d => d.text && d.text.length > 0);
+    .map(it => ({ item: it, text: decoder(it.str, offset) }))
+    .filter(d => d.text && (trim ? d.text.trim().length > 0 : d.text.length > 0));
 
   decorated.sort((a, b) => b.item.transform[5] - a.item.transform[5]);
 
@@ -203,7 +243,7 @@ function groupTextItemsByLine(items, offset) {
 
   for (const line of lines) {
     line.parts.sort((a, b) => a.item.transform[4] - b.item.transform[4]);
-    line.text = line.parts.map(p => p.text).join('');
+    line.text = line.parts.map(p => p.text).join(separator);
     line.items = line.parts.map(p => p.item);
   }
 
@@ -503,15 +543,12 @@ function drawCharRangeHighlight(page, item, minCharIdx, maxCharIdx, sx, sy, page
   );
 }
 
-async function extractReleaseAirportsByRule2(pdfJsDoc) {
+async function extractReleaseAirportsByRule2(pdfJsDoc, getPageData = createPdfPageCache(pdfJsDoc)) {
   const airports = [];
   iataAirports = [];
   try {
     for (let pNum = 1; pNum <= Math.min(30, pdfJsDoc.numPages); pNum++) {
-      const page = await pdfJsDoc.getPage(pNum);
-      const textContent = await page.getTextContent();
-      const rawText = textContent.items.map(it => it.str).join(' ');
-      const offset = detectPageOffset(rawText);
+      const { content: textContent, offset } = await getPageData(pNum);
       const decodedRawText = textContent.items.map(it => decodeStr(it.str, offset)).join(' ');
 
       const isDispatchReleasePage = /DISPATCH\s+RELEASE\s+INFORMATION/i.test(decodedRawText) || /I\s+HEREBY\s+RELEASE/i.test(decodedRawText);
@@ -554,7 +591,7 @@ async function extractReleaseAirportsByRule2(pdfJsDoc) {
 }
 
 
-async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags) {
+async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tags, getPageData = createPdfPageCache(pdfJsDoc)) {
   const found = {};
   if (startPageIdx === undefined || startPageIdx === -1) return [];
   const from = Math.max(0, startPageIdx);
@@ -562,11 +599,7 @@ async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusi
 
   for (let pi = from; pi < to; pi++) {
     if (Object.keys(found).length === tags.length) break;
-    const jsPage = await pdfJsDoc.getPage(pi + 1);
-    const tc = await jsPage.getTextContent();
-    const rawText = tc.items.map(it => it.str).join(' ');
-    const offset = detectPageOffset(rawText);
-    const lines = groupTextItemsByLine(tc.items, offset);
+    const { lines } = await getPageData(pi + 1);
 
     for (const line of lines) {
       if (Object.keys(found).length === tags.length) break;
@@ -590,7 +623,7 @@ async function extractFirstTagAirports(pdfJsDoc, startPageIdx, endPageIdxExclusi
   return ordered;
 }
 
-async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tagPattern) {
+async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclusive, tagPattern, getPageData = createPdfPageCache(pdfJsDoc)) {
   const results = [];
   if (startPageIdx === undefined || startPageIdx === -1) return results;
   const from = Math.max(0, startPageIdx);
@@ -598,11 +631,7 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
   const re = new RegExp('\\[\\s*(' + tagPattern + ')\\s*\\]\\s*([A-Z]{3,4})\\b', 'gi');
 
   for (let pi = from; pi < to; pi++) {
-    const jsPage = await pdfJsDoc.getPage(pi + 1);
-    const tc = await jsPage.getTextContent();
-    const rawText = tc.items.map(it => it.str).join(' ');
-    const offset = detectPageOffset(rawText);
-    const lines = groupTextItemsByLine(tc.items, offset);
+    const { lines } = await getPageData(pi + 1);
 
     for (const line of lines) {
       re.lastIndex = 0;
@@ -621,16 +650,12 @@ async function extractAllTaggedAirports(pdfJsDoc, startPageIdx, endPageIdxExclus
   return results;
 }
 
-async function extractMetadata(pdfJsDoc) {
+async function extractMetadata(pdfJsDoc, getPageData = createPdfPageCache(pdfJsDoc)) {
   try {
     const scanPages = Math.min(10, pdfJsDoc.numPages);
     let combinedText = '';
     for (let p = 1; p <= scanPages; p++) {
-      const pg = await pdfJsDoc.getPage(p);
-      const tc = await pg.getTextContent();
-      const rawText = tc.items.map(it => it.str).join(' ');
-      const offset = detectPageOffset(rawText);
-      combinedText += ' ' + tc.items.map(it => cleanAndDecodeItem(it.str, offset)).join(' ');
+      combinedText += ' ' + (await getPageData(p)).text;
     }
     const decodedText = combinedText;
 
@@ -819,8 +844,9 @@ async function runHL(){
       pdfJsDoc = await pdfjsLib.getDocument({data:pdfBytes.buffer.slice(0)}).promise;
     }
 
-    detectedAirports = await extractReleaseAirportsByRule2(pdfJsDoc);
-    await extractMetadata(pdfJsDoc);
+    const getPageData = createPdfPageCache(pdfJsDoc);
+    detectedAirports = await extractReleaseAirportsByRule2(pdfJsDoc, getPageData);
+    await extractMetadata(pdfJsDoc, getPageData);
 
     const extraKws = [];
     if (sel.size > 0 && extractedAcReg) extraKws.push(extractedAcReg);
@@ -836,9 +862,7 @@ async function runHL(){
     const libPages=pdfLibDoc.getPages();
     // Reserve original text before any badge is drawn, including keyword-free pages.
     for (let pi = 0; pi < libPages.length; pi++) {
-      const page = await pdfJsDoc.getPage(pi + 1);
-      const viewport = page.getViewport({ scale: 1 });
-      const content = await page.getTextContent();
+      const { viewport, content } = await getPageData(pi + 1);
       const sx = libPages[pi].getWidth() / viewport.width;
       const sy = libPages[pi].getHeight() / viewport.height;
       badgeObstacles.set(libPages[pi], content.items.filter(item => item.str && item.str.trim()).map(item => {
@@ -873,12 +897,8 @@ async function runHL(){
     let coaAnnotIdx = -1;
 
     for(let pi=0;pi<numPages;pi++){
-      const jsPage2=await pdfJsDoc.getPage(pi+1);
-      const tc=await jsPage2.getTextContent();
-      const rawText=tc.items.map(it=>it.str).join(' ');
-      const offset = detectPageOffset(rawText);
-      const pageText=tc.items.map(it=>cleanAndDecodeItem(it.str, offset)).join(' ');
-      decodedPages[pi] = groupTextItemsByLine(tc.items, offset).map(line => line.text).join('\n');
+      const { content: tc, offset, text: pageText, lines } = await getPageData(pi + 1);
+      decodedPages[pi] = lines.map(line => line.text).join('\n');
 
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined) {
@@ -890,7 +910,7 @@ async function runHL(){
         if(bm.pattern.test(pageText)){
           bmPages[bm.label]=pi;
           if (bm.label === 'REFILE POINT') {
-            const heading = groupTextItemsByLine(tc.items, offset).find(line => /\bREFILE\s+FLT\s+PLAN\b/i.test(line.text));
+            const heading = lines.find(line => /\bREFILE\s+FLT\s+PLAN\b/i.test(line.text));
             if (heading) refileBookmarkY = heading.y;
           }
           if (bm.label === 'EQUAL TIME POINT DATA') {
@@ -930,15 +950,15 @@ async function runHL(){
 
     if (notam1PageIdx !== undefined) {
       const notam1EndIdx = notam2PageIdx !== undefined ? notam2PageIdx : (notam3PageIdx !== undefined ? notam3PageIdx : numPages);
-      notam1SubAirports = await extractFirstTagAirports(pdfJsDoc, notam1PageIdx, notam1EndIdx, ['DEP', 'DEST', 'ALTN']);
+      notam1SubAirports = await extractFirstTagAirports(pdfJsDoc, notam1PageIdx, notam1EndIdx, ['DEP', 'DEST', 'ALTN'], getPageData);
     }
     if (notam2PageIdx !== undefined) {
       const notam2EndIdx = notam3PageIdx !== undefined ? notam3PageIdx : numPages;
-      notam2SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam2PageIdx, notam2EndIdx, '(?:\\d+\\s*%\\s*)?ERA|EDTO|REFILE');
+      notam2SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam2PageIdx, notam2EndIdx, '(?:\\d+\\s*%\\s*)?ERA|EDTO|REFILE', getPageData);
     }
     if (notam3PageIdx !== undefined) {
       const notam3EndIdx = numPages;
-      notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR');
+      notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR', getPageData);
     }
 
     const routeCfpStart = bmPages['CFP PLAN'];
@@ -974,10 +994,7 @@ async function runHL(){
         currentNotamLines = [];
       };
       for (let scanPageIdx = Math.min(...notamPages); scanPageIdx < numPages; scanPageIdx++) {
-        const scanPage = await pdfJsDoc.getPage(scanPageIdx + 1);
-        const scanContent = await scanPage.getTextContent();
-        const scanOffset = detectPageOffset(scanContent.items.map(item => item.str).join(' '));
-        const scanLines = groupTextItemsByLine(scanContent.items, scanOffset);
+        const { offset: scanOffset, lines: scanLines } = await getPageData(scanPageIdx + 1);
         for (let lineIdx = 0; lineIdx < scanLines.length; lineIdx++) {
           const text = scanLines[lineIdx].parts
             .map(part => cleanAndDecodeItem(part.item.str, scanOffset))
@@ -998,15 +1015,12 @@ async function runHL(){
     const edtoPointDataPageIdx = bmPages['EQUAL TIME POINT DATA'] !== undefined ? bmPages['EQUAL TIME POINT DATA'] : -1;
 
     let totalHits=0;
-    const highlightedNotamLines = new Set();
-    const highlightedNotamLineKey = (pageIdx, y) => `${pageIdx}:${Math.round(y * 2) / 2}`;
 
     // 하이라이트/밑줄 레이어 생성 및 주석(Badge) 추가
     if(sel.size > 0 || (typeof bmEnabled !== 'undefined' && bmEnabled) || iataAirports.length === 2){
       setStatus('processing','Calculating highlight/underline positions and drawing...');
       for(let pi=0;pi<numPages;pi++){
-        const jsPage=await pdfJsDoc.getPage(pi+1);
-        const vp=jsPage.getViewport({scale:1.0});
+        const { page: jsPage, content, offset: pageOffset, viewport: vp } = await getPageData(pi + 1);
         const libPage=libPages[pi];
         const {width:lw,height:lh}=libPage.getSize();
         const sx=lw/vp.width;
@@ -1015,10 +1029,6 @@ async function runHL(){
           notamShadeRegions.set(libPage, await extractNotamShadeRegions(jsPage, sx, sy));
         }
 
-
-        const content=await jsPage.getTextContent();
-        const rawPageText = content.items.map(it => it.str).join(' ');
-        const pageOffset = detectPageOffset(rawPageText);
 
         const isDispatchPage = (dispatchReleaseIdx !== -1 && pi >= dispatchReleaseIdx && pi < dispatchEndIdx);
         const isNotamPage = pi >= notamStartIdx;
@@ -1045,32 +1055,16 @@ async function runHL(){
           }
         }
 
-        const groupedLines = [];
-        const sortedItems = content.items
-          .filter(it => {
-            const sDec = cleanAndDecodeItem(it.str, pageOffset);
-            return sDec && sDec.trim();
-          })
-          .sort((a, b) => b.transform[5] - a.transform[5]);
-
-        for (const item of sortedItems) {
-          const itemY = item.transform[5];
-          let joined = false;
-          for (const line of groupedLines) {
-            if (Math.abs(line.y - itemY) < 4.0) {
-              line.items.push(item);
-              joined = true;
-              break;
-            }
-          }
-          if (!joined) groupedLines.push({ y: itemY, items: [item] });
-        }
+        const groupedLines = groupTextItemsByLine(content.items, pageOffset, {
+          decoder: cleanAndDecodeItem, trim: true, separator: ' '
+        });
+        const sortedItems = groupedLines.flatMap(line => line.items);
 
         const isAfterEdtoHeader = (edtoPointDataPageIdx !== -1 && pi >= edtoPointDataPageIdx);
 
         const sentenceHighlightedLines = new Set();
-        const lineTextAt = index => groupedLines[index].items.slice().sort((a, b) => a.transform[4] - b.transform[4])
-          .map(item => cleanAndDecodeItem(item.str, pageOffset)).join(' ').trim();
+        const lineTexts = groupedLines.map(line => line.text);
+        const lineTextAt = index => lineTexts[index].trim();
         const bodySizes = sortedItems.map(item => Math.abs(item.transform[3]) || 10).sort((a, b) => a - b);
         const bodySize = bodySizes[Math.floor(bodySizes.length / 2)] || 10;
         const protectedLine = index => {
@@ -1096,8 +1090,8 @@ async function runHL(){
         }
         for (let lineIndex = 0; lineIndex < groupedLines.length; lineIndex++) {
           const line = groupedLines[lineIndex];
-          const lineItems = line.items.sort((a,b) => a.transform[4] - b.transform[4]);
-          const lineText = lineItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ');
+          const lineItems = line.items;
+          const lineText = lineTexts[lineIndex];
           // Route badges are references, independent of text highlighting exclusions.
           const notam3Badge = pkg3StartIdx !== -1 && pi >= pkg3StartIdx
             ? notam3RouteBadgeText(lineText, iataAirports, routeKw) : '';
@@ -1240,8 +1234,7 @@ async function runHL(){
               // Extend to following visual lines only if the same paragraph reaches a full stop.
               for (let nextIndex = lineIndex + 1; sentenceEndIndex === -1 && nextIndex < groupedLines.length; nextIndex++) {
                 const nextLine = groupedLines[nextIndex];
-                const nextItems = nextLine.items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
-                const nextText = nextItems.map(it => cleanAndDecodeItem(it.str, pageOffset)).join(' ').trim();
+                const nextText = lineTextAt(nextIndex);
                 const lineGap = Math.abs(previousLine.y - nextLine.y);
                 if (protectedLine(nextIndex) || paragraphStart(nextText) || lineGap > Math.max(currentSize * 1.8, 8) || nextBlockPattern.test(nextText)) break;
                 if (sentencePeriod.test(nextText)) sentenceEndIndex = nextIndex;
@@ -1252,9 +1245,8 @@ async function runHL(){
               for (let highlightIndex = lineIndex; highlightIndex <= lastHighlightIndex; highlightIndex++) {
                 if (sentenceHighlightedLines.has(highlightIndex) || customSentenceLines.has(highlightIndex)) continue;
                 const highlightLine = groupedLines[highlightIndex];
-                const highlightItems = highlightLine.items.slice().sort((a, b) => a.transform[4] - b.transform[4]);
+                const highlightItems = highlightLine.items;
                 drawLineHighlight(libPage, highlightItems, highlightLine.y, sx, sy, PDFLib.rgb(hlRGB[0], hlRGB[1], hlRGB[2]), 0.25);
-                if (isNotamPage) highlightedNotamLines.add(highlightedNotamLineKey(pi, highlightLine.y));
                 sentenceHighlightedLines.add(highlightIndex);
               }
             }
@@ -1263,16 +1255,7 @@ async function runHL(){
           }
 
           // 문자 단위 매핑
-          const charMapping = [];
-          for (let i = 0; i < lineItems.length; i++) {
-            const item = lineItems[i];
-            const decodedStr = cleanAndDecodeItem(item.str, pageOffset) || '';
-            if (i > 0) charMapping.push({ isSeparator: true });
-            for (let charIdx = 0; charIdx < decodedStr.length; charIdx++) {
-              charMapping.push({ itemIndex: i, charIndex: charIdx, char: decodedStr[charIdx] });
-            }
-          }
-          const lineTextFromMapping = charMapping.map(m => m.isSeparator ? ' ' : m.char).join('');
+          const { mapping: charMapping, text: lineTextFromMapping } = buildLineCharMapping(lineItems, pageOffset);
           const cleanLineText = lineTextFromMapping.replace(/[^A-Za-z0-9]/g, ' ');
 
           // 키워드 강조
@@ -1587,9 +1570,7 @@ async function runHL(){
 
     let foundCoaPageOffset = 0;
     if (finalCoaAnnotIdx !== -1) {
-      const coaRawPage = await pdfJsDoc.getPage(finalCoaAnnotIdx + 1);
-      const coaRawContent = await coaRawPage.getTextContent();
-      foundCoaPageOffset = detectPageOffset(coaRawContent.items.map(it => it.str).join(' '));
+      foundCoaPageOffset = (await getPageData(finalCoaAnnotIdx + 1)).offset;
     }
 
     console.log('[FUEL BADGE DEBUG] cfpPageIdx (CFP PLAN 북마크):', cfpPageIdx);
@@ -1603,23 +1584,17 @@ async function runHL(){
     let refilePageOffset = 0;
     let refilePageContent = null;
     let refileLibPage = null;
-    let refileSx = 1, refileSy = 1;
+    let refileSy = 1;
       const refileSearchEnd = numPages;
       for (let rpi = 0; rpi < refileSearchEnd; rpi++) {
-      const rJsPage = await pdfJsDoc.getPage(rpi + 1);
-      const rContent = await rJsPage.getTextContent();
-      const rRaw = rContent.items.map(it => it.str).join(' ');
-      const rOffset = detectPageOffset(rRaw);
-      const rText = rContent.items.map(it => cleanAndDecodeItem(it.str, rOffset)).join(' ');
+      const { content: rContent, offset: rOffset, text: rText, viewport: rVp } = await getPageData(rpi + 1);
       if (/PLANNED\s+R\/F\s+AT\s+REFILE\s+POINT\s+\d{3,6}/i.test(rText)) {
         refilePageIdx = rpi;
         refilePageText = rText;
         refilePageOffset = rOffset;
         refilePageContent = rContent;
         refileLibPage = libPages[rpi];
-        const rVp = rJsPage.getViewport({ scale: 1.0 });
-        const { width: rW, height: rH } = refileLibPage.getSize();
-        refileSx = rW / rVp.width;
+        const rH = refileLibPage.getHeight();
         refileSy = rH / rVp.height;
         break;
       }
@@ -1687,14 +1662,9 @@ async function runHL(){
   
     
     if(cfpPageIdx!==undefined) {
-      const cfpJsPage=await pdfJsDoc.getPage(cfpPageIdx+1);
-      const cfpContent=await cfpJsPage.getTextContent();
-      const rawCfpText = cfpContent.items.map(it => it.str).join(' ');
-      const cfpOffset = detectPageOffset(rawCfpText);
+      const { content: cfpContent, offset: cfpOffset, viewport: cfpVp } = await getPageData(cfpPageIdx + 1);
       const cfpLibPage = libPages[cfpPageIdx];
-      const { width: cfpW, height: cfpH } = cfpLibPage.getSize();
-      const cfpVp = cfpJsPage.getViewport({ scale: 1.0 });
-      const cfpSx = cfpW / cfpVp.width;
+      const cfpH = cfpLibPage.getHeight();
       const cfpSy = cfpH / cfpVp.height;
 
       const cfpItems=cfpContent.items.slice().sort((a,b)=>{
@@ -1726,10 +1696,7 @@ async function runHL(){
       // CFP 섹션 전체를 스캔하여 WPT Time Map 구축
       cfpFullSectionText = "";
       for (let pi = cfpPageIdx; pi < safeCfpEndIdx; pi++) {
-        const p = await pdfJsDoc.getPage(pi + 1);
-        const tc = await p.getTextContent();
-        const raw = tc.items.map(it => it.str).join(' ');
-        const off = detectPageOffset(raw);
+        const { content: tc, offset: off } = await getPageData(pi + 1);
         const sorted = tc.items.slice().sort((a,b)=>{
           const ay=a.transform[5], by2=b.transform[5];
           if(Math.abs(ay-by2)>2) return by2-ay;
@@ -1853,11 +1820,9 @@ async function runHL(){
       }
 
       if (finalCoaAnnotIdx !== -1) {
-        const coaJsPage=await pdfJsDoc.getPage(finalCoaAnnotIdx+1);
-        const coaContent=await coaJsPage.getTextContent();
+        const { content: coaContent, viewport: coaVp } = await getPageData(finalCoaAnnotIdx + 1);
         const coaLibPage = libPages[finalCoaAnnotIdx];
         const {width:coaW,height:coaH}=coaLibPage.getSize();
-        const coaVp=coaJsPage.getViewport({scale:1.0});
         const coaSx=coaW/coaVp.width;
         const coaSy=coaH/coaVp.height;
 
@@ -2124,13 +2089,9 @@ async function runHL(){
 
     // DISC FUEL 정보 오버레이
     if (discFuel && discTime && dispatchReleaseIdx !== -1) {
-      const drJsPage = await pdfJsDoc.getPage(dispatchReleaseIdx + 1);
-      const drContent = await drJsPage.getTextContent();
-      const drOffset = detectPageOffset(drContent.items.map(it => it.str).join(' '));
+      const { content: drContent, offset: drOffset, viewport: drVp } = await getPageData(dispatchReleaseIdx + 1);
       const drLibPage = libPages[dispatchReleaseIdx];
-      const { width: drW, height: drH } = drLibPage.getSize();
-      const drVp = drJsPage.getViewport({ scale: 1.0 });
-      const drSx = drW / drVp.width, drSy = drH / drVp.height;
+      const drSy = drLibPage.getHeight() / drVp.height;
       let notesY = null, notesFS = 10;
       let dispatchItem = null;
 
@@ -2167,11 +2128,7 @@ async function runHL(){
         numPages
       );
       for (let pi = cfpPageIdx; pi < cfpSectionEnd; pi++) {
-        const scanPage = await pdfJsDoc.getPage(pi + 1);
-        const scanTc = await scanPage.getTextContent();
-        const scanRaw = scanTc.items.map(it => it.str).join(' ');
-        const scanOff = detectPageOffset(scanRaw);
-        const scanText = scanTc.items.map(it => cleanAndDecodeItem(it.str, scanOff)).join(' ');
+        const { text: scanText } = await getPageData(pi + 1);
         if (/ENROUTE\s+ALTERNATES/i.test(scanText)) {
           const suitRe = /\b([A-Z]{3,4})\s+SUITABLE\s+FROM\s+(\d{4})\s+UTC\s*\/\s*TO\s+(\d{4})\s+UTC/gi;
           let sm;
@@ -2187,14 +2144,9 @@ async function runHL(){
     if (Object.keys(suitableMap).length > 0 && notam1PageIdx !== undefined) {
       const tagRe = /\[\s*(ERA|EDTO|REFILE|\d+\s*%\s*ERA)\s*\]\s*([A-Z]{3,4})\b/gi;
       for (let pi = notam1PageIdx; pi < numPages; pi++) {
-        const jsPage = await pdfJsDoc.getPage(pi + 1);
-        const tc = await jsPage.getTextContent();
-        const rawText = tc.items.map(it => it.str).join(' ');
-        const offset = detectPageOffset(rawText);
-        const lines = groupTextItemsByLine(tc.items, offset);
+        const { lines, viewport: vp } = await getPageData(pi + 1);
         const libPage = libPages[pi];
         const { width: lw, height: lh } = libPage.getSize();
-        const vp = jsPage.getViewport({ scale: 1.0 });
         const sy = lh / vp.height;
 
         for (const line of lines) {
@@ -2239,14 +2191,9 @@ async function runHL(){
       const weatherEndIdx = (pkg1PageIdx !== -1) ? pkg1PageIdx : (pkg3StartIdx !== -1 ? pkg3StartIdx : numPages);
 
       for (let pi = weatherBriefingIdx; pi < weatherEndIdx; pi++) {
-        const jsPage = await pdfJsDoc.getPage(pi + 1);
-        const tc = await jsPage.getTextContent();
-        const rawText = tc.items.map(it => it.str).join(' ');
-        const offset = detectPageOffset(rawText);
-        const lines = groupTextItemsByLine(tc.items, offset);
+        const { lines, viewport: vp } = await getPageData(pi + 1);
         const libPage = libPages[pi];
         const { width: lw, height: lh } = libPage.getSize();
-        const vp = jsPage.getViewport({ scale: 1.0 });
         const sy = lh / vp.height;
 
         for (let li = 0; li < lines.length; li++) {
@@ -2324,14 +2271,12 @@ async function runHL(){
         if (!timeText || subAirport.maxX === undefined) continue;
         const pi = subAirport.pageIdx;
         if (!pageScaleCache[pi]) {
-          const jsP = await pdfJsDoc.getPage(pi + 1);
-          const vp = jsP.getViewport({ scale: 1.0 });
+          const { viewport: vp } = await getPageData(pi + 1);
           const lp = libPages[pi];
           const { width: lw, height: lh } = lp.getSize();
           pageScaleCache[pi] = { sy: lh / vp.height };
         }
         const { sy } = pageScaleCache[pi];
-        const depAnnotSize = BADGE_STYLE.fontSize;
         const depSrcFS = subAirport.fontSize || 10;
         const depSrcMidY = subAirport.y * sy + depSrcFS * sy * SOURCE_TEXT_CENTER_RATIO;
 
@@ -2367,8 +2312,7 @@ async function runHL(){
             const timeBadgeLines = ['FIR ENTRY', timeValue];
             const pi = sub.pageIdx;
             if (!firScaleCache[pi]) {
-              const jsP = await pdfJsDoc.getPage(pi + 1);
-              const vp = jsP.getViewport({ scale: 1.0 });
+              const { viewport: vp } = await getPageData(pi + 1);
               const lp = libPages[pi];
               const { width: lw, height: lh } = lp.getSize();
               firScaleCache[pi] = { sx: lw / vp.width, sy: lh / vp.height, lw };
@@ -2401,14 +2345,9 @@ async function runHL(){
     const expectedEndIdx = dispatchReleaseIdx !== -1 ? dispatchEndIdx : numPages;
     
     for (let pi = expectedStartIdx; pi < expectedEndIdx; pi++) {
-      const jsPage = await pdfJsDoc.getPage(pi + 1);
-      const tc = await jsPage.getTextContent();
-      const rawText = tc.items.map(it => it.str).join(' ');
-      const offset = detectPageOffset(rawText);
-      const lines = groupTextItemsByLine(tc.items, offset);
+      const { lines, viewport: vp } = await getPageData(pi + 1);
       const libPage = libPages[pi];
       const { width: lw, height: lh } = libPage.getSize();
-      const vp = jsPage.getViewport({ scale: 1.0 });
       const sx = lw / vp.width;
       const sy = lh / vp.height;
       const expectedBadges = [];
@@ -2446,8 +2385,7 @@ async function runHL(){
           const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
           const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
           const badgeSize = BADGE_STYLE.fontSize;
-          const textWidth = boldFont.widthOfTextAtSize(badgeText, badgeSize);
-          expectedBadges.push({ text: badgeText, centerY: srcMidY, size: badgeSize, textWidth });
+          expectedBadges.push({ text: badgeText, centerY: srcMidY, size: badgeSize });
         }
       }
 
@@ -2480,4 +2418,5 @@ async function runHL(){
     runBtn.innerHTML='RUN ENGINE';
   }
 }
+
 

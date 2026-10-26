@@ -1,0 +1,13 @@
+# Keep development files and unused legacy assets out of Workers static assets.
+.git/
+.idea/
+.artifacts/
+ios/
+tests/
+src/
+README.md
+package.json
+wrangler.jsonc
+js/fontkit.umd.min.js
+fonts/
+mp_.mp4

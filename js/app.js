@@ -7,7 +7,6 @@ let libsReady = false;
 
 const PRESETS=['3 PCT','A/C','ACTUAL','AGTOW','ALERT LEVEL','ALTN','AMD','AMEND','AMDT','APMS','APPLY','789','781','CAUTION','CCF','CDL','CFP PLAN','CHANGES','CLOSURE','CRZ','DIFFERENCE','DISC','DO NOT USE','EDTO','EFB','ELDW','EMERGENCY','ENTRY POINT','ERA','ETP','EXC SKED','FOD','FOM','ILS','KAL','KE NOT','KE ROUTE','LDW','MEL','MINIMA','MOD TURB','MTOW','NO AFFECTED','NO KE','NO COMPANY','NO OPS RTE', 'NOT TO','OUT OF SERVICE','OUTAGE','OVC','RA','REFILE','RQRD','RUNWAY','SH','TAKE OFF WEIGHT','TOW','TRIP','TS','UNRELIABLE','UNSERVICEABLE','WX DEV'];
 
-let currentThemeName = 'pink';
 let activeHlColorRGB = [1.0, 0.45, 0.65];
 window.activeHlColorRGB = activeHlColorRGB;
 
@@ -46,6 +45,11 @@ function canRun(){return (sel.size>0 || bmEnabled) && pdfBytes!==null;}
 function updRun(){document.getElementById('runBtn').className='action-btn run-btn'+(canRun()?' active':'');}
 function handleBtn(){if(done)dlPDF();else runHL();}
 
+function invalidateResult() {
+  done = false;
+  updRun();
+}
+
 function setStatus(cls,txt){
   const b=document.getElementById('sb');
   b.className='status-bar'+(cls?' '+cls:'');
@@ -53,15 +57,13 @@ function setStatus(cls,txt){
 }
 
 function selectColor(name, rgbArray) {
-    currentThemeName = name;
     activeHlColorRGB = rgbArray;
     window.activeHlColorRGB = rgbArray;
 
     document.querySelectorAll('.color-chip').forEach(chip => chip.classList.remove('active'));
     document.getElementById('chip-' + name).classList.add('active');
 
-    done = false;
-    updRun();
+    invalidateResult();
 }
 
 function setHighlightMode(mode) {
@@ -71,8 +73,7 @@ function setHighlightMode(mode) {
     input.checked = input.value === highlightMode;
   });
 
-  done = false;
-  updRun();
+  invalidateResult();
 }
 
 function setCustomMode(mode) {
@@ -81,8 +82,7 @@ function setCustomMode(mode) {
   document.querySelectorAll('input[name="customMode"]').forEach(input => {
     input.checked = input.value === mode;
   });
-  done = false;
-  updRun();
+  invalidateResult();
 }
 
 function loadScript(src) {
@@ -151,8 +151,7 @@ function toggleAllWords(){
   const button = document.getElementById('toggleAllWords');
   if (button) button.textContent = selectAll ? 'Deselect All' : 'Select All';
   updBadge();
-  done = false;
-  updRun();
+  invalidateResult();
 }
 
 function syncCustomWordSelection(word) {
@@ -187,8 +186,7 @@ function addCustom(){
   custom.forEach(syncCustomWordSelection);
   renderTags();
   updBadge();
-  done=false;
-  updRun();
+  invalidateResult();
 }
 
 function renderTags(){
@@ -216,13 +214,13 @@ function renderCustomWordOptions(){
     item.innerHTML = `<input type="checkbox" id="cw${index}" ${sel.has(word) ? 'checked' : ''}><label for="cw${index}" style="cursor:pointer;flex:1">${word}</label>`;
     item.querySelector('input').addEventListener('change', event => {
       event.target.checked ? sel.add(word) : sel.delete(word);
-      updBadge(); done = false; updRun();
+      updBadge(); invalidateResult();
     });
     list.appendChild(item);
   });
 }
 
-function rmCustom(i){sel.delete(custom[i]);custom.splice(i,1);renderCustomWordOptions();renderTags();updBadge();done=false;updRun();}
+function rmCustom(i){sel.delete(custom[i]);custom.splice(i,1);renderCustomWordOptions();renderTags();updBadge();invalidateResult();}
 
 function loadFile(file){
   bookmarkPolicy = 'generate';
@@ -309,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('input[name="bookmarkPolicy"]').forEach(input => input.addEventListener('change', e => {
     if (!e.target.checked) return;
     bookmarkPolicy = e.target.value;
-    done = false; updRun();
+    invalidateResult();
   }));
 
   const pl = document.getElementById('presetList');
@@ -320,7 +318,7 @@ document.addEventListener('DOMContentLoaded', () => {
     d.innerHTML = `<input type="checkbox" id="p${i}"><label for="p${i}" style="cursor:pointer;flex:1">${w}</label>`;
     d.querySelector('input').addEventListener('change', e => {
       e.target.checked ? sel.add(w) : sel.delete(w);
-      updBadge(); done = false; updRun();
+      updBadge(); invalidateResult();
     });
     frag.appendChild(d);
   });
@@ -340,7 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
         sel.clear();
         pl.querySelectorAll('input').forEach(c=>c.checked=false);
       }
-      updBadge(); done=false; updRun();
+      updBadge(); invalidateResult();
     });
   });
   PRESETS.forEach(w => sel.add(w));
@@ -387,3 +385,4 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+

@@ -1,0 +1,11 @@
+const assert = require('node:assert/strict');
+const { extractFlightInfo } = require('../js/flight-parser.js');
+const { extractNotamInfo } = require('../js/flight-notam.js');
+const { extractEetTimeline } = require('../js/flight-eet.js');
+assert.equal(extractFlightInfo('TRIP 1000 08.00').items.TRIP.timeRaw, '08.00');
+const notams = extractNotamInfo('[DEP]RKSI/ ICN/ Incheon\nRWY CLOSED');
+assert.equal(notams.sections[0].severity, 'HIGH');
+const eet = extractEetTimeline('-RKSI2300\nEET/RKRR0200', notams.sections);
+assert.equal(eet.timeline[0].etoZ, '0100Z+1');
+assert.equal(eet.timeline[0].relatedAirports[0].icao, 'RKSI');
+console.log('Standalone parser exports and data flow passed');
