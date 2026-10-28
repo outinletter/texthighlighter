@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="notamhighlighter.png">
   <link rel="apple-touch-icon" href="notamhighlighter.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=73">
+  <link rel="stylesheet" href="css/style.css?v=75">
 </head>
 <body>
 
@@ -26,7 +26,84 @@
 
 <div class="body">
   <div class="app">
-    
+
+    <details class="feature-guide" id="featureGuide" lang="ko">
+      <summary>
+        <span class="feature-guide-icon" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+            <path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H10a3 3 0 0 1 2 1 3 3 0 0 1 2-1h4.5A1.5 1.5 0 0 1 20 5.5V19h-6a2 2 0 0 0-2 1 2 2 0 0 0-2-1H4V5.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+            <path d="M12 5v15M7 8h2M7 11h2M15 8h2M15 11h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+          </svg>
+        </span>
+        <span class="feature-guide-copy">
+          <span class="feature-guide-title">앱 기능 한눈에 보기</span>
+          <span class="feature-guide-subtitle">키워드 · Duty Time · Route · 북마크 · EDTO</span>
+        </span>
+        <span class="feature-guide-toggle">
+          <span class="feature-guide-action feature-guide-closed">펼쳐보기</span>
+          <span class="feature-guide-action feature-guide-open">접기</span>
+          <svg class="feature-guide-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+      </summary>
+      <div class="feature-guide-content">
+        <dl class="feature-guide-grid">
+          <div>
+            <dt><span aria-hidden="true">01</span>키워드 하이라이트</dt>
+            <dd>PDF 텍스트를 보정하고, 기본·사용자 키워드와 위험 문장을 색상이나 밑줄로 강조합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">02</span>Duty Time</dt>
+            <dd>CFP의 TRIP 시간에 따라 1/2 또는 2/3·1/3 지점을 계산해 PDF에 표시합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">03</span>Route 복사·대조</dt>
+            <dd>CFP 경로를 ATS FPL 페이지에 복사하고, 경로·기체·출도착·운항일 정보의 차이를 표시합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">04</span>FIR Entry Time</dt>
+            <dd>ETD에 ATS FPL의 EET를 더해 FIR 진입 예정 시각을 UTC로 표시합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">05</span>EDTO·대체공항 시간 복사</dt>
+            <dd>CFP의 Suitable From/To UTC 시간대를 NOTAM의 ERA·EDTO·REFILE 공항 옆에 복사해 표시합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">06</span>WPT·Track 매칭</dt>
+            <dd>CFP에서 검출한 WPT가 NOTAM에 있으면 밑줄로 표시하고, 운항 Track도 찾아 강조합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">07</span>출도착·TAF 시간</dt>
+            <dd>출도착 ETD·ETA와 날짜 변경을 표시하고, TAF에 공항명·역할과 확인 가능한 시간을 붙입니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">08</span>기상 구간 시간</dt>
+            <dd>FROM WPT TO WPT 구간에 CFP의 WPT 시간을 연결해 시작·종료 시간을 표시합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">09</span>연료 정보 배지</dt>
+            <dd>DISPATCH NOTES에 DISC 연료·시간을 복사하고, REFILE POINT 연료와 RQRD의 차이를 표시합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">10</span>섹션·공항별 북마크</dt>
+            <dd>CFP·ATS·Dispatch·ETP·기상·NOTAM과 공항·FIR별 북마크를 만듭니다. 기존 북마크 유지도 지원합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">11</span>기상·운항 정보 강조</dt>
+            <dd>기상 위험, Shear·MSA·ETP 정보를 강조하고, 비적용 안내·EXC SKED·NOTAM 3 회색 영역 규칙을 반영합니다.</dd>
+          </div>
+          <div>
+            <dt><span aria-hidden="true">12</span>오프라인 처리·PDF 저장</dt>
+            <dd>기기에서 PDF를 처리하고 날짜·편명·경로를 반영해 저장·공유합니다. 준비 후에는 인터넷 없이 사용할 수 있습니다.</dd>
+          </div>
+        </dl>
+        <p class="feature-guide-note">문서에 해당 정보가 있을 때 자동 기능이 적용됩니다.</p>
+        <p class="feature-guide-options"><strong>표시 설정</strong> Keywords / Badge Only · 4색 Highlight / Underline · 사용자 단어 Words / Full Line · 북마크 Create / Keep</p>
+        <p class="feature-guide-steps"><strong>사용 순서</strong> PDF 업로드 → 설정 선택 → RUN ENGINE → 결과 저장</p>
+      </div>
+    </details>
+
     <a href="https://pilot-briefing.outinletter.workers.dev/" target="_blank" rel="noopener noreferrer" class="safety-banner" id="safetyBanner" aria-label="Explore the Airport Safety Briefing demo">
       <div class="safety-banner-icon">
         <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
