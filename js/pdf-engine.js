@@ -909,10 +909,16 @@ async function runHL(){
     let refileBookmarkY = null;
     const decodedPages = [];
     let coaAnnotIdx = -1;
+    let datedCoaPageIdx = -1;
 
     for(let pi=0;pi<numPages;pi++){
       const { content: tc, offset, text: pageText, lines } = await getPageData(pi + 1);
       decodedPages[pi] = lines.map(line => line.text).join('\n');
+      // A submitted copy can use a bare UTC timestamp instead of a section heading.
+      if (datedCoaPageIdx === -1 &&
+          /^[ \t]*\d{4}\s+[A-Z]{3}\s+\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?[ \t]*\n[ \t]*\(FPL-/im.test(decodedPages[pi])) {
+        datedCoaPageIdx = pi;
+      }
 
       for(const bm of BOOKMARK_PATTERNS){
         if(bmPages[bm.label]!==undefined) {
@@ -936,6 +942,11 @@ async function runHL(){
           }
         }
       }
+    }
+
+    if (datedCoaPageIdx !== -1) {
+      bmPages['COPY OF ATS'] = datedCoaPageIdx;
+      coaAnnotIdx = datedCoaPageIdx;
     }
 
     const pkg3StartIdx = bmPages['NOTAM 3'] !== undefined ? bmPages['NOTAM 3'] : -1;
@@ -2046,9 +2057,16 @@ async function runHL(){
         if (extractedRoute) {
           const routeDisplay = extractedRoute.replace(/\n+/g, ' ').replace(/\s+/g, ' ').trim();
           let anchorY = null, anchorX = null;
+          const coaLines = groupTextItemsByLine(coaContent.items, foundCoaPageOffset);
+          const fplStart = coaLines.findIndex(line => /^\s*\(FPL-/i.test(line.text));
+          const fplEnd = fplStart === -1 ? null : coaLines.slice(fplStart + 1).find(line => /\)\s*$/.test(line.text));
+          if (fplEnd) {
+            anchorY = fplEnd.y;
+            anchorX = fplEnd.parts[0].item.transform[4];
+          }
           for (const item of sortedCoaItems) {
             const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
-            if (s && /SUBMITTED\s+AT\b/i.test(s)) {
+            if (!fplEnd && s && /SUBMITTED\s+AT\b/i.test(s)) {
               anchorY = item.transform[5]; anchorX = item.transform[4];
             }
           }
