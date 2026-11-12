@@ -910,10 +910,17 @@ async function runHL(){
     const decodedPages = [];
     let coaAnnotIdx = -1;
     let datedCoaPageIdx = -1;
+    let embeddedFplPageIdx = -1;
 
     for(let pi=0;pi<numPages;pi++){
       const { content: tc, offset, text: pageText, lines } = await getPageData(pi + 1);
       decodedPages[pi] = lines.map(line => line.text).join('\n');
+      if (embeddedFplPageIdx === -1 &&
+          /\(FPL-[A-Z0-9]+-/i.test(pageText) &&
+          /-\s*[A-Z]{4}\s*\d{4}\b/i.test(pageText) &&
+          /-\s*[NKM]\d{4}[FASM]\d{3,4}\b/i.test(pageText)) {
+        embeddedFplPageIdx = pi;
+      }
       // A submitted copy can use a bare UTC timestamp instead of a section heading.
       if (datedCoaPageIdx === -1 &&
           /^[ \t]*\d{4}\s+[A-Z]{3}\s+\d{1,2}\s+\d{1,2}:\d{2}(?::\d{2})?[ \t]*\n[ \t]*\(FPL-/im.test(decodedPages[pi])) {
@@ -921,6 +928,8 @@ async function runHL(){
       }
 
       for(const bm of BOOKMARK_PATTERNS){
+        if (bm.label === 'COPY OF ATS' &&
+            !lines.some(line => /^\s*COPY\s+OF\s+ATS\s+FPL\b/i.test(line.text))) continue;
         if(bmPages[bm.label]!==undefined) {
             if (bm.label === 'COPY OF ATS' && coaAnnotIdx === -1) {
                 if (/SUBMITTED\s+AT\b/i.test(pageText)) coaAnnotIdx = pi;
@@ -948,16 +957,21 @@ async function runHL(){
       bmPages['COPY OF ATS'] = datedCoaPageIdx;
       coaAnnotIdx = datedCoaPageIdx;
     }
+    if (bmPages['COPY OF ATS'] === undefined && embeddedFplPageIdx !== -1) {
+      bmPages['COPY OF ATS'] = embeddedFplPageIdx;
+      coaAnnotIdx = embeddedFplPageIdx;
+    }
+
+    const sectionEnd = start => Math.min(numPages, ...Object.entries(bmPages)
+      .filter(([label, index]) => label !== 'REFILE POINT' && index > start)
+      .map(([, index]) => index));
 
     const pkg3StartIdx = bmPages['NOTAM 3'] !== undefined ? bmPages['NOTAM 3'] : -1;
     const dispatchReleaseIdx = bmPages['DISPATCH RELEASE INFORMATION'] !== undefined ? bmPages['DISPATCH RELEASE INFORMATION'] : -1;
     const weatherBriefingIdx = bmPages['WEATHER BRIEFING'] !== undefined ? bmPages['WEATHER BRIEFING'] : -1;
     const pkg1PageIdx = bmPages['NOTAM 1'] !== undefined ? bmPages['NOTAM 1'] : -1;
 
-    let dispatchEndIdx = numPages;
-    if (weatherBriefingIdx !== -1) dispatchEndIdx = weatherBriefingIdx;
-    else if (pkg1PageIdx !== -1) dispatchEndIdx = pkg1PageIdx;
-    else if (pkg3StartIdx !== -1) dispatchEndIdx = pkg3StartIdx;
+    const dispatchEndIdx = dispatchReleaseIdx === -1 ? numPages : sectionEnd(dispatchReleaseIdx);
 
     const notam1PageIdx = bmPages['NOTAM 1'];
     const notam2PageIdx = bmPages['NOTAM 2'];
@@ -974,15 +988,15 @@ async function runHL(){
     let notam3SubAirports = [];
 
     if (notam1PageIdx !== undefined) {
-      const notam1EndIdx = notam2PageIdx !== undefined ? notam2PageIdx : (notam3PageIdx !== undefined ? notam3PageIdx : numPages);
+      const notam1EndIdx = sectionEnd(notam1PageIdx);
       notam1SubAirports = await extractFirstTagAirports(pdfJsDoc, notam1PageIdx, notam1EndIdx, ['DEP', 'DEST', 'ALTN'], getPageData);
     }
     if (notam2PageIdx !== undefined) {
-      const notam2EndIdx = notam3PageIdx !== undefined ? notam3PageIdx : numPages;
+      const notam2EndIdx = sectionEnd(notam2PageIdx);
       notam2SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam2PageIdx, notam2EndIdx, '(?:\\d+\\s*%\\s*)?ERA|EDTO|REFILE', getPageData);
     }
     if (notam3PageIdx !== undefined) {
-      const notam3EndIdx = numPages;
+      const notam3EndIdx = sectionEnd(notam3PageIdx);
       notam3SubAirports = await extractAllTaggedAirports(pdfJsDoc, notam3PageIdx, notam3EndIdx, 'FIR', getPageData);
     }
 
@@ -1498,7 +1512,7 @@ async function runHL(){
       let pi=bmPages[bm.label];if(pi===undefined)continue;
       if (bm.label === 'COPY OF ATS' && coaAnnotIdx !== -1) pi = coaAnnotIdx;
       const { lines, offset } = await getPageData(pi + 1);
-      const heading = lines.find(line => bm.pattern.test(line.text) ||
+      const heading = bm.label === 'COPY OF ATS' ? lines.find(line => /^\s*(?:COPY\s+OF\s+ATS\s+FPL|\(FPL-)/i.test(line.text)) : lines.find(line => bm.pattern.test(line.text) ||
         bm.pattern.test(line.parts.map(part => cleanAndDecodeItem(part.item.str, offset)).join(' ')));
       const bookmarkY = (bm.label === 'EQUAL TIME POINT DATA' ? edtoBookmarkY :
         bm.label === 'REFILE POINT' ? refileBookmarkY : null) ?? heading?.y;
@@ -2142,10 +2156,7 @@ async function runHL(){
     }
 
     if (cfpPageIdx !== undefined) {
-      const cfpSectionEnd = Math.min(
-        notam1PageIdx !== undefined ? notam1PageIdx : cfpPageIdx + 20,
-        numPages
-      );
+      const cfpSectionEnd = sectionEnd(cfpPageIdx);
       for (let pi = cfpPageIdx; pi < cfpSectionEnd; pi++) {
         const { text: scanText } = await getPageData(pi + 1);
         if (/ENROUTE\s+ALTERNATES/i.test(scanText)) {
