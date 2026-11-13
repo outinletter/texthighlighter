@@ -1772,17 +1772,15 @@ async function runHL(){
           return `${h}:${m}`;
         };
 
-        let formattedCalcText = "";
-        if (totalMinutes >= 690) {
+        const formattedCalcTexts = [];
+        if (totalMinutes >= 450) {
           const halfMin = Math.round(totalMinutes / 2);
-          formattedCalcText = `DUTY TIME ${formatTime(halfMin)}`;
-        } else if (totalMinutes >= 450) {
-          const twoThirdsMin = Math.round((totalMinutes * 2) / 3);
           const oneThirdMin = Math.round(totalMinutes / 3);
-          formattedCalcText = `DUTY TIME ${formatTime(twoThirdsMin)} (${formatTime(oneThirdMin)})`;
+          formattedCalcTexts.push(`DUTY TIME 1/2 ${formatTime(halfMin)}`);
+          formattedCalcTexts.push(`DUTY TIME 1/3 ${formatTime(oneThirdMin)}`);
         }
 
-        if (formattedCalcText) {
+        if (formattedCalcTexts.length) {
           let secondLineY = null, secondLineFS = 10;
           for (const item of cfpItems) {
             const s = cleanAndDecodeItem(item.str, cfpOffset);
@@ -1795,13 +1793,16 @@ async function runHL(){
           if (secondLineY !== null) {
             const srcMidY = secondLineY + secondLineFS * SOURCE_TEXT_CENTER_RATIO;
 
-            drawDutyTimeStyleBadge(cfpLibPage, {
-              text: formattedCalcText,
-              x: getRightAlignedBadgeX(cfpLibPage, formattedCalcText, boldFont),
-              centerY: srcMidY * cfpSy,
-              font: boldFont
-            });
-            totalHits++;
+            for (let badgeIndex = 0; badgeIndex < formattedCalcTexts.length; badgeIndex++) {
+              const text = formattedCalcTexts[badgeIndex];
+              drawDutyTimeStyleBadge(cfpLibPage, {
+                text,
+                x: getRightAlignedBadgeX(cfpLibPage, text, boldFont),
+                centerY: srcMidY * cfpSy - badgeIndex * BADGE_STYLE.fontSize * 1.8,
+                font: boldFont
+              });
+              totalHits++;
+            }
           }
         }
       }
