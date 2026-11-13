@@ -2083,13 +2083,17 @@ async function runHL(){
           const coaLines = groupTextItemsByLine(coaContent.items, foundCoaPageOffset);
           const fplStart = coaLines.findIndex(line => /^\s*\(FPL-/i.test(line.text));
           const fplEnd = fplStart === -1 ? null : coaLines.slice(fplStart + 1).find(line => /\)\s*$/.test(line.text));
-          if (fplEnd) {
-            anchorY = fplEnd.y;
-            anchorX = fplEnd.parts[0].item.transform[4];
+          const submittedCopyLine = [...coaLines].reverse().find(line =>
+            /COPY\s+OF\s+ATS\s+FPL/i.test(line.text) && /SUBMITTED\s+AT\b/i.test(line.text));
+          const submittedLine = [...coaLines].reverse().find(line => /SUBMITTED\s+AT\b/i.test(line.text));
+          const sourceEndLine = submittedCopyLine || submittedLine || fplEnd;
+          if (sourceEndLine) {
+            anchorY = sourceEndLine.y;
+            anchorX = sourceEndLine.parts[0].item.transform[4];
           }
           for (const item of sortedCoaItems) {
             const s = cleanAndDecodeItem(item.str, foundCoaPageOffset).trim();
-            if (!fplEnd && s && /SUBMITTED\s+AT\b/i.test(s)) {
+            if (!sourceEndLine && s && /SUBMITTED\s+AT\b/i.test(s)) {
               anchorY = item.transform[5]; anchorX = item.transform[4];
             }
           }
@@ -2105,7 +2109,7 @@ async function runHL(){
           if (anchorY !== null) {
             const rSize = BADGE_STYLE.fontSize;
             const rMaxW = coaW * 0.75;
-            const rStartY = (anchorY - 14 - rSize * 1.4) * coaSy;
+            const rStartY = (anchorY - rSize * 3) * coaSy;
             const words = routeDisplay.split(' ');
             const rLines = [];
             let cur = '';
