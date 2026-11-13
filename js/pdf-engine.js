@@ -910,6 +910,7 @@ async function runHL(){
     const decodedPages = [];
     let coaAnnotIdx = -1;
     let datedCoaPageIdx = -1;
+    let submittedCoaPageIdx = -1;
     let embeddedFplPageIdx = -1;
 
     for(let pi=0;pi<numPages;pi++){
@@ -920,6 +921,11 @@ async function runHL(){
           /-\s*[A-Z]{4}\s*\d{4}\b/i.test(pageText) &&
           /-\s*[NKM]\d{4}[FASM]\d{3,4}\b/i.test(pageText)) {
         embeddedFplPageIdx = pi;
+      }
+      if (submittedCoaPageIdx === -1 &&
+          /\(FPL-[A-Z0-9]+-/i.test(pageText) &&
+          /COPY\s+OF\s+ATS\s+FPL[\s\S]{0,100}SUBMITTED\s+AT\s+\d{3,4}/i.test(pageText)) {
+        submittedCoaPageIdx = pi;
       }
       // A submitted copy can use a bare UTC timestamp instead of a section heading.
       if (datedCoaPageIdx === -1 &&
@@ -953,7 +959,10 @@ async function runHL(){
       }
     }
 
-    if (datedCoaPageIdx !== -1) {
+    if (submittedCoaPageIdx !== -1) {
+      bmPages['COPY OF ATS'] = submittedCoaPageIdx;
+      coaAnnotIdx = submittedCoaPageIdx;
+    } else if (datedCoaPageIdx !== -1) {
       bmPages['COPY OF ATS'] = datedCoaPageIdx;
       coaAnnotIdx = datedCoaPageIdx;
     }
@@ -2370,7 +2379,7 @@ async function runHL(){
     // =========================================================================
     // FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가
     // =========================================================================
-    const expectedRegex = /FROM\s+([A-Z0-9]{2,10})\s+TO\s+([A-Z0-9]{2,10})/gi;
+    const expectedRegex = /FROM\s+([A-Z0-9]{2,10})(?:\((\d{2}:\d{2})\))?\s+TO\s+([A-Z0-9]{2,10})(?:\((\d{2}:\d{2})\))?/gi;
     const expectedStartIdx = dispatchReleaseIdx !== -1 ? dispatchReleaseIdx : 0;
     const expectedEndIdx = dispatchReleaseIdx !== -1 ? dispatchEndIdx : numPages;
     
@@ -2387,15 +2396,15 @@ async function runHL(){
         expectedRegex.lastIndex = 0;
         while ((match = expectedRegex.exec(line.text)) !== null) {
           const fromWpt = match[1].toUpperCase();
-          const toWpt = match[2].toUpperCase();
+          const toWpt = match[3].toUpperCase();
     
-          let fromTime = '';
-          if (detectedAirports?.[0] && fromWpt === detectedAirports[0].toUpperCase()) {
+          let fromTime = match[2] ? match[2].replace(':', '.') : '';
+          if (!fromTime && detectedAirports?.[0] && fromWpt === detectedAirports[0].toUpperCase()) {
             fromTime = '00.00';
-          } else {
+          } else if (!fromTime) {
             fromTime = wptTimeMap.get(fromWpt) || '';
           }
-          let toTime = wptTimeMap.get(toWpt) || '';
+          let toTime = match[4] ? match[4].replace(':', '.') : (wptTimeMap.get(toWpt) || '');
           if (!toTime && detectedAirports?.[1] && toWpt === detectedAirports[1].toUpperCase()) {
             toTime = tripElapsedTime || '';
           }

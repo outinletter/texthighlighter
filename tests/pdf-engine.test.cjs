@@ -40,7 +40,8 @@ const sections = [
     'I HEREBY RELEASE THE FLIGHT, ICN/JFK',
     'TRACK A',
     'DISPATCH NOTES',
-    'FL430 EXPECTED FROM IGLOT TO IGBIS'
+    'FL430 EXPECTED FROM IGLOT TO IGBIS',
+    '- LGT-MOD TURB TOP FL380 FROM NLT(06:23) TO BUVEM(08:06)'
   ],
   ['EQUAL TIME POINT DATA', 'ETP 1 IGLOT'],
   ['WEATHER BRIEFING', 'TAF COR RKSI', '1200Z TSRA', 'TAF AMD KJFK', 'TEMPO FZRA'],
@@ -177,6 +178,7 @@ async function runFixture(source, options = {}) {
   assert.ok(badges.some(text => text.includes('DISC FUEL INFO')));
   assert.ok(badges.includes('+ 5,000 lbs'));
   assert.ok(badges.includes('01.20 ~ 01.40'));
+  assert.ok(badges.includes('06.23 ~ 08.06'), 'Timed LET/MOD/TURB segments must receive their stated times');
   assert.ok(badges.includes('FIR ENTRY'));
   assert.ok(badges.some(text => text.includes('From 1100Z To 2100Z')));
   return { calls, statuses, textReads, title };
