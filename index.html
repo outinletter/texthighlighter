@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="notamhighlighter.png">
   <link rel="apple-touch-icon" href="notamhighlighter.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=78">
+  <link rel="stylesheet" href="css/style.css?v=79">
 </head>
 <body>
 
@@ -221,9 +221,11 @@
       <p style="font-size:11px;color:#94a3b8;margin:12px 0">
         The processed PDF opens in a new browser tab. If your browser blocks it, use the button below.
       </p>
-      <button type="button" id="openProcessedPdfButton" class="action-btn">OPEN PROCESSED PDF</button>
+      <div class="processed-document-actions">
+        <button type="button" id="openProcessedPdfButton" class="action-btn">OPEN PROCESSED PDF</button>
+        <button class="action-btn dl-btn active" onclick="dlPDF()">SAVE / SHARE PDF</button>
+      </div>
       <p id="pdfOpenMessage" class="pdf-viewer-message" role="status"></p>
-      <button class="action-btn dl-btn active" onclick="dlPDF()">SAVE / SHARE PDF</button>
     </div>
 
   </div>
