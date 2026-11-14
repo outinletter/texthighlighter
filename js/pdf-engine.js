@@ -1587,6 +1587,9 @@ async function runHL(){
       pdfLibDoc.catalog.set(PDFLib.PDFName.of('Outlines'),outlineRef);
       pdfLibDoc.catalog.set(PDFLib.PDFName.of('PageMode'),PDFLib.PDFName.of('UseOutlines'));
     }
+    if (pdfLibDoc.catalog.get(PDFLib.PDFName.of('Outlines'))) {
+      pdfLibDoc.catalog.set(PDFLib.PDFName.of('PageMode'), PDFLib.PDFName.of('UseOutlines'));
+    }
 
     let routeTokens = [];
     let discFuel = '', discTime = '';
