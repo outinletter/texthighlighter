@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0f19">
+  <title>Processed PDF · Text Highlighter</title>
+  <link rel="stylesheet" href="css/style.css?v=77">
+</head>
+<body class="pdf-viewer-page">
+  <header class="pdf-viewer-header">
+    <a href="./index.html">TEXT HIGHLIGHTER</a>
+    <span id="pdfViewerFileName">Waiting for processed PDF…</span>
+  </header>
+  <main>
+    <div id="processedPdfViewer" class="processed-pdf-viewer" aria-label="Processed PDF viewer">
+      <aside id="pdfOutlinePane" class="pdf-outline-pane">
+        <div class="pdf-outline-heading">
+          <strong>Bookmarks</strong>
+          <button type="button" id="pdfOutlineToggle" class="pdf-outline-toggle" aria-label="Hide bookmarks" aria-expanded="true">‹</button>
+        </div>
+        <nav id="pdfOutlineList" class="pdf-outline-list" aria-label="PDF bookmarks"></nav>
+      </aside>
+      <div id="pdfOutlineResizer" class="pdf-outline-resizer" role="separator" aria-orientation="vertical" aria-label="Resize bookmarks panel" tabindex="0"></div>
+      <section class="pdf-document-pane" aria-label="PDF document">
+        <div class="pdf-document-toolbar">
+          <button type="button" id="pdfPrevPage" aria-label="Previous page">‹</button>
+          <span><input id="pdfCurrentPage" type="number" min="1" value="1" aria-label="Current page"> / <span id="pdfPageCount">0</span></span>
+          <button type="button" id="pdfNextPage" aria-label="Next page">›</button>
+          <button type="button" id="pdfSaveButton">Save PDF</button>
+        </div>
+        <div id="pdfPageViewport" class="pdf-page-viewport"><canvas id="pdfPageCanvas"></canvas></div>
+        <p id="pdfViewerMessage" class="pdf-viewer-message" role="status">Waiting for the processed PDF from the previous tab…</p>
+      </section>
+    </div>
+  </main>
+  <script src="vendor/pdf.min.js"></script>
+  <script src="js/pdf-viewer.js?v=2"></script>
+</body>
+</html>

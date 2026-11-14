@@ -1,7 +1,8 @@
-const CACHE_NAME = 'notam-highlighter-v81';
+const CACHE_NAME = 'notam-highlighter-v83';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './notamhighlighter.png',
-  './css/style.css?v=75', './js/app.js?v=73', './js/pdf-engine.js?v=81',
+  './pdf-viewer.html', './js/pdf-viewer.js?v=2',
+  './css/style.css?v=77', './js/app.js?v=75', './js/pdf-engine.js?v=83',
   './js/flight-parser.js', './js/flight-notam.js?v=73', './js/flight-eet.js?v=73',
   './vendor/pdf.min.js', './vendor/pdf.worker.min.js', './vendor/pdf-lib.min.js'
 ];
@@ -30,7 +31,9 @@ self.addEventListener('fetch', event => {
       return response;
     }).catch(async () => {
       const cache = await caches.open(CACHE_NAME);
-      return (await cache.match('./index.html')) || Response.error();
+      const fallback = new URL(event.request.url).pathname.endsWith('/pdf-viewer.html')
+        ? './pdf-viewer.html' : './index.html';
+      return (await cache.match(fallback)) || Response.error();
     }));
     return;
   }

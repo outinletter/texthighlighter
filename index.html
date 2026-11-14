@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="notamhighlighter.png">
   <link rel="apple-touch-icon" href="notamhighlighter.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=75">
+  <link rel="stylesheet" href="css/style.css?v=77">
 </head>
 <body>
 
@@ -217,11 +217,13 @@
 
 
     <div class="card" id="previewCard" style="display:none">
-      <div class="card-title">5. SAVE OPTIMIZED DOCUMENT</div>
-      <p style="font-size:11px;color:#94a3b8;margin-bottom:12px">
-        If automatic download is blocked, tap the button below to save to your local drive or share/Airdrop with your crew.
+      <div class="card-title">5. PROCESSED DOCUMENT</div>
+      <p style="font-size:11px;color:#94a3b8;margin:12px 0">
+        The processed PDF opens in a new browser tab. If your browser blocks it, use the button below.
       </p>
-      <button class="action-btn dl-btn active" onclick="dlPDF()">DOWNLOAD PDF FILE</button>
+      <button type="button" id="openProcessedPdfButton" class="action-btn">OPEN PROCESSED PDF</button>
+      <p id="pdfOpenMessage" class="pdf-viewer-message" role="status"></p>
+      <button class="action-btn dl-btn active" onclick="dlPDF()">SAVE / SHARE PDF</button>
     </div>
 
   </div>
@@ -253,10 +255,10 @@
 <script src="js/flight-parser.js"></script>
 <script src="js/flight-notam.js?v=73"></script>
 <script src="js/flight-eet.js?v=73"></script>  
-<script src="js/pdf-engine.js?v=81"></script>
+<script src="js/pdf-engine.js?v=83"></script>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/pdf-lib.min.js"></script>
-    <script src="js/app.js?v=73"></script>
+    <script src="js/app.js?v=75"></script>
     <script>
       (() => {
         const modal = document.getElementById('offlineHelpModal');

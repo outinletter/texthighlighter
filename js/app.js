@@ -43,7 +43,7 @@ async function updateCommitVersion() {
 
 function canRun(){return (sel.size>0 || bmEnabled) && pdfBytes!==null;}
 function updRun(){document.getElementById('runBtn').className='action-btn run-btn'+(canRun()?' active':'');}
-function handleBtn(){if(done)dlPDF();else runHL();}
+function handleBtn(){if(done)dlPDF();else {if(canRun())openPdfViewerWindow();runHL();}}
 
 function invalidateResult() {
   done = false;
@@ -232,6 +232,7 @@ function loadFile(file){
   detectedAirports=[]; iataAirports=[];
   extractedFileDate = ''; extractedFlightNum = ''; extractedAcReg = ''; extractedRoute = '';
   document.getElementById('previewCard').style.display = 'none';
+  document.getElementById('pdfOpenMessage').textContent = '';
   updRun();
   setStatus('processing','Loading local memory dump...');
   const r=new FileReader();
@@ -247,27 +248,60 @@ function loadFile(file){
   r.readAsArrayBuffer(file);
 }
 
+let processedPdfViewerWindow = null;
+let pendingProcessedPdfBuffer = null;
+let processedPdfViewerReady = false;
+
+function openPdfViewerWindow() {
+  processedPdfViewerWindow = window.open('./pdf-viewer.html', '_blank');
+  processedPdfViewerReady = false;
+  if (!processedPdfViewerWindow) {
+    document.getElementById('pdfOpenMessage').textContent = 'Your browser blocked the new tab. Allow pop-ups for this site, then tap OPEN PROCESSED PDF.';
+  }
+  return processedPdfViewerWindow;
+}
+
+function deliverProcessedPdfToViewer() {
+  if (!pendingProcessedPdfBuffer || !processedPdfViewerReady || !processedPdfViewerWindow || processedPdfViewerWindow.closed) return;
+  const buffer = pendingProcessedPdfBuffer;
+  pendingProcessedPdfBuffer = null;
+  const targetOrigin = window.location.origin === 'null' ? '*' : window.location.origin;
+  processedPdfViewerWindow.postMessage({ type: 'load-processed-pdf', buffer, name: processedPdfDownloadName() }, targetOrigin, [buffer]);
+  document.getElementById('pdfOpenMessage').textContent = '';
+}
+
+function openProcessedPdfInNewPage() {
+  if (!done || !outBytes) return;
+  if (!processedPdfViewerWindow || processedPdfViewerWindow.closed) openPdfViewerWindow();
+  if (!processedPdfViewerWindow) return;
+  pendingProcessedPdfBuffer = new Uint8Array(outBytes).slice().buffer;
+  document.getElementById('pdfOpenMessage').textContent = 'Opening the processed PDF in a new tab…';
+  deliverProcessedPdfToViewer();
+}
+
+function handlePdfViewerMessage(event) {
+  const sameOrigin = event.origin === window.location.origin || (window.location.origin === 'null' && event.origin === 'null');
+  if (!sameOrigin || !processedPdfViewerWindow || event.source !== processedPdfViewerWindow || event.data?.type !== 'pdf-viewer-ready') return;
+  processedPdfViewerReady = true;
+  deliverProcessedPdfToViewer();
+}
+
+function processedPdfDownloadName() {
+  let routeCode = '';
+  if (detectedAirports && detectedAirports.length === 2) routeCode = `_${detectedAirports[0]}_${detectedAirports[1]}`;
+  else if (iataAirports && iataAirports.length === 2) routeCode = `_${iataAirports[0]}_${iataAirports[1]}`;
+  const routeSuffix = extractedRoute ? `_${extractedRoute}` : '';
+  if (extractedFileDate && extractedFlightNum) return `${extractedFileDate}_${extractedFlightNum}${routeSuffix}${routeCode}_highlighted.pdf`;
+  if (extractedFlightNum) return `${extractedFlightNum}${routeSuffix}${routeCode}_highlighted.pdf`;
+  return `${fname}_highlighted.pdf`;
+}
+
 function dlPDF(){
   if(!done||!outBytes)return;
   try{
     const blob=new Blob([outBytes],{type:'application/pdf'});
     
-    let routeCode = "";
-    if (detectedAirports && detectedAirports.length === 2) {
-      routeCode = `_${detectedAirports[0]}_${detectedAirports[1]}`;
-    } else if (iataAirports && iataAirports.length === 2) {
-      routeCode = `_${iataAirports[0]}_${iataAirports[1]}`;
-    }
-
-    let downloadName = '';
-    const routeSuffix = extractedRoute ? `_${extractedRoute}` : '';
-    if (extractedFileDate && extractedFlightNum) {
-      downloadName = `${extractedFileDate}_${extractedFlightNum}${routeSuffix}${routeCode}_highlighted.pdf`;
-    } else if (extractedFlightNum) {
-      downloadName = `${extractedFlightNum}${routeSuffix}${routeCode}_highlighted.pdf`;
-    } else {
-      downloadName = fname + '_highlighted.pdf';
-    }
+    const downloadName = processedPdfDownloadName();
     
     if (window.webkit?.messageHandlers?.savePDF) {
       const reader = new FileReader();
@@ -297,6 +331,8 @@ function dlPDF(){
 // 이벤트 리스너 바인딩 및 초기화
 document.addEventListener('DOMContentLoaded', () => {
   initLibraries();
+  window.addEventListener('message', handlePdfViewerMessage);
+  document.getElementById('openProcessedPdfButton').addEventListener('click', openProcessedPdfInNewPage);
   const settingsCard = document.getElementById('highlightSettingsHeading').closest('.card');
   const resizeTagBox = () => {
     document.getElementById('tagList').style.height = `${Math.ceil(settingsCard.getBoundingClientRect().height)}px`;

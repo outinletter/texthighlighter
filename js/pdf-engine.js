@@ -2452,14 +2452,22 @@ async function runHL(){
     outBytes=await pdfLibDoc.save();
     done=true;
     runBtn.className='action-btn dl-btn active';
-    runBtn.innerHTML='DOWNLOAD PDF FILE';
+    runBtn.innerHTML='SAVE / SHARE PDF';
 
     setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${preserveBookmarks ? 'existing bookmarks preserved' : Object.keys(bmPages).length + ' bookmarks set'}.`);
     document.getElementById('previewCard').style.display='block';
-
-    dlPDF();
+    if (processedPdfViewerWindow && !processedPdfViewerWindow.closed) {
+      pendingProcessedPdfBuffer = new Uint8Array(outBytes).slice().buffer;
+      deliverProcessedPdfToViewer();
+    } else {
+      document.getElementById('pdfOpenMessage').textContent = 'Tap OPEN PROCESSED PDF to view the result in a new tab.';
+    }
 
   } catch(err) {
+    if (processedPdfViewerWindow && !processedPdfViewerWindow.closed) processedPdfViewerWindow.close();
+    processedPdfViewerWindow = null;
+    pendingProcessedPdfBuffer = null;
+    processedPdfViewerReady = false;
     setStatus('error','Execution error: '+err.message);
     runBtn.className='action-btn run-btn active';
     runBtn.innerHTML='RUN ENGINE';
