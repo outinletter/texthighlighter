@@ -170,16 +170,23 @@ function setCurrentPdfPage(pageNumber) {
   document.getElementById('pdfNextPage').disabled = pageNumber >= viewerPages.length;
 }
 
-function capturePdfPosition(screenY = 0) {
+function capturePdfPosition(screenY = 0, screenX = 0) {
   const viewport = document.getElementById('pdfPageViewport');
   if (!viewport || !viewerPages.length) return null;
-  const target = viewport.scrollTop + screenY;
-  const data = viewerPages.find(page => page.element.offsetTop + page.element.offsetHeight >= target) || viewerPages.at(-1);
+  const viewportRect = viewport.getBoundingClientRect();
+  const targetY = viewportRect.top + screenY;
+  const targetX = viewportRect.left + screenX;
+  const data = viewerPages.find(page => {
+    const rect = page.element.getBoundingClientRect();
+    return rect.bottom >= targetY;
+  }) || viewerPages.at(-1);
+  const pageRect = data.element.getBoundingClientRect();
   return {
     pageNumber: data.pageNumber,
-    pageOffset: Math.max(0, target - data.element.offsetTop) / viewerScale,
+    pageOffsetY: Math.max(0, Math.min(data.baseViewport.height, targetY - pageRect.top)) / viewerScale,
+    pageOffsetX: Math.max(0, Math.min(data.baseViewport.width, targetX - pageRect.left)) / viewerScale,
     screenY,
-    scrollLeft: viewport.scrollLeft
+    screenX
   };
 }
 
@@ -188,8 +195,10 @@ function restorePdfPosition(anchor) {
   const viewport = document.getElementById('pdfPageViewport');
   const data = viewerPages[anchor.pageNumber - 1];
   if (!data) return;
-  viewport.scrollTop = Math.max(0, data.element.offsetTop + anchor.pageOffset * viewerScale - anchor.screenY);
-  viewport.scrollLeft = anchor.scrollLeft;
+  const viewportRect = viewport.getBoundingClientRect();
+  const pageRect = data.element.getBoundingClientRect();
+  viewport.scrollTop = Math.max(0, viewport.scrollTop + pageRect.top + anchor.pageOffsetY * viewerScale - (viewportRect.top + anchor.screenY));
+  viewport.scrollLeft = Math.max(0, viewport.scrollLeft + pageRect.left + anchor.pageOffsetX * viewerScale - (viewportRect.left + anchor.screenX));
 }
 
 function applyPdfScale(anchor) {
@@ -208,7 +217,7 @@ function updateZoomLevel() {
 function setPdfZoom(factor, anchor = null, preview = false) {
   if (!viewerPdfDocument || !viewerPages.length) return;
   const viewport = document.getElementById('pdfPageViewport');
-  const position = anchor || capturePdfPosition(viewport.clientHeight / 2);
+  const position = anchor || capturePdfPosition(viewport.clientHeight / 2, viewport.clientWidth / 2);
   viewerZoomFactor = Math.max(0.5, Math.min(4, factor));
   viewerScale = viewerFitScale * viewerZoomFactor;
   if (preview) {
@@ -384,7 +393,8 @@ document.getElementById('pdfZoomOut').addEventListener('click', () => setPdfZoom
 document.getElementById('pdfZoomIn').addEventListener('click', () => setPdfZoom(viewerZoomFactor * 1.2));
 document.getElementById('pdfFitWidth').addEventListener('click', () => {
   viewerZoomFactor = 1;
-  resizePdfLayout(capturePdfPosition(document.getElementById('pdfPageViewport').clientHeight / 2));
+  const viewport = document.getElementById('pdfPageViewport');
+  resizePdfLayout(capturePdfPosition(viewport.clientHeight / 2, viewport.clientWidth / 2));
 });
 
 const pdfTouchViewport = document.getElementById('pdfPageViewport');
@@ -400,13 +410,17 @@ function touchDistance(first, second) {
 function touchMidpointY(first, second) {
   return (first.clientY + second.clientY) / 2 - pdfTouchViewport.getBoundingClientRect().top;
 }
+function touchMidpointX(first, second) {
+  return (first.clientX + second.clientX) / 2 - pdfTouchViewport.getBoundingClientRect().left;
+}
 pdfTouchViewport.addEventListener('touchstart', event => {
   if (event.touches.length !== 2) return;
   if (event.cancelable) event.preventDefault();
   pinchStartDistance = touchDistance(event.touches[0], event.touches[1]);
   pinchStartZoom = viewerZoomFactor;
   const screenY = touchMidpointY(event.touches[0], event.touches[1]);
-  pinchAnchor = capturePdfPosition(screenY);
+  const screenX = touchMidpointX(event.touches[0], event.touches[1]);
+  pinchAnchor = capturePdfPosition(screenY, screenX);
   pinchLastAnchor = pinchAnchor;
 }, { passive: false });
 pdfTouchViewport.addEventListener('touchmove', event => {
@@ -414,7 +428,8 @@ pdfTouchViewport.addEventListener('touchmove', event => {
   event.preventDefault();
   const distance = touchDistance(event.touches[0], event.touches[1]);
   const screenY = touchMidpointY(event.touches[0], event.touches[1]);
-  const anchor = { ...pinchAnchor, screenY };
+  const screenX = touchMidpointX(event.touches[0], event.touches[1]);
+  const anchor = { ...pinchAnchor, screenY, screenX };
   pinchLastAnchor = anchor;
   pendingPinchZoom = {
     factor: pinchStartZoom * distance / pinchStartDistance,
