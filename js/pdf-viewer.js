@@ -2,6 +2,8 @@ let viewerPdfDocument = null;
 let viewerScale = 1;
 let viewerFitScale = 1;
 let viewerZoomFactor = 1;
+const MAX_VIEWER_ZOOM = 2;
+const PINCH_ZOOM_SENSITIVITY = 0.75;
 let viewerPages = [];
 let pageRenderObserver = null;
 let currentPageObserver = null;
@@ -218,7 +220,7 @@ function setPdfZoom(factor, anchor = null, preview = false) {
   if (!viewerPdfDocument || !viewerPages.length) return;
   const viewport = document.getElementById('pdfPageViewport');
   const position = anchor || capturePdfPosition(viewport.clientHeight / 2, viewport.clientWidth / 2);
-  viewerZoomFactor = Math.max(0.5, Math.min(4, factor));
+  viewerZoomFactor = Math.max(0.5, Math.min(MAX_VIEWER_ZOOM, factor));
   viewerScale = viewerFitScale * viewerZoomFactor;
   if (preview) {
     layoutPdfPages();
@@ -432,7 +434,7 @@ pdfTouchViewport.addEventListener('touchmove', event => {
   const anchor = { ...pinchAnchor, screenY, screenX };
   pinchLastAnchor = anchor;
   pendingPinchZoom = {
-    factor: pinchStartZoom * distance / pinchStartDistance,
+    factor: pinchStartZoom * Math.pow(distance / pinchStartDistance, PINCH_ZOOM_SENSITIVITY),
     anchor
   };
   if (pinchMoveFrame) return;
