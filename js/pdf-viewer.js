@@ -380,6 +380,51 @@ document.getElementById('pdfFitWidth').addEventListener('click', () => {
   viewerZoomFactor = 1;
   resizePdfLayout(capturePdfPosition(document.getElementById('pdfPageViewport').clientHeight / 2));
 });
+
+const pdfTouchViewport = document.getElementById('pdfPageViewport');
+let pinchStartDistance = 0;
+let pinchStartZoom = 1;
+let pinchAnchor = null;
+let pinchMoveFrame = 0;
+let pendingPinchZoom = null;
+function touchDistance(first, second) {
+  return Math.hypot(second.clientX - first.clientX, second.clientY - first.clientY);
+}
+function touchMidpointY(first, second) {
+  return (first.clientY + second.clientY) / 2 - pdfTouchViewport.getBoundingClientRect().top;
+}
+pdfTouchViewport.addEventListener('touchstart', event => {
+  if (event.touches.length !== 2) return;
+  pinchStartDistance = touchDistance(event.touches[0], event.touches[1]);
+  pinchStartZoom = viewerZoomFactor;
+  const screenY = touchMidpointY(event.touches[0], event.touches[1]);
+  pinchAnchor = capturePdfPosition(screenY);
+}, { passive: true });
+pdfTouchViewport.addEventListener('touchmove', event => {
+  if (event.touches.length !== 2 || !pinchStartDistance || !pinchAnchor) return;
+  event.preventDefault();
+  const distance = touchDistance(event.touches[0], event.touches[1]);
+  const screenY = touchMidpointY(event.touches[0], event.touches[1]);
+  pendingPinchZoom = {
+    factor: pinchStartZoom * distance / pinchStartDistance,
+    anchor: { ...pinchAnchor, screenY }
+  };
+  if (pinchMoveFrame) return;
+  pinchMoveFrame = requestAnimationFrame(() => {
+    pinchMoveFrame = 0;
+    if (!pendingPinchZoom) return;
+    setPdfZoom(pendingPinchZoom.factor, pendingPinchZoom.anchor);
+    pendingPinchZoom = null;
+  });
+}, { passive: false });
+function finishPdfPinch(event) {
+  if (event.touches.length < 2) {
+    pinchStartDistance = 0;
+    pinchAnchor = null;
+  }
+}
+pdfTouchViewport.addEventListener('touchend', finishPdfPinch, { passive: true });
+pdfTouchViewport.addEventListener('touchcancel', finishPdfPinch, { passive: true });
 document.getElementById('pdfCurrentPage').addEventListener('change', event => {
   scrollToPdfPage(Math.min(viewerPages.length || 1, Math.max(1, Number(event.target.value) || 1)));
 });
