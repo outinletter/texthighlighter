@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0f19">
   <title>Processed PDF · Text Highlighter</title>
-  <link rel="stylesheet" href="css/style.css?v=78">
+  <link rel="stylesheet" href="css/style.css?v=79">
 </head>
 <body class="pdf-viewer-page">
   <header class="pdf-viewer-header">
@@ -27,6 +27,10 @@
           <button type="button" id="pdfPrevPage" aria-label="Previous page">‹</button>
           <span><input id="pdfCurrentPage" type="number" min="1" value="1" aria-label="Current page"> / <span id="pdfPageCount">0</span></span>
           <button type="button" id="pdfNextPage" aria-label="Next page">›</button>
+          <button type="button" id="pdfZoomOut" aria-label="Zoom out">−</button>
+          <span id="pdfZoomLevel" aria-live="polite">100%</span>
+          <button type="button" id="pdfZoomIn" aria-label="Zoom in">+</button>
+          <button type="button" id="pdfFitWidth">Fit width</button>
           <button type="button" id="pdfSaveButton">Save PDF</button>
         </div>
         <div id="pdfPageViewport" class="pdf-page-viewport"><div id="pdfPageList" class="pdf-page-list"></div></div>
@@ -35,6 +39,6 @@
     </div>
   </main>
   <script src="vendor/pdf.min.js"></script>
-  <script src="js/pdf-viewer.js?v=3"></script>
+  <script src="js/pdf-viewer.js?v=5"></script>
 </body>
 </html>
