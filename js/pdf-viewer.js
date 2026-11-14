@@ -1,6 +1,8 @@
 let viewerPdfDocument = null;
-let viewerRenderTask = null;
 let viewerScale = 1;
+let viewerPages = [];
+let pageRenderObserver = null;
+let currentPageObserver = null;
 let sourceBuffer = null;
 let sourceFileName = 'processed_highlighted.pdf';
 
@@ -21,52 +23,158 @@ function setViewerMessage(message) {
 async function loadProcessedPdf(buffer) {
   try {
     setViewerMessage('Opening PDF…');
-    if (viewerRenderTask) viewerRenderTask.cancel();
+    disconnectPageObservers();
+    if (viewerPdfDocument) await viewerPdfDocument.destroy();
     viewerPdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(buffer.slice(0)) }).promise;
     document.getElementById('pdfPageCount').textContent = viewerPdfDocument.numPages;
-    const pageInput = document.getElementById('pdfCurrentPage');
-    pageInput.max = viewerPdfDocument.numPages;
-    pageInput.value = 1;
-    await renderViewerPage(1);
-    await buildBookmarkList();
+    document.getElementById('pdfCurrentPage').max = viewerPdfDocument.numPages;
     document.getElementById('pdfViewerFileName').textContent = sourceFileName;
     document.title = `${sourceFileName} · Text Highlighter`;
+    await preparePdfPages();
+    await buildBookmarkList();
     setViewerMessage('');
   } catch (error) {
     setViewerMessage(`Could not open PDF: ${error.message}`);
   }
 }
 
-async function renderViewerPage(pageNumber, destinationTop = null) {
-  if (!viewerPdfDocument) return;
-  if (viewerRenderTask) viewerRenderTask.cancel();
-  const page = await viewerPdfDocument.getPage(pageNumber);
-  const viewportElement = document.getElementById('pdfPageViewport');
-  const canvas = document.getElementById('pdfPageCanvas');
-  const context = canvas.getContext('2d', { alpha: false });
-  const baseViewport = page.getViewport({ scale: 1 });
-  const availableWidth = Math.max(180, viewportElement.clientWidth - 30);
-  viewerScale = Math.min(1.5, availableWidth / baseViewport.width);
-  const outputScale = Math.min(window.devicePixelRatio || 1, 2);
-  const viewport = page.getViewport({ scale: viewerScale * outputScale });
-  canvas.width = Math.ceil(viewport.width);
-  canvas.height = Math.ceil(viewport.height);
-  canvas.style.width = `${Math.floor(baseViewport.width * viewerScale)}px`;
-  canvas.style.height = `${Math.floor(baseViewport.height * viewerScale)}px`;
-  document.getElementById('pdfCurrentPage').value = pageNumber;
-  document.getElementById('pdfPrevPage').disabled = pageNumber <= 1;
-  document.getElementById('pdfNextPage').disabled = pageNumber >= viewerPdfDocument.numPages;
-  viewerRenderTask = page.render({ canvasContext: context, viewport });
-  try {
-    await viewerRenderTask.promise;
-  } catch (error) {
-    if (error.name !== 'RenderingCancelledException') throw error;
-    return;
+async function preparePdfPages() {
+  const list = document.getElementById('pdfPageList');
+  const viewport = document.getElementById('pdfPageViewport');
+  list.replaceChildren();
+  viewerPages = [];
+  let maximumPageWidth = 0;
+  for (let pageNumber = 1; pageNumber <= viewerPdfDocument.numPages; pageNumber++) {
+    const page = await viewerPdfDocument.getPage(pageNumber);
+    const baseViewport = page.getViewport({ scale: 1 });
+    maximumPageWidth = Math.max(maximumPageWidth, baseViewport.width);
+    const element = document.createElement('article');
+    element.className = 'pdf-page-item';
+    element.dataset.pageNumber = String(pageNumber);
+    const placeholder = document.createElement('div');
+    placeholder.className = 'pdf-page-placeholder';
+    placeholder.textContent = `Page ${pageNumber}`;
+    element.appendChild(placeholder);
+    list.appendChild(element);
+    viewerPages.push({ pageNumber, page, baseViewport, element, placeholder, canvas: null, renderTask: null });
   }
-  viewportElement.scrollTop = destinationTop === null
-    ? 0
-    : Math.max(0, (page.view[3] - destinationTop) * viewerScale - 16);
-  viewportElement.scrollLeft = 0;
+  const availableWidth = Math.max(220, viewport.clientWidth - 24);
+  viewerScale = availableWidth / maximumPageWidth;
+  layoutPdfPages();
+  observePdfPages();
+  document.getElementById('pdfCurrentPage').value = 1;
+  document.getElementById('pdfPrevPage').disabled = true;
+  document.getElementById('pdfNextPage').disabled = viewerPages.length <= 1;
+  await renderPdfPage(1);
+  viewport.scrollTop = 0;
+}
+
+function layoutPdfPages() {
+  for (const data of viewerPages) {
+    const width = Math.floor(data.baseViewport.width * viewerScale);
+    const height = Math.floor(data.baseViewport.height * viewerScale);
+    data.element.style.width = `${width}px`;
+    data.element.style.height = `${height}px`;
+    if (data.canvas) {
+      data.canvas.style.width = `${width}px`;
+      data.canvas.style.height = `${height}px`;
+      if (data.canvas.dataset.scale !== String(viewerScale)) {
+        data.canvas.dataset.needsRender = 'true';
+      }
+    }
+    data.element.dataset.scale = String(viewerScale);
+  }
+}
+
+function observePdfPages() {
+  disconnectPageObservers();
+  const viewport = document.getElementById('pdfPageViewport');
+  pageRenderObserver = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      const pageNumber = Number(entry.target.dataset.pageNumber);
+      if (entry.isIntersecting) {
+        const data = viewerPages[pageNumber - 1];
+        if (data.canvas?.dataset.needsRender === 'true') releasePdfPage(data);
+        renderPdfPage(pageNumber);
+      } else {
+        const box = entry.target.getBoundingClientRect();
+        const viewBox = viewport.getBoundingClientRect();
+        if (box.bottom < viewBox.top - viewBox.height || box.top > viewBox.bottom + viewBox.height) {
+          releasePdfPage(viewerPages[pageNumber - 1]);
+        }
+      }
+    }
+  }, { root: viewport, rootMargin: '100% 0px' });
+  currentPageObserver = new IntersectionObserver(entries => {
+    const visible = entries.filter(entry => entry.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (visible) setCurrentPdfPage(Number(visible.target.dataset.pageNumber));
+  }, { root: viewport, threshold: [0.15, 0.35, 0.6] });
+  for (const data of viewerPages) {
+    pageRenderObserver.observe(data.element);
+    currentPageObserver.observe(data.element);
+  }
+}
+
+function disconnectPageObservers() {
+  if (pageRenderObserver) pageRenderObserver.disconnect();
+  if (currentPageObserver) currentPageObserver.disconnect();
+  pageRenderObserver = null;
+  currentPageObserver = null;
+}
+
+async function renderPdfPage(pageNumber) {
+  const data = viewerPages[pageNumber - 1];
+  if (!data || data.canvas) return;
+  const outputScale = Math.min(window.devicePixelRatio || 1, 2);
+  const renderViewport = data.page.getViewport({ scale: viewerScale * outputScale });
+  const canvas = document.createElement('canvas');
+  canvas.className = 'pdf-page-canvas';
+  canvas.width = Math.ceil(renderViewport.width);
+  canvas.height = Math.ceil(renderViewport.height);
+  canvas.style.width = `${Math.floor(data.baseViewport.width * viewerScale)}px`;
+  canvas.style.height = `${Math.floor(data.baseViewport.height * viewerScale)}px`;
+  canvas.dataset.scale = String(viewerScale);
+  data.element.replaceChildren(canvas);
+  data.canvas = canvas;
+  const context = canvas.getContext('2d', { alpha: false });
+  const task = data.page.render({ canvasContext: context, viewport: renderViewport });
+  data.renderTask = task;
+  try {
+    await task.promise;
+  } catch (error) {
+    if (error.name !== 'RenderingCancelledException') setViewerMessage(`Could not render page ${pageNumber}: ${error.message}`);
+    if (data.canvas === canvas) {
+      data.canvas = null;
+      data.element.replaceChildren(data.placeholder);
+    }
+  } finally {
+    if (data.renderTask === task) data.renderTask = null;
+  }
+}
+
+function releasePdfPage(data) {
+  if (!data?.canvas) return;
+  if (data.renderTask) data.renderTask.cancel();
+  data.canvas = null;
+  data.element.replaceChildren(data.placeholder);
+}
+
+function setCurrentPdfPage(pageNumber) {
+  const input = document.getElementById('pdfCurrentPage');
+  input.value = pageNumber;
+  document.getElementById('pdfPrevPage').disabled = pageNumber <= 1;
+  document.getElementById('pdfNextPage').disabled = pageNumber >= viewerPages.length;
+}
+
+function scrollToPdfPage(pageNumber, destinationTop = null) {
+  const data = viewerPages[Math.max(0, Math.min(viewerPages.length - 1, pageNumber - 1))];
+  if (!data) return;
+  setCurrentPdfPage(data.pageNumber);
+  const viewport = document.getElementById('pdfPageViewport');
+  const offset = data.element.offsetTop + (destinationTop === null ? 0 : Math.max(0, (data.page.view[3] - destinationTop) * viewerScale));
+  viewport.scrollTo({ top: Math.max(0, offset - 8), behavior: 'smooth' });
+  renderPdfPage(data.pageNumber);
 }
 
 async function goToBookmark(item) {
@@ -77,45 +185,66 @@ async function goToBookmark(item) {
     if (!Array.isArray(destination) || !destination.length) return;
     const pageNumber = await viewerPdfDocument.getPageIndex(destination[0]) + 1;
     const top = typeof destination[3] === 'number' ? destination[3] : null;
-    await renderViewerPage(pageNumber, top);
+    scrollToPdfPage(pageNumber, top);
   } catch (error) {
     setViewerMessage(`Could not open bookmark: ${error.message}`);
   }
 }
 
-async function buildBookmarkList() {
+function buildBookmarkList() {
   const list = document.getElementById('pdfOutlineList');
   list.replaceChildren();
-  const outline = await viewerPdfDocument.getOutline();
-  if (!outline?.length) {
-    list.textContent = 'No bookmarks in this document.';
-    return;
-  }
-  const addItems = (parent, items) => {
-    const group = document.createElement('ul');
-    group.className = `pdf-bookmark-group${parent === list ? ' root' : ''}`;
-    for (const item of items) {
-      const row = document.createElement('li');
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'pdf-bookmark-link';
-      button.textContent = item.title || 'Untitled bookmark';
-      button.addEventListener('click', () => goToBookmark(item));
-      row.appendChild(button);
-      if (item.items?.length) addItems(row, item.items);
-      group.appendChild(row);
+  return viewerPdfDocument.getOutline().then(outline => {
+    if (!outline?.length) {
+      list.textContent = 'No bookmarks in this document.';
+      return;
     }
-    parent.appendChild(group);
-  };
-  addItems(list, outline);
+    const addItems = (parent, items, root = false) => {
+      const group = document.createElement('ul');
+      group.className = `pdf-bookmark-group${root ? ' root' : ''}`;
+      for (const item of items) {
+        const row = document.createElement('li');
+        const rowActions = document.createElement('div');
+        rowActions.className = 'pdf-bookmark-row';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'pdf-bookmark-link';
+        button.textContent = item.title || 'Untitled bookmark';
+        button.addEventListener('click', () => goToBookmark(item));
+        rowActions.appendChild(button);
+        row.appendChild(rowActions);
+        if (item.items?.length) {
+          const toggle = document.createElement('button');
+          toggle.type = 'button';
+          toggle.className = 'pdf-subbookmarks-toggle';
+          toggle.textContent = '›';
+          toggle.setAttribute('aria-label', `Show sub-bookmarks for ${item.title}`);
+          toggle.setAttribute('aria-expanded', 'false');
+          const children = document.createElement('div');
+          children.className = 'pdf-subbookmarks';
+          children.hidden = true;
+          addItems(children, item.items);
+          toggle.addEventListener('click', () => {
+            children.hidden = !children.hidden;
+            toggle.textContent = children.hidden ? '›' : '⌄';
+            toggle.setAttribute('aria-expanded', String(!children.hidden));
+          });
+          rowActions.appendChild(toggle);
+          row.appendChild(children);
+        }
+        group.appendChild(row);
+      }
+      parent.appendChild(group);
+    };
+    addItems(list, outline, true);
+  });
 }
 
 function setOutlineWidth(width) {
   const viewer = document.getElementById('processedPdfViewer');
   const pane = document.getElementById('pdfOutlinePane');
-  const max = Math.max(130, Math.min(420, viewer.clientWidth * 0.55));
-  const min = Math.min(130, max);
-  const value = Math.max(min, Math.min(max, width));
+  const max = Math.max(132, Math.min(420, viewer.clientWidth * 0.55, viewer.clientWidth - 220));
+  const value = Math.max(Math.min(132, max), Math.min(max, width));
   pane.dataset.expandedWidth = String(value);
   if (!pane.classList.contains('collapsed')) pane.style.flexBasis = `${value}px`;
 }
@@ -127,14 +256,14 @@ function toggleOutlinePane() {
   const collapsed = pane.classList.toggle('collapsed');
   if (collapsed) {
     pane.dataset.expandedWidth = String(currentWidth);
-    pane.style.flexBasis = '38px';
+    pane.style.flexBasis = window.matchMedia('(max-width: 600px)').matches ? '34px' : '38px';
   } else {
-    pane.style.flexBasis = `${Number(pane.dataset.expandedWidth) || 205}px`;
+    pane.style.flexBasis = `${Number(pane.dataset.expandedWidth) || 132}px`;
   }
   toggle.textContent = collapsed ? '›' : '‹';
   toggle.setAttribute('aria-label', collapsed ? 'Show bookmarks' : 'Hide bookmarks');
   toggle.setAttribute('aria-expanded', String(!collapsed));
-  if (viewerPdfDocument) setTimeout(() => renderViewerPage(Number(document.getElementById('pdfCurrentPage').value)), 200);
+  if (viewerPdfDocument) resizePdfLayout();
 }
 
 function installOutlineResizer() {
@@ -155,7 +284,7 @@ function installOutlineResizer() {
   const finishResize = event => {
     if (pointerId !== event.pointerId) return;
     pointerId = null;
-    if (viewerPdfDocument) renderViewerPage(Number(document.getElementById('pdfCurrentPage').value));
+    if (viewerPdfDocument) resizePdfLayout();
   };
   handle.addEventListener('pointerup', finishResize);
   handle.addEventListener('pointercancel', finishResize);
@@ -163,10 +292,21 @@ function installOutlineResizer() {
     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
     if (pane.classList.contains('collapsed')) return;
     event.preventDefault();
-    const width = pane.getBoundingClientRect().width + (event.key === 'ArrowRight' ? 16 : -16);
-    setOutlineWidth(width);
-    if (viewerPdfDocument) renderViewerPage(Number(document.getElementById('pdfCurrentPage').value));
+    setOutlineWidth(pane.getBoundingClientRect().width + (event.key === 'ArrowRight' ? 16 : -16));
+    resizePdfLayout();
   });
+}
+
+function resizePdfLayout() {
+  if (!viewerPdfDocument || !viewerPages.length) return;
+  const current = Number(document.getElementById('pdfCurrentPage').value) || 1;
+  const viewport = document.getElementById('pdfPageViewport');
+  const maximumWidth = Math.max(...viewerPages.map(page => page.baseViewport.width));
+  viewerScale = Math.max(0.1, (viewport.clientWidth - 24) / maximumWidth);
+  for (const data of viewerPages) releasePdfPage(data);
+  layoutPdfPages();
+  observePdfPages();
+  scrollToPdfPage(current);
 }
 
 window.addEventListener('message', event => {
@@ -178,11 +318,10 @@ window.addEventListener('message', event => {
 });
 
 document.getElementById('pdfOutlineToggle').addEventListener('click', toggleOutlinePane);
-document.getElementById('pdfPrevPage').addEventListener('click', () => renderViewerPage(Number(document.getElementById('pdfCurrentPage').value) - 1));
-document.getElementById('pdfNextPage').addEventListener('click', () => renderViewerPage(Number(document.getElementById('pdfCurrentPage').value) + 1));
+document.getElementById('pdfPrevPage').addEventListener('click', () => scrollToPdfPage(Number(document.getElementById('pdfCurrentPage').value) - 1));
+document.getElementById('pdfNextPage').addEventListener('click', () => scrollToPdfPage(Number(document.getElementById('pdfCurrentPage').value) + 1));
 document.getElementById('pdfCurrentPage').addEventListener('change', event => {
-  const pageNumber = Math.min(viewerPdfDocument?.numPages || 1, Math.max(1, Number(event.target.value) || 1));
-  renderViewerPage(pageNumber);
+  scrollToPdfPage(Math.min(viewerPages.length || 1, Math.max(1, Number(event.target.value) || 1)));
 });
 document.getElementById('pdfSaveButton').addEventListener('click', () => {
   if (!sourceBuffer) return;
@@ -194,8 +333,10 @@ document.getElementById('pdfSaveButton').addEventListener('click', () => {
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 });
 installOutlineResizer();
+let resizeTimer;
 window.addEventListener('resize', () => {
-  if (viewerPdfDocument) renderViewerPage(Number(document.getElementById('pdfCurrentPage').value));
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(resizePdfLayout, 160);
 });
 
 if (window.opener) window.opener.postMessage({ type: 'pdf-viewer-ready' }, viewerTargetOrigin());
