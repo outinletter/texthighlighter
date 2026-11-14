@@ -2455,7 +2455,9 @@ async function runHL(){
     runBtn.innerHTML='SAVE / SHARE PDF';
 
     setStatus('done',`Completed! ${numPages} pages, ${totalHits} elements highlighted, ${preserveBookmarks ? 'existing bookmarks preserved' : Object.keys(bmPages).length + ' bookmarks set'}.`);
-    document.getElementById('previewCard').style.display='block';
+    const previewCard = document.getElementById('previewCard');
+    previewCard.style.display = 'flex';
+    previewCard.style.flexDirection = 'column';
     if (processedPdfViewerWindow && !processedPdfViewerWindow.closed) {
       pendingProcessedPdfBuffer = new Uint8Array(outBytes).slice().buffer;
       deliverProcessedPdfToViewer();
