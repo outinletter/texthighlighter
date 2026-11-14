@@ -827,6 +827,7 @@ button, input, select, textarea { font-family: inherit; }
 .pdf-viewer-page main { width: 100%; max-width: none; margin: 0; padding: 0; box-sizing: border-box; }
 .pdf-viewer-page .processed-pdf-viewer { width: 100%; height: calc(100dvh - 66px); min-height: 360px; border-radius: 0; box-sizing: border-box; }
 .pdf-document-toolbar #pdfSaveButton { width: auto; padding: 0 10px; font-size: 12px; }
+.pdf-document-toolbar #pdfFitWidth { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 @media(max-width:600px) {
   .processed-pdf-viewer { height: 72vh; min-height: 420px; }
   .pdf-outline-pane { flex-basis: 132px; }
