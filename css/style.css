@@ -810,7 +810,7 @@ button, input, select, textarea { font-family: inherit; }
 .pdf-page-placeholder { display: grid; width: 100%; height: 100%; place-items: center; color: #aab4c2; background: #fff; font-size: 12px; }
 .pdf-page-canvas { display: block; max-width: none; margin: 0; background: #fff; }
 .pdf-viewer-message { margin: 0; padding: 6px 12px; color: #fca5a5; font-size: 12px; }
-.pdf-viewer-page { min-height: 100vh; }
+.pdf-viewer-page { width: 100%; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
 .pdf-viewer-header {
   display: flex;
   min-height: 48px;
@@ -824,8 +824,8 @@ button, input, select, textarea { font-family: inherit; }
 }
 .pdf-viewer-header a { color: #a5dfff; font-weight: 700; text-decoration: none; white-space: nowrap; }
 .pdf-viewer-header span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pdf-viewer-page main { width: 100%; max-width: none; margin: 0; padding: 0; box-sizing: border-box; }
-.pdf-viewer-page .processed-pdf-viewer { width: 100%; height: 100vh; height: 100dvh; min-height: 360px; border-radius: 0; box-sizing: border-box; }
+.pdf-viewer-page main { display: flex; flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; max-width: none; margin: 0; padding: 0; box-sizing: border-box; }
+.pdf-viewer-page .processed-pdf-viewer { flex: 1 1 auto; width: 100%; height: 100%; min-height: 0; border-radius: 0; box-sizing: border-box; }
 .pdf-document-toolbar #pdfSaveButton { width: auto; padding: 0 10px; font-size: 12px; }
 .pdf-document-toolbar #pdfFitWidth { width: auto; padding: 0 10px; font-size: 12px; white-space: nowrap; }
 @media(max-width:600px) {
@@ -833,5 +833,5 @@ button, input, select, textarea { font-family: inherit; }
   .pdf-outline-pane { flex-basis: 132px; }
   .pdf-outline-pane.collapsed { flex-basis: 34px; }
   .pdf-page-viewport { padding: 8px 0; }
-  .pdf-viewer-page .processed-pdf-viewer { height: 100vh; height: 100dvh; min-height: 360px; }
+  .pdf-viewer-page .processed-pdf-viewer { height: 100%; min-height: 0; }
 }
