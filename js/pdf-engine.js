@@ -844,9 +844,8 @@ async function runHL(){
   runBtn.innerHTML='Processing locally...';
   setStatus('processing','Restoring text encoding & analyzing highlights...');
 
+  processedPdfRevision += 1;
   done=false;outBytes=null;detectedAirports=[]; iataAirports=[];
-  document.getElementById('previewCard').style.display = 'none';
-
   await new Promise(r=>setTimeout(r,50));
 
   try {
@@ -2451,6 +2450,13 @@ async function runHL(){
 
     outBytes=await pdfLibDoc.save();
     done=true;
+    lastProcessedPdfBytes = new Uint8Array(outBytes).slice();
+    lastProcessedPdfName = processedPdfDownloadName();
+    try {
+      await window.processedPdfStore?.save(lastProcessedPdfBytes, lastProcessedPdfName);
+    } catch (storageError) {
+      console.warn('Could not persist the processed PDF for browser navigation.', storageError);
+    }
     runBtn.className='action-btn dl-btn active';
     runBtn.innerHTML='SAVE / SHARE PDF';
 
@@ -2460,7 +2466,10 @@ async function runHL(){
     previewCard.style.flexDirection = 'column';
     if (processedPdfViewerWindow && !processedPdfViewerWindow.closed) {
       pendingProcessedPdfBuffer = new Uint8Array(outBytes).slice().buffer;
+      pendingProcessedPdfName = lastProcessedPdfName;
       deliverProcessedPdfToViewer();
+    } else if (lastProcessedPdfName) {
+      document.getElementById('pdfOpenMessage').textContent = 'Tap OPEN PROCESSED PDF to view the result in a new tab.';
     } else {
       document.getElementById('pdfOpenMessage').textContent = 'Tap OPEN PROCESSED PDF to view the result in a new tab.';
     }

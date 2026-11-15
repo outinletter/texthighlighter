@@ -1,8 +1,9 @@
-const CACHE_NAME = 'notam-highlighter-v91';
+const CACHE_NAME = 'notam-highlighter-v92';
 const ASSETS = [
   './', './index.html', './manifest.webmanifest', './notamhighlighter.png',
-  './pdf-viewer.html', './js/pdf-viewer.js?v=8',
-  './css/style.css?v=82', './js/app.js?v=75', './js/pdf-engine.js?v=83',
+  './pdf-viewer.html', './pdf-viewer', './js/processed-pdf-store.js?v=1',
+  './js/pdf-viewer.js?v=9', './css/style.css?v=82',
+  './js/app.js?v=76', './js/pdf-engine.js?v=84',
   './js/flight-parser.js', './js/flight-notam.js?v=73', './js/flight-eet.js?v=73',
   './vendor/pdf.min.js', './vendor/pdf.worker.min.js', './vendor/pdf-lib.min.js'
 ];
@@ -27,13 +28,17 @@ self.addEventListener('fetch', event => {
     event.respondWith(fetch(event.request, { cache: 'no-store' }).then(response => {
       if (!response.ok) throw new Error('Navigation unavailable');
       const copy = response.clone();
-      event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put('./index.html', copy)));
+      const pathname = new URL(event.request.url).pathname;
+      const cacheKey = pathname.endsWith('/pdf-viewer') || pathname.endsWith('/pdf-viewer.html')
+        ? './pdf-viewer' : './index.html';
+      event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.put(cacheKey, copy)));
       return response;
     }).catch(async () => {
       const cache = await caches.open(CACHE_NAME);
-      const fallback = new URL(event.request.url).pathname.endsWith('/pdf-viewer.html')
-        ? './pdf-viewer.html' : './index.html';
-      return (await cache.match(fallback)) || Response.error();
+      const route = new URL(event.request.url).pathname;
+      const fallback = route.endsWith('/pdf-viewer.html') || route.endsWith('/pdf-viewer')
+        ? './pdf-viewer' : './index.html';
+      return (await cache.match(fallback)) || (fallback === './pdf-viewer' ? await cache.match('./pdf-viewer.html') : null) || Response.error();
     }));
     return;
   }

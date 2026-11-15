@@ -231,7 +231,6 @@ function loadFile(file){
   pdfBytes=null; done=false; outBytes=null; 
   detectedAirports=[]; iataAirports=[];
   extractedFileDate = ''; extractedFlightNum = ''; extractedAcReg = ''; extractedRoute = '';
-  document.getElementById('previewCard').style.display = 'none';
   document.getElementById('pdfOpenMessage').textContent = '';
   updRun();
   setStatus('processing','Loading local memory dump...');
@@ -250,10 +249,37 @@ function loadFile(file){
 
 let processedPdfViewerWindow = null;
 let pendingProcessedPdfBuffer = null;
+let pendingProcessedPdfName = '';
 let processedPdfViewerReady = false;
+let lastProcessedPdfBytes = null;
+let lastProcessedPdfName = '';
+let processedPdfRevision = 0;
+
+function getAvailableProcessedPdf() {
+  if (done && outBytes) return { bytes: outBytes, name: processedPdfDownloadName() };
+  if (lastProcessedPdfBytes) return { bytes: lastProcessedPdfBytes, name: lastProcessedPdfName };
+  return null;
+}
+
+async function restoreProcessedPdf() {
+  try {
+    const restoreRevision = processedPdfRevision;
+    const record = await window.processedPdfStore?.load();
+    if (!record?.buffer || restoreRevision !== processedPdfRevision || done) return;
+    lastProcessedPdfBytes = new Uint8Array(record.buffer);
+    lastProcessedPdfName = record.name || 'processed_highlighted.pdf';
+    const card = document.getElementById('previewCard');
+    card.style.display = 'flex';
+    card.style.flexDirection = 'column';
+    document.getElementById('pdfOpenMessage').textContent = 'Previous processed document restored.';
+  } catch (error) {
+    console.warn('Could not restore the previous processed PDF.', error);
+  }
+}
 
 function openPdfViewerWindow() {
-  processedPdfViewerWindow = window.open('./pdf-viewer.html', '_blank');
+  const cloudflarePages = location.hostname === 'texthighlighter.pages.dev' || location.hostname.endsWith('.pages.dev');
+  processedPdfViewerWindow = window.open(cloudflarePages ? './pdf-viewer' : './pdf-viewer.html', '_blank');
   processedPdfViewerReady = false;
   if (!processedPdfViewerWindow) {
     document.getElementById('pdfOpenMessage').textContent = 'Your browser blocked the new tab. Allow pop-ups for this site, then tap OPEN PROCESSED PDF.';
@@ -264,17 +290,21 @@ function openPdfViewerWindow() {
 function deliverProcessedPdfToViewer() {
   if (!pendingProcessedPdfBuffer || !processedPdfViewerReady || !processedPdfViewerWindow || processedPdfViewerWindow.closed) return;
   const buffer = pendingProcessedPdfBuffer;
+  const name = pendingProcessedPdfName;
   pendingProcessedPdfBuffer = null;
+  pendingProcessedPdfName = '';
   const targetOrigin = window.location.origin === 'null' ? '*' : window.location.origin;
-  processedPdfViewerWindow.postMessage({ type: 'load-processed-pdf', buffer, name: processedPdfDownloadName() }, targetOrigin, [buffer]);
+  processedPdfViewerWindow.postMessage({ type: 'load-processed-pdf', buffer, name }, targetOrigin, [buffer]);
   document.getElementById('pdfOpenMessage').textContent = '';
 }
 
 function openProcessedPdfInNewPage() {
-  if (!done || !outBytes) return;
+  const processed = getAvailableProcessedPdf();
+  if (!processed) return;
   if (!processedPdfViewerWindow || processedPdfViewerWindow.closed) openPdfViewerWindow();
   if (!processedPdfViewerWindow) return;
-  pendingProcessedPdfBuffer = new Uint8Array(outBytes).slice().buffer;
+  pendingProcessedPdfBuffer = processed.bytes.slice().buffer;
+  pendingProcessedPdfName = processed.name;
   document.getElementById('pdfOpenMessage').textContent = 'Opening the processed PDF in a new tab…';
   deliverProcessedPdfToViewer();
 }
@@ -283,6 +313,11 @@ function handlePdfViewerMessage(event) {
   const sameOrigin = event.origin === window.location.origin || (window.location.origin === 'null' && event.origin === 'null');
   if (!sameOrigin || !processedPdfViewerWindow || event.source !== processedPdfViewerWindow || event.data?.type !== 'pdf-viewer-ready') return;
   processedPdfViewerReady = true;
+  const processed = getAvailableProcessedPdf();
+  if (processed) {
+    pendingProcessedPdfBuffer = processed.bytes.slice().buffer;
+    pendingProcessedPdfName = processed.name;
+  }
   deliverProcessedPdfToViewer();
 }
 
@@ -297,11 +332,12 @@ function processedPdfDownloadName() {
 }
 
 function dlPDF(){
-  if(!done||!outBytes)return;
+  const processed = getAvailableProcessedPdf();
+  if (!processed) return;
   try{
-    const blob=new Blob([outBytes],{type:'application/pdf'});
+    const blob=new Blob([processed.bytes],{type:'application/pdf'});
     
-    const downloadName = processedPdfDownloadName();
+    const downloadName = processed.name;
     
     if (window.webkit?.messageHandlers?.savePDF) {
       const reader = new FileReader();
@@ -330,6 +366,7 @@ function dlPDF(){
 
 // 이벤트 리스너 바인딩 및 초기화
 document.addEventListener('DOMContentLoaded', () => {
+  restoreProcessedPdf();
   initLibraries();
   window.addEventListener('message', handlePdfViewerMessage);
   document.getElementById('openProcessedPdfButton').addEventListener('click', openProcessedPdfInNewPage);

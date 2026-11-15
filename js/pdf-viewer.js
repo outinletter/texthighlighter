@@ -9,6 +9,8 @@ let pageRenderObserver = null;
 let currentPageObserver = null;
 let sourceBuffer = null;
 let sourceFileName = 'processed_highlighted.pdf';
+let viewerLoadSequence = 0;
+let viewerReceivedPdfMessage = false;
 
 if (window.location.protocol === 'file:') {
   pdfjsLib.GlobalWorkerOptions.workerSrc = '';
@@ -25,11 +27,21 @@ function setViewerMessage(message) {
 }
 
 async function loadProcessedPdf(buffer) {
+  const loadSequence = ++viewerLoadSequence;
   try {
     setViewerMessage('Opening PDF…');
+    const nextDocument = await pdfjsLib.getDocument({ data: new Uint8Array(buffer.slice(0)) }).promise;
+    if (loadSequence !== viewerLoadSequence) {
+      await nextDocument.destroy();
+      return;
+    }
     disconnectPageObservers();
     if (viewerPdfDocument) await viewerPdfDocument.destroy();
-    viewerPdfDocument = await pdfjsLib.getDocument({ data: new Uint8Array(buffer.slice(0)) }).promise;
+    if (loadSequence !== viewerLoadSequence) {
+      await nextDocument.destroy();
+      return;
+    }
+    viewerPdfDocument = nextDocument;
     document.getElementById('pdfPageCount').textContent = viewerPdfDocument.numPages;
     document.getElementById('pdfCurrentPage').max = viewerPdfDocument.numPages;
     document.getElementById('pdfViewerFileName').textContent = sourceFileName;
@@ -383,10 +395,18 @@ function schedulePdfLayout(anchor = capturePdfPosition()) {
 window.addEventListener('message', event => {
   const sameOrigin = event.origin === window.location.origin || (window.location.origin === 'null' && event.origin === 'null');
   if (!sameOrigin || event.source !== window.opener || event.data?.type !== 'load-processed-pdf') return;
+  viewerReceivedPdfMessage = true;
   sourceBuffer = event.data.buffer;
   sourceFileName = event.data.name || 'processed_highlighted.pdf';
   loadProcessedPdf(sourceBuffer);
 });
+
+window.processedPdfStore?.load().then(record => {
+  if (record?.buffer && !viewerReceivedPdfMessage) {
+    sourceFileName = record.name || 'processed_highlighted.pdf';
+    loadProcessedPdf(record.buffer);
+  }
+}).catch(error => setViewerMessage(`Could not restore the previous PDF: ${error.message}`));
 
 document.getElementById('pdfOutlineToggle').addEventListener('click', toggleOutlinePane);
 document.getElementById('pdfPrevPage').addEventListener('click', () => scrollToPdfPage(Number(document.getElementById('pdfCurrentPage').value) - 1));
