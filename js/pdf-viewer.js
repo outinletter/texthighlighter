@@ -44,7 +44,6 @@ async function loadProcessedPdf(buffer) {
     viewerPdfDocument = nextDocument;
     document.getElementById('pdfPageCount').textContent = viewerPdfDocument.numPages;
     document.getElementById('pdfCurrentPage').max = viewerPdfDocument.numPages;
-    document.getElementById('pdfViewerFileName').textContent = sourceFileName;
     document.title = `${sourceFileName} · Text Highlighter`;
     await preparePdfPages();
     await buildBookmarkList();
