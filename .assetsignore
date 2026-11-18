@@ -11,3 +11,8 @@ wrangler.jsonc
 js/fontkit.umd.min.js
 fonts/
 mp_.mp4
+outputs/
+work/
+scripts/
+.github/
+AGENTS.md

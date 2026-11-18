@@ -4,6 +4,27 @@
 
 NOTAM HIGHLIGHTER detects important operational and weather information in flight-package PDFs, then adds highlights, bookmarks, and time or fuel badges. All processing runs locally in the browser.
 
+## iOS 네이티브 앱
+
+`ios/TextHighlighter.xcodeproj`의 `TextHighlighter` 타깃은 iOS 16 이상을 지원하는 SwiftUI/PDFKit 앱입니다. WebKit, HTML 화면, 웹 자산 복사 단계, 외부 JavaScript 라이브러리를 사용하지 않습니다. 저장된 웹 버전 소스는 독립적인 웹 배포용으로 유지됩니다.
+
+- 파일 앱에서 PDF 선택, 프리셋/사용자 키워드 설정, 네 가지 색상, 강조/밑줄 및 사용자 키워드 행 전체 강조
+- Keywords/Badge Only, 북마크 생성/보존, 섹션 및 공항 하위 북마크
+- Duty Time, DISC FUEL, DEP/DEST, Suitable From/To, FIR ENTRY, 웨이포인트 구간 시간, 날짜 변경 배지
+- NOTAM의 비적용 COMMENT 및 PACKAGE 3 EXC SKED 항목 제외, PACKAGE 3의 회색 배경 영역 제한
+- 네이티브 PDF 미리보기 및 파일 저장/공유. 원본은 수정하지 않으며 설정은 기기에 저장됩니다.
+
+웹 엔진과의 차이: PDFKit이 제공하는 텍스트를 기준으로 분석합니다. 웹 엔진의 특수 글꼴 인코딩 복원, ETP 기반 미확인 웨이포인트 시간 추정, CFP/ATS 불일치 상세 배지 및 일부 문서 형식별 추가 배지는 이식되어 있지 않습니다. 암호 잠금/편집 제한 문서는 오류로 안내하며, 스캔 페이지만 있는 문서는 처리하지 않습니다. 실제 운항 문서와의 전체 동등성 및 실기기 공유 동작은 별도 검증이 필요합니다.
+
+네이티브 엔진 회귀 검사(macOS PDFKit):
+
+```sh
+xcrun swiftc ios/TextHighlighter/PDFEngine.swift ios/TextHighlighter/PDFShading.swift tests/native-pdf-engine.swift -o /tmp/texthighlighter-native-tests
+/tmp/texthighlighter-native-tests
+```
+
+iOS 빌드는 푸시된 커밋 기준으로 `scripts/ios-build.sh [simulator|archive]`를 사용합니다. `ios/`는 `.assetsignore`로 웹 배포에서 제외됩니다.
+
 ## 주요 기능 및 사용법 / Key Features and Usage
 
 ### 1. PDF 비행 패키지 업로드 / Upload a PDF Flight Package
