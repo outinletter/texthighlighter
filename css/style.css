@@ -703,6 +703,8 @@ button, input, select, textarea { font-family: inherit; }
   cursor: col-resize;
   touch-action: none;
 }
+body.pdf-viewer-page { touch-action: manipulation; }
+.pdf-outline-pane { touch-action: pan-y; }
 .pdf-outline-resizer:hover, .pdf-outline-resizer:focus-visible { background: #5aa8e8; outline: none; }
 .pdf-outline-resizer::after {
   position: absolute;

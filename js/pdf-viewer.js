@@ -2,6 +2,7 @@ let viewerPdfDocument = null;
 let viewerScale = 1;
 let viewerFitScale = 1;
 let viewerZoomFactor = 1;
+const MIN_VIEWER_ZOOM = 0.7;
 const MAX_VIEWER_ZOOM = 1.3;
 const PINCH_ZOOM_SENSITIVITY = 0.75;
 let viewerPages = [];
@@ -231,7 +232,7 @@ function setPdfZoom(factor, anchor = null, preview = false) {
   if (!viewerPdfDocument || !viewerPages.length) return;
   const viewport = document.getElementById('pdfPageViewport');
   const position = anchor || capturePdfPosition(viewport.clientHeight / 2, viewport.clientWidth / 2);
-  viewerZoomFactor = Math.max(0.5, Math.min(MAX_VIEWER_ZOOM, factor));
+  viewerZoomFactor = Math.max(MIN_VIEWER_ZOOM, Math.min(MAX_VIEWER_ZOOM, factor));
   viewerScale = viewerFitScale * viewerZoomFactor;
   if (preview) {
     layoutPdfPages();
@@ -410,6 +411,14 @@ window.processedPdfStore?.load().then(record => {
 document.getElementById('pdfOutlineToggle').addEventListener('click', toggleOutlinePane);
 document.getElementById('pdfPrevPage').addEventListener('click', () => scrollToPdfPage(Number(document.getElementById('pdfCurrentPage').value) - 1));
 document.getElementById('pdfNextPage').addEventListener('click', () => scrollToPdfPage(Number(document.getElementById('pdfCurrentPage').value) + 1));
+// iPad Safari zooms the whole page on double-tap/pinch outside the PDF area (e.g. bookmark pane).
+document.addEventListener('dblclick', event => event.preventDefault());
+['gesturestart', 'gesturechange', 'gestureend'].forEach(type => {
+  document.addEventListener(type, event => {
+    if (!event.target.closest || !event.target.closest('#pdfPageViewport')) event.preventDefault();
+  }, { passive: false });
+});
+
 document.getElementById('pdfZoomOut').addEventListener('click', () => setPdfZoom(viewerZoomFactor / 1.2));
 document.getElementById('pdfZoomIn').addEventListener('click', () => setPdfZoom(viewerZoomFactor * 1.2));
 document.getElementById('pdfFitWidth').addEventListener('click', () => {
