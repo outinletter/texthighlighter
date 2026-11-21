@@ -10,7 +10,7 @@ NOTAM HIGHLIGHTER detects important operational and weather information in fligh
 
 - 파일 앱에서 PDF 선택, 프리셋/사용자 키워드 설정, 네 가지 색상, 강조/밑줄 및 사용자 키워드 행 전체 강조
 - Keywords/Badge Only, 북마크 생성/보존, 섹션 및 공항 하위 북마크
-- Duty Time, DISC FUEL, DEP/DEST, Suitable From/To, FIR ENTRY, 웨이포인트 구간 시간, 날짜 변경 배지
+- Rest Time, DISC FUEL, DEP/DEST, Suitable From/To, FIR ENTRY, 웨이포인트 구간 시간, 날짜 변경 배지
 - NOTAM의 비적용 COMMENT 및 PACKAGE 3 EXC SKED 항목 제외, PACKAGE 3의 회색 배경 영역 제한
 - 네이티브 PDF 미리보기 및 파일 저장/공유. 원본은 수정하지 않으며 설정은 기기에 저장됩니다.
 
@@ -81,9 +81,9 @@ On NOTAM pages, if a line contains one of the risk or restriction keywords below
 *   **자동 북마크:** CFP PLAN, COPY OF ATS FPL, DISPATCH RELEASE INFORMATION, EQUAL TIME POINT DATA, WEATHER BRIEFING 및 NOTAM 1~3 섹션을 찾아 PDF 북마크를 생성합니다.
     
     **Automatic bookmarks:** Creates PDF bookmarks for CFP PLAN, COPY OF ATS FPL, DISPATCH RELEASE INFORMATION, EQUAL TIME POINT DATA, WEATHER BRIEFING, and NOTAM 1–3.
-*   **Duty Time 계산:** CFP의 `TRIP` 시간을 분석하여 1/2 및 2/3 Duty Time 계산값을 배지로 표시합니다.
+*   **Rest Time 계산:** CFP의 `TRIP` 시간을 분석하여 1/2 및 1/3 Rest Time 계산값을 배지로 표시합니다.
     
-    **Duty Time calculation:** Reads the CFP `TRIP` time and displays the 1/2 and 2/3 duty-time calculations as badges.
+    **Rest Time calculation:** Reads the CFP `TRIP` time and displays the 1/2 and 1/3 rest-time calculations as badges.
 *   **REFILE 공항 감지:** NOTAM 2 섹션에서 REFILE 공항을 감지하여 서브 북마크를 생성합니다.
     
     **REFILE airport detection:** Detects REFILE airports in NOTAM 2 and creates sub-bookmarks.
@@ -93,7 +93,7 @@ On NOTAM pages, if a line contains one of the risk or restriction keywords below
 
 Badges are vertically centered against the preceding text and use a pale-gray background with high-contrast text.
 
-*   **CFP PLAN:** `TRIP` 기반 Duty Time 계산 결과
+*   **CFP PLAN:** `TRIP` 기반 Rest Time 계산 결과
 *   **DISPATCH RELEASE INFORMATION:** `DISPATCH NOTES` 옆의 DISC FUEL 정보
 *   **NOTAM 공항 태그:** `[DEP]`, `[DEST]` 옆의 ETD/ETA 및 `[ERA]`, `[EDTO]`, `[REFILE]` 옆의 Suitable From/To UTC
 *   **Turbulence / weather 구간:** `EXPECTED FROM [WPT1] TO [WPT2]`를 감지하면 CFP PLAN에서 각 WPT 시간을 조회하여 `04.56 ~ 05.57` 형식으로 표시합니다. 예: `FL430 EXPECTED FROM 34E60 TO 35E50` → `04.56 ~ 05.57`

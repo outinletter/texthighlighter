@@ -174,7 +174,7 @@ async function runFixture(source, options = {}) {
     assert.equal(chart.get(1).toString(), '/Fit', 'Whole-page charts should still fit the page');
   }
   const badges = calls.filter(call => call[1] === 'drawText').map(call => call[2].text);
-  assert.ok(badges.some(text => text.includes('DUTY TIME')));
+  assert.ok(badges.some(text => text.includes('REST TIME')));
   assert.ok(badges.some(text => text.includes('DISC FUEL INFO')));
   assert.ok(badges.includes('+ 5,000 lbs'));
   assert.ok(badges.includes('01.20 ~ 01.40'));

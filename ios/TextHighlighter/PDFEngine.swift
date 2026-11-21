@@ -60,9 +60,9 @@ enum FlightRules {
     static func time(_ minutes: Int) -> String { String(format: "%02d:%02d", minutes / 60, minutes % 60) }
     static func dutyBadge(_ trip: String) -> String? {
         guard let duration = minutes(trip) else { return nil }
-        if duration >= 690 { return "DUTY TIME \(time(Int((Double(duration) / 2).rounded())))" }
+        if duration >= 690 { return "REST TIME \(time(Int((Double(duration) / 2).rounded())))" }
         if duration >= 450 {
-            return "DUTY TIME \(time(Int((Double(duration) * 2 / 3).rounded()))) (\(time(Int((Double(duration) / 3).rounded()))))"
+            return "REST TIME \(time(Int((Double(duration) * 2 / 3).rounded()))) (\(time(Int((Double(duration) / 3).rounded()))))"
         }
         return nil
     }

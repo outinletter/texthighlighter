@@ -38,8 +38,8 @@ struct NativePDFEngineTests {
     static func main() throws {
         setbuf(stdout, nil)
         check(FlightRules.dutyBadge("07.29") == nil, "Duty lower boundary")
-        check(FlightRules.dutyBadge("07.30") == "DUTY TIME 05:00 (02:30)", "Duty two thirds")
-        check(FlightRules.dutyBadge("11.30") == "DUTY TIME 05:45", "Duty half boundary")
+        check(FlightRules.dutyBadge("07.30") == "REST TIME 05:00 (02:30)", "Duty two thirds")
+        check(FlightRules.dutyBadge("11.30") == "REST TIME 05:45", "Duty half boundary")
         check(FlightRules.dutyBadge("12.60") == nil, "Invalid minutes rejected")
         check(FlightRules.isWeather("-SHRA"), "Combined weather code")
         check(!FlightRules.isWeather("TRACK"), "Ordinary word not weather")
@@ -62,7 +62,7 @@ struct NativePDFEngineTests {
         let output = PDFDocument(data: result.data)!
         check(output.outlineRoot?.numberOfChildren == 2, "Section bookmarks generated")
         check(output.outlineRoot?.child(at: 1)?.numberOfChildren == 1, "Airport subbookmark")
-        check(annotations(result.data, type: "FreeText").contains { $0.contents == "DUTY TIME 05:45" }, "Duty badge survives serialization")
+        check(annotations(result.data, type: "FreeText").contains { $0.contents == "REST TIME 05:45" }, "Duty badge survives serialization")
         options.underline = true
         check(annotations(try PDFEngine.process(source, options: options).data, type: "Underline").count == 2, "Underline exports")
         options.badgesOnly = true
