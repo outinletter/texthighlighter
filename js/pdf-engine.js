@@ -1777,9 +1777,9 @@ async function runHL(){
         const formattedCalcTexts = [];
         if (totalMinutes >= 450) {
           const halfMin = Math.round(totalMinutes / 2);
-          const oneThirdMin = Math.round(totalMinutes / 3);
+          const oneThirdMin = Math.round(totalMinutes * 2 / 3);
           formattedCalcTexts.push(`DUTY TIME 1/2 ${formatTime(halfMin)}`);
-          formattedCalcTexts.push(`DUTY TIME 1/3 ${formatTime(oneThirdMin)}`);
+          formattedCalcTexts.push(`DUTY TIME 2/3 ${formatTime(oneThirdMin)}`);
         }
 
         if (formattedCalcTexts.length) {
