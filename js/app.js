@@ -358,16 +358,26 @@ function hideSavePrompt() {
   document.getElementById('savePromptModal').hidden = true;
 }
 
+function visitorId() {
+  try {
+    let id = localStorage.getItem('visitorId');
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem('visitorId', id); }
+    return id;
+  } catch (e) { return ''; }
+}
+
 function connectVisitorCount() {
   const el = document.getElementById('visitorCount');
   if (!el || !('WebSocket' in window) || !/^https?:$/.test(location.protocol)) return;
   let retry = 0;
   const open = () => {
     let socket;
-    try { socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/visitors`); } catch (e) { return; }
+    try { socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/visitors?vid=${visitorId()}`); } catch (e) { return; }
     socket.onmessage = event => {
-      const count = Number(event.data);
-      if (Number.isFinite(count) && count > 0) { el.textContent = count; el.hidden = false; retry = 0; }
+      try {
+        const { live, week } = JSON.parse(event.data);
+        if (live > 0) { el.textContent = `실시간 ${live} · 주간 ${week}`; el.hidden = false; retry = 0; }
+      } catch (e) {}
     };
     socket.onclose = () => {
       el.hidden = true;
