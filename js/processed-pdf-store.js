@@ -34,6 +34,38 @@
     });
   }
 
+  // Opens the system save dialog (file picker / share sheet) without navigating away; falls back to a download.
+  async function savePdfFile(bytes, name) {
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    try {
+      if (window.showSaveFilePicker) {
+        const handle = await window.showSaveFilePicker({ suggestedName: name, types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }] });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return 'saved';
+      }
+      const file = new File([blob], name, { type: 'application/pdf' });
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: name });
+        return 'saved';
+      }
+    } catch (error) {
+      if (error?.name === 'AbortError') return 'cancelled';
+      console.warn('Save dialog unavailable, falling back to download.', error);
+    }
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    return 'saved';
+  }
+
+  window.savePdfFile = savePdfFile;
   window.processedPdfStore = {
     save(bytes, name) {
       const buffer = bytes instanceof Uint8Array

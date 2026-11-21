@@ -403,6 +403,7 @@ window.addEventListener('message', event => {
 
 window.processedPdfStore?.load().then(record => {
   if (record?.buffer && !viewerReceivedPdfMessage) {
+    sourceBuffer = record.buffer;
     sourceFileName = record.name || 'processed_highlighted.pdf';
     loadProcessedPdf(record.buffer);
   }
@@ -494,12 +495,7 @@ document.getElementById('pdfCurrentPage').addEventListener('change', event => {
 });
 document.getElementById('pdfSaveButton').addEventListener('click', () => {
   if (!sourceBuffer) return;
-  const url = URL.createObjectURL(new Blob([sourceBuffer], { type: 'application/pdf' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = sourceFileName;
-  link.click();
-  setTimeout(() => URL.revokeObjectURL(url), 30000);
+  window.savePdfFile(sourceBuffer, sourceFileName);
 });
 installOutlineResizer();
 let resizeTimer;

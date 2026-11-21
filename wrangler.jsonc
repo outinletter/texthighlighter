@@ -9,6 +9,10 @@
   "observability": {
     "enabled": true
   },
+  "durable_objects": {
+    "bindings": [{ "name": "VISITORS", "class_name": "VisitorCounter" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VisitorCounter"] }],
   "assets": {
     "directory": ".",
     "binding": "ASSETS"

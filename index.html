@@ -8,7 +8,7 @@
   <link rel="icon" type="image/png" href="notamhighlighter.png">
   <link rel="apple-touch-icon" href="notamhighlighter.png">
   <link rel="manifest" href="manifest.webmanifest">
-  <link rel="stylesheet" href="css/style.css?v=84">
+  <link rel="stylesheet" href="css/style.css?v=85">
 </head>
 <body>
 
@@ -143,9 +143,20 @@
 
 <footer style="text-align:center;padding:24px 16px 32px;color:#475569;font-size:11.5px;border-top:1px solid #1e293b;background:#070b13;display:flex;flex-direction:column;align-items:center;gap:16px;">
   <div style="margin-top: 8px; color: #334155; font-size: 11px;">
-    © 2026 EFB Systems &nbsp;|&nbsp; <span class="footer-version"><span class="version">v1.8 (<span id="commitVersion">453382e</span>)</span></span>
+    © 2026 EFB Systems &nbsp;|&nbsp; <span class="footer-version"><span class="version">v1.8 (<span id="commitVersion">453382e</span>)</span></span><span id="visitorCount" class="visitor-count" hidden title="Live visitors" aria-label="Live visitors"></span>
   </div>
 </footer>
+
+<div class="offline-help-backdrop" id="savePromptModal" hidden>
+  <section class="offline-help-dialog save-prompt-dialog" role="dialog" aria-modal="true" aria-labelledby="savePromptTitle">
+    <h2 id="savePromptTitle">처리 완료 · Save processed PDF</h2>
+    <p id="savePromptName" class="save-prompt-name"></p>
+    <div class="processed-document-actions">
+      <button type="button" class="action-btn dl-btn active" id="savePromptSave">SAVE / SHARE PDF</button>
+      <button type="button" class="action-btn" id="savePromptClose">LATER</button>
+    </div>
+  </section>
+</div>
 
 <div class="offline-help-backdrop" id="offlineHelpModal" hidden>
   <section class="offline-help-dialog" role="dialog" aria-modal="true" aria-labelledby="offlineHelpTitle">
@@ -167,11 +178,11 @@
 <script src="js/flight-parser.js"></script>
 <script src="js/flight-notam.js?v=73"></script>
 <script src="js/flight-eet.js?v=73"></script>  
-<script src="js/processed-pdf-store.js?v=1"></script>
-<script src="js/pdf-engine.js?v=84"></script>
+<script src="js/processed-pdf-store.js?v=2"></script>
+<script src="js/pdf-engine.js?v=85"></script>
 <script src="vendor/pdf.min.js"></script>
 <script src="vendor/pdf-lib.min.js"></script>
-    <script src="js/app.js?v=76"></script>
+    <script src="js/app.js?v=77"></script>
     <script>
       (() => {
         const modal = document.getElementById('offlineHelpModal');

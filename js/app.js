@@ -43,7 +43,7 @@ async function updateCommitVersion() {
 
 function canRun(){return (sel.size>0 || bmEnabled) && pdfBytes!==null;}
 function updRun(){document.getElementById('runBtn').className='action-btn run-btn'+(canRun()?' active':'');}
-function handleBtn(){if(done)dlPDF();else {if(canRun())openPdfViewerWindow();runHL();}}
+function handleBtn(){if(done)dlPDF();else runHL();}
 
 function invalidateResult() {
   done = false;
@@ -334,35 +334,48 @@ function processedPdfDownloadName() {
 function dlPDF(){
   const processed = getAvailableProcessedPdf();
   if (!processed) return;
-  try{
-    const blob=new Blob([processed.bytes],{type:'application/pdf'});
-    
-    const downloadName = processed.name;
-    
-    if (window.webkit?.messageHandlers?.savePDF) {
-      const reader = new FileReader();
-      reader.onload = () => window.webkit.messageHandlers.savePDF.postMessage({
-        name: downloadName,
-        data: reader.result.split(',')[1]
-      });
-      reader.onerror = () => setStatus('error', 'Failed to read PDF for saving.');
-      reader.readAsDataURL(blob);
-      return;
-    }
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url;
-    a.download = downloadName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(url), 30000);
-  }catch(e){
-    setStatus('error','Failed to write PDF: '+e.message);
+  if (window.webkit?.messageHandlers?.savePDF) {
+    const reader = new FileReader();
+    reader.onload = () => window.webkit.messageHandlers.savePDF.postMessage({
+      name: processed.name,
+      data: reader.result.split(',')[1]
+    });
+    reader.onerror = () => setStatus('error', 'Failed to read PDF for saving.');
+    reader.readAsDataURL(new Blob([processed.bytes], { type: 'application/pdf' }));
+    return;
   }
+  window.savePdfFile(processed.bytes, processed.name).catch(e => setStatus('error', 'Failed to write PDF: ' + e.message));
 }
 
+function showSavePrompt() {
+  const modal = document.getElementById('savePromptModal');
+  if (!modal || !getAvailableProcessedPdf()) return;
+  document.getElementById('savePromptName').textContent = getAvailableProcessedPdf().name;
+  modal.hidden = false;
+}
 
+function hideSavePrompt() {
+  document.getElementById('savePromptModal').hidden = true;
+}
+
+function connectVisitorCount() {
+  const el = document.getElementById('visitorCount');
+  if (!el || !('WebSocket' in window) || !/^https?:$/.test(location.protocol)) return;
+  let retry = 0;
+  const open = () => {
+    let socket;
+    try { socket = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/visitors`); } catch (e) { return; }
+    socket.onmessage = event => {
+      const count = Number(event.data);
+      if (Number.isFinite(count) && count > 0) { el.textContent = count; el.hidden = false; retry = 0; }
+    };
+    socket.onclose = () => {
+      el.hidden = true;
+      if (retry < 6) setTimeout(open, Math.min(30000, 2000 * 2 ** retry++));
+    };
+  };
+  open();
+}
 
 // 이벤트 리스너 바인딩 및 초기화
 document.addEventListener('DOMContentLoaded', () => {
@@ -377,6 +390,9 @@ document.addEventListener('DOMContentLoaded', () => {
   new ResizeObserver(resizeTagBox).observe(settingsCard);
   resizeTagBox();
   updateCommitVersion();
+  connectVisitorCount();
+  document.getElementById('savePromptSave').addEventListener('click', () => { hideSavePrompt(); dlPDF(); });
+  document.getElementById('savePromptClose').addEventListener('click', hideSavePrompt);
   document.querySelectorAll('input[name="bookmarkPolicy"]').forEach(input => input.addEventListener('change', e => {
     if (!e.target.checked) return;
     bookmarkPolicy = e.target.value;

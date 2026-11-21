@@ -2473,6 +2473,7 @@ async function runHL(){
     } else {
       document.getElementById('pdfOpenMessage').textContent = 'Tap OPEN PROCESSED PDF to view the result in a new tab.';
     }
+    showSavePrompt();
 
   } catch(err) {
     if (processedPdfViewerWindow && !processedPdfViewerWindow.closed) processedPdfViewerWindow.close();
