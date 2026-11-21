@@ -47,7 +47,7 @@
       }
       const file = new File([blob], name, { type: 'application/pdf' });
       if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title: name });
+        await navigator.share({ files: [file] });
         return 'saved';
       }
     } catch (error) {
