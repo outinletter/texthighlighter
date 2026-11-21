@@ -838,10 +838,9 @@ body.pdf-viewer-page { touch-action: manipulation; }
   .pdf-viewer-page .processed-pdf-viewer { height: 100%; min-height: 0; }
 }
 
-/* Viewer: solid edge colour so iPad Safari's top-edge blur has nothing to fade into */
-html:has(body.pdf-viewer-page) { background: #101a28; }
-body.pdf-viewer-page { background: #101a28; }
-.pdf-viewer-page .pdf-document-pane, .pdf-viewer-page .pdf-outline-pane { padding-top: env(safe-area-inset-top); background: #101a28; }
+/* Viewer: lock the root so iPadOS 26 never treats the page as scrolled under its top edge (system blur) */
+html:has(body.pdf-viewer-page) { height: 100%; overflow: hidden; overscroll-behavior: none; background: #101a28; }
+body.pdf-viewer-page { position: fixed; inset: 0; width: 100%; overflow: hidden; overscroll-behavior: none; background: #101a28; }
 .visitor-count { margin-left: 6px; color: #64748b; font-variant-numeric: tabular-nums; }
 .visitor-count[hidden] { display: none; }
 .save-prompt-name { margin: 0 0 16px; color: #94a3b8; font-size: 13px; word-break: break-all; }
