@@ -197,10 +197,10 @@ const FIR_GREETINGS = {
   OE: 'Marhaba / Ma\'a salama', OM: 'Marhaba / Ma\'a salama', OO: 'Marhaba / Ma\'a salama', OY: 'Marhaba / Ma\'a salama',
   LL: 'Shalom / Shalom', LT: 'Merhaba / Hosca kalin', LC: 'Yia sou / Antio', LG: 'Yia sou / Antio', LB: 'Zdraveyte / Dovizhdane',
   LR: 'Buna ziua / La revedere', LU: 'Buna ziua / La revedere', LH: 'Jo napot / Viszontlatasra', LK: 'Dobry den / Nashledanou',
-  LZ: 'Dobry den / Dovidenia', LO: 'Gruss Gott / Auf Wiedersehen', LS: 'Gruezi / Uf Wiederluege', LI: 'Buongiorno / Arrivederci',
+  LZ: 'Dobry den / Dovidenia', LO: 'Gruss Gott / Auf Wiederhoeren', LS: 'Gruezi / Uf Wiederluege', LI: 'Buongiorno / Arrivederci',
   LD: 'Dobar dan / Dovidenja', LJ: 'Dober dan / Nasvidenje', LY: 'Dobar dan / Dovidjenja', LQ: 'Dobar dan / Dovidjenja',
   LW: 'Dobar den / Dovidenuvanje', LA: 'Pershendetje / Mirupafshim', LM: 'Bongu / Ciao', LP: 'Ola / Adeus', LE: 'Hola / Adios',
-  LF: 'Bonjour / Au revoir', LN: 'Bonjour / Au revoir', ED: 'Guten Tag / Auf Wiedersehen', ET: 'Guten Tag / Auf Wiedersehen',
+  LF: 'Bonjour / Au revoir', LN: 'Bonjour / Au revoir', ED: 'Guten Tag / Auf Wiederhoeren', ET: 'Guten Tag / Auf Wiederhoeren',
   EH: 'Goedendag / Tot ziens', EB: 'Goedendag / Tot ziens', EL: 'Moien / Addi', EK: 'Goddag / Farvel', EN: 'Hei / Ha det',
   ES: 'Hej / Hej da', EF: 'Hei / Nakemiin', EE: 'Tere / Head aega', EV: 'Sveiki / Uz redzesanos', EY: 'Labas / Viso gero',
   EP: 'Dzien dobry / Do widzenia', EG: 'Hello / Goodbye', EI: 'Dia duit / Slan', BI: 'Halo / Bless', BG: 'Aluu / Aasakkut',
@@ -214,9 +214,12 @@ const FIR_GREETINGS = {
 };
 const FIR_GREETING_REGIONS = { K: 'Hello / Goodbye', C: 'Hello / Goodbye', Y: "G'day / Goodbye", U: 'Zdravstvuyte / Do svidaniya', Z: 'Ni hao / Zaijian' };
 
+const FIR_GREETING_KO = {"Annyeonghaseyo": "안녕하세요", "Annyeonghi gaseyo": "안녕히 가세요", "Annyeonghi gyeseyo": "안녕히 계세요", "Konnichiwa": "곤니치와", "Sayonara": "사요나라", "Ni hao": "니하오", "Zaijian": "짜이찌엔", "Sain baina uu": "사인 바이노", "Bayartai": "바야르태", "Kumusta": "쿠무스타", "Paalam": "파알람", "Sawasdee": "사와디", "Laa gon": "라 껀", "Xin chao": "씬 짜오", "Tam biet": "땀 비엣", "Suostei": "쑤어스데이", "Lea hoy": "리어 허이", "Sabaidee": "사바이디", "Mingalaba": "밍글라바", "Pyan ya ding ma": "뺀 야 딩 마", "Helo": "헬로", "Selamat tinggal": "슬라맛 띵갈", "Hello": "헬로", "Goodbye": "굿바이", "Selamat datang": "슬라맛 다땅", "Halo": "할로", "Sampai jumpa": "삼파이 줌파", "Nomoshkar": "노모스카르", "Bida": "비다", "Namaste": "나마스테", "Alvida": "알비다", "Ayubowan": "아유보완", "Gihin enam": "기힌 에남", "Pheri bhetaula": "페리 베타울라", "Kuzuzangpo": "쿠주장포", "Assalaamu alaikum": "아살라무 알라이쿰", "Nuvaane": "누바네", "Assalam o alaikum": "아살람 오 알라이쿰", "Khuda hafiz": "쿠다 하피즈", "Salaam": "살람", "Salem": "살렘", "Sau bol": "사우 볼", "Salam": "살람", "Sau bolunuz": "사우 볼루누즈", "Salom": "살롬", "Xayr": "하이르", "Barev": "바레브", "Tstesutyun": "쯔테수툰", "Gamarjoba": "가마르조바", "Nakhvamdis": "나흐밤디스", "Sag ol": "사그 올", "Zdravstvuyte": "즈드라스트부이쩨", "Do svidaniya": "다 스비다니야", "Vitayu": "비타유", "Do pobachennya": "도 포바첸냐", "Khodahafez": "호다하페즈", "Marhaba": "마르하바", "Ma'a salama": "마아 살라마", "Shalom": "샬롬", "Merhaba": "메르하바", "Hosca kalin": "호슈차 칼른", "Yia sou": "야 수", "Antio": "안디오", "Zdraveyte": "즈드라베이테", "Dovizhdane": "도비즈다네", "Buna ziua": "부나 지우아", "La revedere": "라 레베데레", "Jo napot": "요 나포트", "Viszontlatasra": "비손틀라터슈러", "Dobry den": "도브리 덴", "Nashledanou": "나슬레다노우", "Dovidenia": "도비제니아", "Gruss Gott": "그루스 고트", "Auf Wiedersehen": "아우프 비더제엔", "Gruezi": "그뤼에치", "Uf Wiederluege": "우프 비더루에게", "Buongiorno": "부온조르노", "Arrivederci": "아리베데르치", "Dobar dan": "도바르 단", "Dovidenja": "도비젠야", "Dober dan": "도베르 단", "Nasvidenje": "나스비덴예", "Dovidjenja": "도비젠야", "Dobar den": "도바르 덴", "Dovidenuvanje": "도비두바네", "Pershendetje": "페르셴데티에", "Mirupafshim": "미루파프심", "Bongu": "본주", "Ciao": "차오", "Ola": "올라", "Adeus": "아데우스", "Hola": "올라", "Adios": "아디오스", "Bonjour": "봉쥐르", "Au revoir": "오 르부아르", "Guten Tag": "구텐 탁", "Goedendag": "후던닥", "Tot ziens": "토트 진스", "Moien": "모이엔", "Addi": "아디", "Goddag": "고닥", "Farvel": "파르벨", "Hei": "헤이", "Ha det": "하 데", "Hej": "헤이", "Hej da": "헤이 다", "Nakemiin": "나케미인", "Tere": "테레", "Head aega": "헤아드 아에가", "Sveiki": "스베이키", "Uz redzesanos": "우즈 레제사노스", "Labas": "라바스", "Viso gero": "비소 게로", "Dzien dobry": "젠 도브리", "Do widzenia": "도 비젠야", "Dia duit": "디아 귓", "Slan": "슬란", "Bless": "블레스", "Aluu": "알루", "Aasakkut": "아사쿳", "Aloha": "알로하", "Tchau": "차우", "Chau": "차우", "Jambo": "잠보", "Kwaheri": "콰헤리", "Selam": "셀람", "Dehna hun": "데나 훈", "Kia ora": "키아 오라", "Haere ra": "하에레 라", "Bula": "불라", "Moce": "모테", "G'day": "가데이", "Auf Wiederhoeren": "아우프 비더회렌"};
+/** [hello, goodbye] lines in the FIR country's language, each followed by its Korean pronunciation. */
 function firGreeting(firCode) {
   const code = String(firCode || '').toUpperCase();
-  return FIR_GREETINGS[code.slice(0, 2)] || FIR_GREETING_REGIONS[code.slice(0, 1)] || '';
+  const phrase = FIR_GREETINGS[code.slice(0, 2)] || FIR_GREETING_REGIONS[code.slice(0, 1)] || '';
+  return phrase ? phrase.split(' / ').map(word => FIR_GREETING_KO[word] ? `${word} (${FIR_GREETING_KO[word]})` : word) : [];
 }
 
 function firEntryTime(etdZulu, eet) {
@@ -247,11 +250,12 @@ function drawDutyTimeStyleBadge(libPage, options) {
     textColor = BADGE_STYLE.textColor,
     bgOpacity = BADGE_STYLE.bgOpacity,
     padH = BADGE_STYLE.padH,
-    padV = BADGE_STYLE.padV
+    padV = BADGE_STYLE.padV,
+    image
   } = options;
 
-  const textWidth = font.widthOfTextAtSize(text, fontSize);
-  const textHeight = font.heightAtSize(fontSize, { descender: false });
+  const textWidth = image ? image.width : font.widthOfTextAtSize(text, fontSize);
+  const textHeight = image ? image.height : font.heightAtSize(fontSize, { descender: false });
   let textBaseY = centerY === undefined ? y : centerY - textHeight / 2;
   const obstacles = badgeObstacles.get(libPage) || [];
   const box = findBadgePosition({
@@ -275,6 +279,10 @@ function drawDutyTimeStyleBadge(libPage, options) {
     opacity: bgOpacity
   });
 
+  if (image) {
+    libPage.drawImage(image.embedded, { x, y: textBaseY, width: image.width, height: image.height });
+    return;
+  }
   libPage.drawText(text, {
     x: x,
     y: textBaseY,
@@ -283,6 +291,24 @@ function drawDutyTimeStyleBadge(libPage, options) {
     color: PDFLib.rgb(...textColor),
     opacity: 1.0
   });
+}
+
+/** Standard PDF fonts lack Hangul, so lines with Korean are rendered by the browser into a PNG. */
+async function renderBadgeTextImage(pdfLibDoc, text, fontSize = BADGE_STYLE.fontSize, textColor = BADGE_STYLE.textColor) {
+  if (typeof document === 'undefined' || !/[\uAC00-\uD7A3]/.test(text)) return null;
+  try {
+    const scale = 4, canvas = document.createElement('canvas'), ctx = canvas.getContext('2d');
+    const font = `700 ${fontSize * scale}px "Apple SD Gothic Neo","Malgun Gothic","Noto Sans KR","Nanum Gothic",sans-serif`;
+    ctx.font = font;
+    const width = Math.ceil(ctx.measureText(text).width), height = Math.ceil(fontSize * 1.15 * scale);
+    canvas.width = width; canvas.height = height;
+    ctx.font = font; ctx.textBaseline = 'middle';
+    ctx.fillStyle = `rgb(${textColor.map(v => Math.round(v * 255)).join(',')})`;
+    ctx.fillText(text, 0, height / 2);
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const embedded = await pdfLibDoc.embedPng(await blob.arrayBuffer());
+    return { embedded, width: width / scale, height: height / scale };
+  } catch (err) { return null; }
 }
 
 /**
@@ -2342,7 +2368,7 @@ async function runHL(){
           const eraFir = roles.has('ERA') && etdZulu && airportName
             ? firCodeForAirport(airportMatch, Object.keys(firEetMap)) : '';
           if (eraFir) {
-            const entryLines = [`${[...roles].join('/')} ${airportName.toUpperCase()}`, `FIR ENTRY ${firEntryTime(etdZulu, firEetMap[eraFir])}`];
+            const entryLines = [`${[...roles].join('/')} ${airportName.toUpperCase()}`, `FIR ENTRY ~${firEntryTime(etdZulu, firEetMap[eraFir])}`];
             entryLines.forEach((text, index) => drawDutyTimeStyleBadge(libPage, {
               text, x: getRightAlignedBadgeX(libPage, text, boldFont),
               centerY: srcMidY - index * BADGE_STYLE.fontSize * sy * 1.2, font: boldFont
@@ -2410,9 +2436,7 @@ async function runHL(){
           const eet = firEetMap[sub.code];
           if (eet) {
             const timeValue = firEntryTime(etdZulu, eet);
-            const timeBadgeLines = ['FIR ENTRY', timeValue];
-            const greeting = firGreeting(sub.code);
-            if (greeting) timeBadgeLines.push(greeting);
+            const timeBadgeLines = [`FIR ENTRY ~${timeValue}`, ...firGreeting(sub.code)];
             const pi = sub.pageIdx;
             if (!firScaleCache[pi]) {
               const { viewport: vp } = await getPageData(pi + 1);
@@ -2426,9 +2450,12 @@ async function runHL(){
 
             for (let lineIndex = 0; lineIndex < timeBadgeLines.length; lineIndex++) {
               const lineText = timeBadgeLines[lineIndex];
+              const image = await renderBadgeTextImage(pdfLibDoc, lineText);
               drawDutyTimeStyleBadge(libPages[pi], {
                 text: lineText,
-                x: getRightAlignedBadgeX(libPages[pi], lineText, boldFont),
+                image,
+                x: image ? libPages[pi].getWidth() - BADGE_STYLE.rightMargin - BADGE_STYLE.padH - image.width
+                         : getRightAlignedBadgeX(libPages[pi], lineText, boldFont),
                 centerY: srcMidY + ((timeBadgeLines.length - 1) / 2 - lineIndex) * BADGE_STYLE.fontSize * 1.2,
                 font: boldFont
               });
@@ -2463,7 +2490,7 @@ async function runHL(){
             .sort((a, b) => b.y - a.y)[0];
           if (!titleLine) continue;
           const srcFS = Math.abs(titleLine.parts[0].item.transform[3]) || 10;
-          const text = `FIR ENTRY ${firEntryTime(etdZulu, firEetMap[owner.code])}`;
+          const text = `FIR ENTRY ~${firEntryTime(etdZulu, firEetMap[owner.code])}`;
           drawDutyTimeStyleBadge(libPage, {
             text, x: getRightAlignedBadgeX(libPage, text, boldFont),
             centerY: titleLine.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO, font: boldFont
