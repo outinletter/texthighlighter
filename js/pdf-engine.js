@@ -2485,9 +2485,12 @@ async function runHL(){
             if (key <= regionKey + 1 && key > ownerKey) { owner = sub; ownerKey = key; }
           }
           if (!owner) continue;
-          const titleLine = lines
+          // Gray bands also cover "[FIR] ..." headers and "NO CURRENT NOTAMS FOUND"; only real NOTAM items get a badge.
+          const regionLines = lines
             .filter(line => line.y * sy >= region.y && line.y * sy <= region.y + region.height)
-            .sort((a, b) => b.y - a.y)[0];
+            .sort((a, b) => b.y - a.y);
+          if (regionLines.some(line => /\[\s*FIR\s*\]|NO\s+CURRENT\s+NOTAMS/i.test(line.text))) continue;
+          const titleLine = regionLines.find(line => /\b[A-Z]\s*\d{4}\s*\/\s*\d{2}\b/.test(line.text));
           if (!titleLine) continue;
           const srcFS = Math.abs(titleLine.parts[0].item.transform[3]) || 10;
           const text = `FIR ENTRY ~${firEntryTime(etdZulu, firEetMap[owner.code])}`;

@@ -360,8 +360,11 @@ enum PDFEngine {
                         let line = lines[entry.index]
                         return line.page < pageIndex || (line.page == pageIndex && line.bounds.midY >= region.maxY - 2)
                     }
+                    let inRegion = pageLines.filter { region.insetBy(dx: -2, dy: -2).contains($0.element.bounds) }
+                    // Gray bands also cover "[FIR] ..." headers and "NO CURRENT NOTAMS FOUND"; only real NOTAM items get a badge.
+                    if inRegion.contains(where: { FlightRules.contains(#"\[\s*FIR\s*\]|NO\s+CURRENT\s+NOTAMS"#, $0.element.text) }) { continue }
                     guard let owner, let time = firTimes[owner.fir],
-                          let title = pageLines.filter({ region.insetBy(dx: -2, dy: -2).contains($0.element.bounds) })
+                          let title = inRegion.filter({ FlightRules.contains(#"\b[A-Z]\s*\d{4}\s*/\s*\d{2}\b"#, $0.element.text) })
                             .max(by: { $0.element.bounds.midY < $1.element.bounds.midY }) else { continue }
                     badge("FIR ENTRY ~" + time, title.element)
                 }
