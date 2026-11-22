@@ -19,6 +19,12 @@ final class PDFShading {
     private var cache: [ObjectIdentifier: [CGRect]] = [:]
 
     func contains(_ bounds: CGRect, on page: PDFPage) -> Bool {
+        regions(on: page).contains { region in
+            region.insetBy(dx: -2, dy: -2).contains(bounds)
+        }
+    }
+
+    func regions(on page: PDFPage) -> [CGRect] {
         let key = ObjectIdentifier(page)
         if cache[key] == nil {
             let context = ScanContext()
@@ -27,9 +33,7 @@ final class PDFShading {
             }
             cache[key] = context.regions
         }
-        return (cache[key] ?? []).contains { region in
-            region.insetBy(dx: -2, dy: -2).contains(bounds)
-        }
+        return cache[key] ?? []
     }
 
     private static func context(_ raw: UnsafeMutableRawPointer?) -> ScanContext {

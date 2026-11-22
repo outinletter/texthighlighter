@@ -176,6 +176,62 @@ function getRightAlignedBadgeX(libPage, text, font, fontSize = BADGE_STYLE.fontS
   return libPage.getWidth() - BADGE_STYLE.rightMargin - BADGE_STYLE.padH - textWidth;
 }
 
+const FIR_GREETINGS = {
+  RK: 'Annyeonghaseyo / Annyeonghi gaseyo', ZK: 'Annyeonghaseyo / Annyeonghi gyeseyo',
+  RJ: 'Konnichiwa / Sayonara', RO: 'Konnichiwa / Sayonara', RC: 'Ni hao / Zaijian', VH: 'Ni hao / Zaijian', VM: 'Ni hao / Zaijian',
+  ZB: 'Ni hao / Zaijian', ZG: 'Ni hao / Zaijian', ZH: 'Ni hao / Zaijian', ZJ: 'Ni hao / Zaijian', ZL: 'Ni hao / Zaijian',
+  ZP: 'Ni hao / Zaijian', ZS: 'Ni hao / Zaijian', ZU: 'Ni hao / Zaijian', ZW: 'Ni hao / Zaijian', ZY: 'Ni hao / Zaijian',
+  ZM: 'Sain baina uu / Bayartai', RP: 'Kumusta / Paalam', VT: 'Sawasdee / Laa gon', VV: 'Xin chao / Tam biet',
+  VD: 'Suostei / Lea hoy', VL: 'Sabaidee / Laa gon', VY: 'Mingalaba / Pyan ya ding ma', WM: 'Helo / Selamat tinggal',
+  WS: 'Hello / Goodbye', WB: 'Selamat datang / Selamat tinggal', WI: 'Halo / Sampai jumpa', WA: 'Halo / Sampai jumpa',
+  WQ: 'Halo / Sampai jumpa', WR: 'Halo / Sampai jumpa', VG: 'Nomoshkar / Bida', VE: 'Namaste / Alvida', VA: 'Namaste / Alvida',
+  VI: 'Namaste / Alvida', VO: 'Namaste / Alvida', VC: 'Ayubowan / Gihin enam', VN: 'Namaste / Pheri bhetaula',
+  VQ: 'Kuzuzangpo / Kuzuzangpo', VR: 'Assalaamu alaikum / Nuvaane', OP: 'Assalam o alaikum / Khuda hafiz', OA: 'Salaam / Khuda hafiz',
+  UA: 'Salem / Sau bol', UC: 'Salam / Sau bolunuz', UT: 'Salom / Xayr', UD: 'Barev / Tstesutyun', UG: 'Gamarjoba / Nakhvamdis',
+  UB: 'Salam / Sag ol', UM: 'Zdravstvuyte / Do svidaniya', UK: 'Vitayu / Do pobachennya',
+  UU: 'Zdravstvuyte / Do svidaniya', UL: 'Zdravstvuyte / Do svidaniya', UE: 'Zdravstvuyte / Do svidaniya', UH: 'Zdravstvuyte / Do svidaniya',
+  UI: 'Zdravstvuyte / Do svidaniya', UN: 'Zdravstvuyte / Do svidaniya', UO: 'Zdravstvuyte / Do svidaniya', UR: 'Zdravstvuyte / Do svidaniya',
+  US: 'Zdravstvuyte / Do svidaniya', UW: 'Zdravstvuyte / Do svidaniya',
+  OI: 'Salam / Khodahafez', OR: 'Marhaba / Ma\'a salama', OS: 'Marhaba / Ma\'a salama', OJ: 'Marhaba / Ma\'a salama',
+  OL: 'Marhaba / Ma\'a salama', OK: 'Marhaba / Ma\'a salama', OB: 'Marhaba / Ma\'a salama', OT: 'Marhaba / Ma\'a salama',
+  OE: 'Marhaba / Ma\'a salama', OM: 'Marhaba / Ma\'a salama', OO: 'Marhaba / Ma\'a salama', OY: 'Marhaba / Ma\'a salama',
+  LL: 'Shalom / Shalom', LT: 'Merhaba / Hosca kalin', LC: 'Yia sou / Antio', LG: 'Yia sou / Antio', LB: 'Zdraveyte / Dovizhdane',
+  LR: 'Buna ziua / La revedere', LU: 'Buna ziua / La revedere', LH: 'Jo napot / Viszontlatasra', LK: 'Dobry den / Nashledanou',
+  LZ: 'Dobry den / Dovidenia', LO: 'Gruss Gott / Auf Wiedersehen', LS: 'Gruezi / Uf Wiederluege', LI: 'Buongiorno / Arrivederci',
+  LD: 'Dobar dan / Dovidenja', LJ: 'Dober dan / Nasvidenje', LY: 'Dobar dan / Dovidjenja', LQ: 'Dobar dan / Dovidjenja',
+  LW: 'Dobar den / Dovidenuvanje', LA: 'Pershendetje / Mirupafshim', LM: 'Bongu / Ciao', LP: 'Ola / Adeus', LE: 'Hola / Adios',
+  LF: 'Bonjour / Au revoir', LN: 'Bonjour / Au revoir', ED: 'Guten Tag / Auf Wiedersehen', ET: 'Guten Tag / Auf Wiedersehen',
+  EH: 'Goedendag / Tot ziens', EB: 'Goedendag / Tot ziens', EL: 'Moien / Addi', EK: 'Goddag / Farvel', EN: 'Hei / Ha det',
+  ES: 'Hej / Hej da', EF: 'Hei / Nakemiin', EE: 'Tere / Head aega', EV: 'Sveiki / Uz redzesanos', EY: 'Labas / Viso gero',
+  EP: 'Dzien dobry / Do widzenia', EG: 'Hello / Goodbye', EI: 'Dia duit / Slan', BI: 'Halo / Bless', BG: 'Aluu / Aasakkut',
+  PH: 'Aloha / Aloha', MM: 'Hola / Adios', MP: 'Hola / Adios', MR: 'Hola / Adios', MG: 'Hola / Adios', MH: 'Hola / Adios',
+  MN: 'Hola / Adios', MS: 'Hola / Adios', MU: 'Hola / Adios', MD: 'Hola / Adios', TJ: 'Hola / Adios', MK: 'Hello / Goodbye',
+  SB: 'Ola / Tchau', SA: 'Hola / Chau', SC: 'Hola / Adios', SK: 'Hola / Adios', SE: 'Hola / Adios', SP: 'Hola / Adios',
+  SL: 'Hola / Adios', SG: 'Hola / Adios', SU: 'Hola / Adios', SV: 'Hola / Adios', HE: 'Marhaba / Ma\'a salama',
+  DA: 'Marhaba / Ma\'a salama', GM: 'Marhaba / Ma\'a salama', DT: 'Marhaba / Ma\'a salama', HL: 'Marhaba / Ma\'a salama',
+  DN: 'Hello / Goodbye', HK: 'Jambo / Kwaheri', HT: 'Jambo / Kwaheri', HU: 'Hello / Goodbye', HA: 'Selam / Dehna hun',
+  FA: 'Hello / Goodbye', GO: 'Bonjour / Au revoir', DG: 'Hello / Goodbye', NZ: 'Kia ora / Haere ra', NF: 'Bula / Moce'
+};
+const FIR_GREETING_REGIONS = { K: 'Hello / Goodbye', C: 'Hello / Goodbye', Y: "G'day / Goodbye", U: 'Zdravstvuyte / Do svidaniya', Z: 'Ni hao / Zaijian' };
+
+function firGreeting(firCode) {
+  const code = String(firCode || '').toUpperCase();
+  return FIR_GREETINGS[code.slice(0, 2)] || FIR_GREETING_REGIONS[code.slice(0, 1)] || '';
+}
+
+function firEntryTime(etdZulu, eet) {
+  let minutes = parseInt(etdZulu.slice(0, 2), 10) * 60 + parseInt(etdZulu.slice(2, 4), 10)
+    + parseInt(eet.slice(0, 2), 10) * 60 + parseInt(eet.slice(2, 4), 10);
+  minutes %= 1440;
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}Z`;
+}
+
+// An airport has no exact FIR lookup, so use the EET FIR only when its country prefix is unambiguous.
+function firCodeForAirport(airportCode, firCodes) {
+  const matches = firCodes.filter(fir => fir.slice(0, 2) === airportCode.slice(0, 2));
+  return matches.length === 1 ? matches[0] : '';
+}
+
 /**
  * 'DUTY TIME' / Accent Style Badge Drawer
  */
@@ -2283,6 +2339,17 @@ async function runHL(){
 
           const srcFS = Math.abs(line.parts[0].item.transform[3]) || 10;
           const srcMidY = line.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO;
+          const eraFir = roles.has('ERA') && etdZulu && airportName
+            ? firCodeForAirport(airportMatch, Object.keys(firEetMap)) : '';
+          if (eraFir) {
+            const entryLines = [`${[...roles].join('/')} ${airportName.toUpperCase()}`, `FIR ENTRY ${firEntryTime(etdZulu, firEetMap[eraFir])}`];
+            entryLines.forEach((text, index) => drawDutyTimeStyleBadge(libPage, {
+              text, x: getRightAlignedBadgeX(libPage, text, boldFont),
+              centerY: srcMidY - index * BADGE_STYLE.fontSize * sy * 1.2, font: boldFont
+            }));
+            totalHits++;
+            continue;
+          }
           const badgeX = getRightAlignedBadgeX(libPage, timeText, boldFont);
           drawDutyTimeStyleBadge(libPage, {
             text: timeText,
@@ -2337,25 +2404,15 @@ async function runHL(){
 
     // FIR 시간 배지 표시 (NOTAM 3)
     if (notam3SubAirports.length > 0 && etdZulu && Object.keys(firEetMap).length > 0) {
-      const addEetToEtd = (etdStr, eetStr) => {
-        const etdH = parseInt(etdStr.substring(0, 2), 10);
-        const etdM = parseInt(etdStr.substring(2, 4), 10);
-        const eetH = parseInt(eetStr.substring(0, 2), 10);
-        const eetM = parseInt(eetStr.substring(2, 4), 10);
-        let resM = etdM + eetM;
-        let resH = etdH + eetH + Math.floor(resM / 60);
-        resM %= 60;
-        resH %= 24;
-        return `${resH.toString().padStart(2, '0')}:${resM.toString().padStart(2, '0')}Z`;
-      };
-
       const firScaleCache = {};
       for (const sub of notam3SubAirports) {
         if (sub.tag === 'FIR' && sub.maxX !== undefined) {
           const eet = firEetMap[sub.code];
           if (eet) {
-            const timeValue = addEetToEtd(etdZulu, eet);
+            const timeValue = firEntryTime(etdZulu, eet);
             const timeBadgeLines = ['FIR ENTRY', timeValue];
+            const greeting = firGreeting(sub.code);
+            if (greeting) timeBadgeLines.push(greeting);
             const pi = sub.pageIdx;
             if (!firScaleCache[pi]) {
               const { viewport: vp } = await getPageData(pi + 1);
@@ -2372,7 +2429,7 @@ async function runHL(){
               drawDutyTimeStyleBadge(libPages[pi], {
                 text: lineText,
                 x: getRightAlignedBadgeX(libPages[pi], lineText, boldFont),
-                centerY: srcMidY + (0.5 - lineIndex) * BADGE_STYLE.fontSize * 1.2,
+                centerY: srcMidY + ((timeBadgeLines.length - 1) / 2 - lineIndex) * BADGE_STYLE.fontSize * 1.2,
                 font: boldFont
               });
             }
@@ -2382,6 +2439,39 @@ async function runHL(){
       }
     }
 
+
+    // 음영 NOTAM 항목 제목 줄 오른쪽에 해당 FIR 진입 시간 배지 추가
+    if (pkg3StartIdx !== -1 && etdZulu && Object.keys(firEetMap).length > 0) {
+      for (let pi = pkg3StartIdx; pi < numPages; pi++) {
+        const libPage = libPages[pi];
+        const regions = notamShadeRegions.get(libPage) || [];
+        if (!regions.length) continue;
+        const { lines, viewport: vp } = await getPageData(pi + 1);
+        const sy = libPage.getSize().height / vp.height;
+        for (const region of regions) {
+          const regionKey = pi * 1e6 - (region.y + region.height);
+          let owner = null, ownerKey = -Infinity;
+          for (const sub of notam3SubAirports) {
+            if (sub.tag !== 'FIR' || !firEetMap[sub.code]) continue;
+            const { viewport: subVp } = await getPageData(sub.pageIdx + 1);
+            const key = sub.pageIdx * 1e6 - sub.y * (libPages[sub.pageIdx].getSize().height / subVp.height);
+            if (key <= regionKey + 1 && key > ownerKey) { owner = sub; ownerKey = key; }
+          }
+          if (!owner) continue;
+          const titleLine = lines
+            .filter(line => line.y * sy >= region.y && line.y * sy <= region.y + region.height)
+            .sort((a, b) => b.y - a.y)[0];
+          if (!titleLine) continue;
+          const srcFS = Math.abs(titleLine.parts[0].item.transform[3]) || 10;
+          const text = `FIR ENTRY ${firEntryTime(etdZulu, firEetMap[owner.code])}`;
+          drawDutyTimeStyleBadge(libPage, {
+            text, x: getRightAlignedBadgeX(libPage, text, boldFont),
+            centerY: titleLine.y * sy + srcFS * sy * SOURCE_TEXT_CENTER_RATIO, font: boldFont
+          });
+          totalHits++;
+        }
+      }
+    }
 
     // =========================================================================
     // FROM [WPT1] TO [WPT2] 구문 탐색 및 주석(Badge) 추가

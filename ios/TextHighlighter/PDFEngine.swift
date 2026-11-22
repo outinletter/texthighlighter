@@ -324,12 +324,19 @@ enum PDFEngine {
                     let field = tag == "DEP" ? "ETD" : "ETA"
                     if let time = FlightRules.capture("\\b" + field + #"\s+[A-Z]{3,4}\s+(\d{4})Z"#, cfp) { badge(field + " " + time + "Z", line) }
                 }
-                if let airport = FlightRules.capture(#"\[\s*(?:ERA|EDTO|REFILE|\d+\s*%\s*ERA)\s*\]\s*([A-Z]{3,4})\b"#, line.text),
+                if line.page < notamStart, let airport = FlightRules.capture(#"\[\s*ERA\s*\]\s*([A-Z]{4})\b"#, line.text),
+                   let name = FlightRules.capture("\\b" + airport + #"\s*/\s*[A-Z]{3}\s*/\s*([^,\n]+)"#, line.text),
+                   case let matches = firTimes.keys.filter({ $0.prefix(2) == airport.prefix(2) }), matches.count == 1,
+                   let time = firTimes[matches[0]] {
+                    badge("ERA " + name.trimmingCharacters(in: .whitespaces).uppercased(), line)
+                    badge("FIR ENTRY " + time, line)
+                } else if let airport = FlightRules.capture(#"\[\s*(?:ERA|EDTO|REFILE|\d+\s*%\s*ERA)\s*\]\s*([A-Z]{3,4})\b"#, line.text),
                    let suitable = FlightRules.capture("\\b" + airport + #"\s+SUITABLE\s+FROM\s+(\d{4})\s+UTC\s*/\s*TO\s+(\d{4})\s+UTC"#, cfp),
                    let to = FlightRules.capture("\\b" + airport + #"\s+SUITABLE\s+FROM\s+\d{4}\s+UTC\s*/\s*TO\s+(\d{4})\s+UTC"#, cfp) { badge(airport + " From " + suitable + "Z To " + to + "Z", line) }
             }
             if let fir = FlightRules.capture(#"\[\s*FIR\s*\]\s*([A-Z]{3,5})\b"#, line.text), let time = firTimes[fir.uppercased()] {
                 badge("FIR ENTRY " + time, line)
+                if let greeting = FlightRules.firGreeting(fir) { badge(greeting, line) }
             }
             if line.page == sectionStarts["CFP PLAN"], FlightRules.contains(#"\bETA\b"#, line.text),
                let departureTime, let arrivalTime, let tripTime,
@@ -338,9 +345,41 @@ enum PDFEngine {
                let to = FlightRules.capture(#"EXPECTED\s+FROM\s+[A-Z0-9]{3,6}\s+TO\s+([A-Z0-9]{3,6})\b"#, line.text),
                let start = wptTimes[from.uppercased()], let end = wptTimes[to.uppercased()] { badge(start + " ~ " + end, line) }
         }
+        // Shaded NOTAM items: FIR entry time of the owning [FIR] section, on the item's title line.
+        let firLines: [(index: Int, fir: String)] = lines.enumerated().compactMap { index, line in
+            guard line.page >= thirdStart, let fir = FlightRules.capture(#"\[\s*FIR\s*\]\s*([A-Z]{3,5})\b"#, line.text),
+                  firTimes[fir.uppercased()] != nil else { return nil }
+            return (index, fir.uppercased())
+        }
+        if !firLines.isEmpty {
+            for pageIndex in thirdStart..<document.pageCount {
+                guard let page = document.page(at: pageIndex) else { continue }
+                let pageLines = lines.enumerated().filter { $0.element.page == pageIndex }
+                for region in shading.regions(on: page) {
+                    let owner = firLines.last { entry in
+                        let line = lines[entry.index]
+                        return line.page < pageIndex || (line.page == pageIndex && line.bounds.midY >= region.maxY - 2)
+                    }
+                    guard let owner, let time = firTimes[owner.fir],
+                          let title = pageLines.filter({ region.insetBy(dx: -2, dy: -2).contains($0.element.bounds) })
+                            .max(by: { $0.element.bounds.midY < $1.element.bounds.midY }) else { continue }
+                    badge("FIR ENTRY " + time, title.element)
+                }
+            }
+        }
         guard let output = document.dataRepresentation() else { throw Failure.exportFailed }
         var warnings: [String] = []
         if emptyPages > 0 { warnings.append("텍스트를 추출할 수 없는 \(emptyPages)페이지는 강조 처리를 건너뛰었습니다.") }
         return Result(data: output, markCount: markCount, badgeCount: badgeCount, warnings: warnings)
+    }
+}
+
+extension FlightRules {
+    private static let firGreetings: [String: String] = ["RK": "Annyeonghaseyo / Annyeonghi gaseyo", "ZK": "Annyeonghaseyo / Annyeonghi gyeseyo", "RJ": "Konnichiwa / Sayonara", "RO": "Konnichiwa / Sayonara", "RC": "Ni hao / Zaijian", "VH": "Ni hao / Zaijian", "VM": "Ni hao / Zaijian", "ZB": "Ni hao / Zaijian", "ZG": "Ni hao / Zaijian", "ZH": "Ni hao / Zaijian", "ZJ": "Ni hao / Zaijian", "ZL": "Ni hao / Zaijian", "ZP": "Ni hao / Zaijian", "ZS": "Ni hao / Zaijian", "ZU": "Ni hao / Zaijian", "ZW": "Ni hao / Zaijian", "ZY": "Ni hao / Zaijian", "ZM": "Sain baina uu / Bayartai", "RP": "Kumusta / Paalam", "VT": "Sawasdee / Laa gon", "VV": "Xin chao / Tam biet", "VD": "Suostei / Lea hoy", "VL": "Sabaidee / Laa gon", "VY": "Mingalaba / Pyan ya ding ma", "WM": "Helo / Selamat tinggal", "WS": "Hello / Goodbye", "WB": "Selamat datang / Selamat tinggal", "WI": "Halo / Sampai jumpa", "WA": "Halo / Sampai jumpa", "WQ": "Halo / Sampai jumpa", "WR": "Halo / Sampai jumpa", "VG": "Nomoshkar / Bida", "VE": "Namaste / Alvida", "VA": "Namaste / Alvida", "VI": "Namaste / Alvida", "VO": "Namaste / Alvida", "VC": "Ayubowan / Gihin enam", "VN": "Namaste / Pheri bhetaula", "VQ": "Kuzuzangpo / Kuzuzangpo", "VR": "Assalaamu alaikum / Nuvaane", "OP": "Assalam o alaikum / Khuda hafiz", "OA": "Salaam / Khuda hafiz", "UA": "Salem / Sau bol", "UC": "Salam / Sau bolunuz", "UT": "Salom / Xayr", "UD": "Barev / Tstesutyun", "UG": "Gamarjoba / Nakhvamdis", "UB": "Salam / Sag ol", "UM": "Zdravstvuyte / Do svidaniya", "UK": "Vitayu / Do pobachennya", "UU": "Zdravstvuyte / Do svidaniya", "UL": "Zdravstvuyte / Do svidaniya", "UE": "Zdravstvuyte / Do svidaniya", "UH": "Zdravstvuyte / Do svidaniya", "UI": "Zdravstvuyte / Do svidaniya", "UN": "Zdravstvuyte / Do svidaniya", "UO": "Zdravstvuyte / Do svidaniya", "UR": "Zdravstvuyte / Do svidaniya", "US": "Zdravstvuyte / Do svidaniya", "UW": "Zdravstvuyte / Do svidaniya", "OI": "Salam / Khodahafez", "OR": "Marhaba / Ma'a salama", "OS": "Marhaba / Ma'a salama", "OJ": "Marhaba / Ma'a salama", "OL": "Marhaba / Ma'a salama", "OK": "Marhaba / Ma'a salama", "OB": "Marhaba / Ma'a salama", "OT": "Marhaba / Ma'a salama", "OE": "Marhaba / Ma'a salama", "OM": "Marhaba / Ma'a salama", "OO": "Marhaba / Ma'a salama", "OY": "Marhaba / Ma'a salama", "LL": "Shalom / Shalom", "LT": "Merhaba / Hosca kalin", "LC": "Yia sou / Antio", "LG": "Yia sou / Antio", "LB": "Zdraveyte / Dovizhdane", "LR": "Buna ziua / La revedere", "LU": "Buna ziua / La revedere", "LH": "Jo napot / Viszontlatasra", "LK": "Dobry den / Nashledanou", "LZ": "Dobry den / Dovidenia", "LO": "Gruss Gott / Auf Wiedersehen", "LS": "Gruezi / Uf Wiederluege", "LI": "Buongiorno / Arrivederci", "LD": "Dobar dan / Dovidenja", "LJ": "Dober dan / Nasvidenje", "LY": "Dobar dan / Dovidjenja", "LQ": "Dobar dan / Dovidjenja", "LW": "Dobar den / Dovidenuvanje", "LA": "Pershendetje / Mirupafshim", "LM": "Bongu / Ciao", "LP": "Ola / Adeus", "LE": "Hola / Adios", "LF": "Bonjour / Au revoir", "LN": "Bonjour / Au revoir", "ED": "Guten Tag / Auf Wiedersehen", "ET": "Guten Tag / Auf Wiedersehen", "EH": "Goedendag / Tot ziens", "EB": "Goedendag / Tot ziens", "EL": "Moien / Addi", "EK": "Goddag / Farvel", "EN": "Hei / Ha det", "ES": "Hej / Hej da", "EF": "Hei / Nakemiin", "EE": "Tere / Head aega", "EV": "Sveiki / Uz redzesanos", "EY": "Labas / Viso gero", "EP": "Dzien dobry / Do widzenia", "EG": "Hello / Goodbye", "EI": "Dia duit / Slan", "BI": "Halo / Bless", "BG": "Aluu / Aasakkut", "PH": "Aloha / Aloha", "MM": "Hola / Adios", "MP": "Hola / Adios", "MR": "Hola / Adios", "MG": "Hola / Adios", "MH": "Hola / Adios", "MN": "Hola / Adios", "MS": "Hola / Adios", "MU": "Hola / Adios", "MD": "Hola / Adios", "TJ": "Hola / Adios", "MK": "Hello / Goodbye", "SB": "Ola / Tchau", "SA": "Hola / Chau", "SC": "Hola / Adios", "SK": "Hola / Adios", "SE": "Hola / Adios", "SP": "Hola / Adios", "SL": "Hola / Adios", "SG": "Hola / Adios", "SU": "Hola / Adios", "SV": "Hola / Adios", "HE": "Marhaba / Ma'a salama", "DA": "Marhaba / Ma'a salama", "GM": "Marhaba / Ma'a salama", "DT": "Marhaba / Ma'a salama", "HL": "Marhaba / Ma'a salama", "DN": "Hello / Goodbye", "HK": "Jambo / Kwaheri", "HT": "Jambo / Kwaheri", "HU": "Hello / Goodbye", "HA": "Selam / Dehna hun", "FA": "Hello / Goodbye", "GO": "Bonjour / Au revoir", "DG": "Hello / Goodbye", "NZ": "Kia ora / Haere ra", "NF": "Bula / Moce"]
+    private static let firGreetingRegions: [String: String] = ["K": "Hello / Goodbye", "C": "Hello / Goodbye", "Y": "G'day / Goodbye", "U": "Zdravstvuyte / Do svidaniya", "Z": "Ni hao / Zaijian"]
+    /// Local-language "hello / goodbye" (romanized) for the FIR's country, matched by ICAO prefix.
+    static func firGreeting(_ fir: String) -> String? {
+        let code = fir.uppercased()
+        return firGreetings[String(code.prefix(2))] ?? firGreetingRegions[String(code.prefix(1))]
     }
 }
