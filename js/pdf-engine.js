@@ -1734,12 +1734,30 @@ async function runHL(){
       const allRqrdMatches = [];
       const rqrdRegex = /\bRQRD\s+(\d{3,5})\s+\d{2}\.\d{2}/gi;
       let rqrdMatch;
-      while ((rqrdMatch = rqrdRegex.exec(refilePageText)) !== null) {
-        allRqrdMatches.push({
-          match: rqrdMatch[0],
-          value: parseInt(rqrdMatch[1], 10) * 100,
-          index: rqrdMatch.index
-        });
+      // RQRD 표가 REFILE POINT 연료 줄과 다른(앞) 페이지로 분리될 수 있으므로,
+      // 현재 페이지에 없으면 앞 페이지(최대 2장)에서 찾고 배지도 그 페이지에 그린다.
+      for (let back = 0; back <= 2 && refilePageIdx - back >= 0; back++) {
+        let searchText = refilePageText;
+        if (back > 0) {
+          const pi = refilePageIdx - back;
+          const { content: bContent, offset: bOffset, text: bText, viewport: bVp } = await getPageData(pi + 1);
+          if (!/\bRQRD\s+\d{3,5}\s+\d{2}\.\d{2}/i.test(bText)) continue;
+          searchText = bText;
+          refilePageText = bText;
+          refilePageOffset = bOffset;
+          refilePageContent = bContent;
+          refileLibPage = libPages[pi];
+          refileSy = refileLibPage.getHeight() / bVp.height;
+        }
+        rqrdRegex.lastIndex = 0;
+        while ((rqrdMatch = rqrdRegex.exec(searchText)) !== null) {
+          allRqrdMatches.push({
+            match: rqrdMatch[0],
+            value: parseInt(rqrdMatch[1], 10) * 100,
+            index: rqrdMatch.index
+          });
+        }
+        if (allRqrdMatches.length) break;
       }
       console.log('[FUEL BADGE DEBUG] 모든 RQRD 매치:', allRqrdMatches);
 
